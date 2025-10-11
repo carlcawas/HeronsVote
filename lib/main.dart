@@ -4,14 +4,8 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-
-  // Keep splash screen visible while we load resources
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-
-  // Simulate initialization (e.g., loading assets, Firebase, etc.)
   await Future.delayed(const Duration(seconds: 1));
-
-  // Remove the native splash *after* initialization is done
   FlutterNativeSplash.remove();
 
   runApp(const MyApp());
