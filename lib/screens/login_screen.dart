@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'registration_step1.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -158,41 +160,23 @@ class _LoginScreenState extends State<LoginScreen>
                 padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50
                 ),
                 child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      PageRouteBuilder(
-                        transitionDuration: const Duration(milliseconds: 700),
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const RegistrationStep1(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              final offsetAnimation =
-                                  Tween<Offset>(
-                                    begin: const Offset(0, 0.1),
-                                    end: Offset.zero,
-                                  ).animate(
-                                    CurvedAnimation(
-                                      parent: animation,
-                                      curve: Curves.easeOutCubic,
-                                    ),
-                                  );
+                  onTap: () async{
+                      final UserCredential = await login();
 
-                              final fadeAnimation = CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeInOut,
-                              );
+                      if (UserCredential != null){
+                        final user = UserCredential.user;
+                        final email = user?.email;
 
-                              return FadeTransition(
-                                opacity: fadeAnimation,
-                                child: SlideTransition(
-                                  position: offsetAnimation,
-                                  child: child,
-                                ),
-                              );
-                            },
-                      ),
-                    );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Attempting to log in $email"),
+                          duration: Duration(seconds: 3),
+                        ));
+                        
+                        await Future.delayed(const Duration(milliseconds: 800));
+                        
+                        Navigator.push(context, MaterialPageRoute(builder: (_)=> RegistrationStep1()));
+                      }
                   },
                   child: Container(
                     height: 61,
@@ -228,5 +212,23 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       ),
     );
+  }
+
+  Future<UserCredential?> login() async{
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null){
+        return null;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(accessToken: googleAuth.accessToken, idToken: googleAuth.idToken);
+
+      return await FirebaseAuth.instance.signInWithCredential(credential);
+
+    } catch(e){
+      return null;
+    }
   }
 }
