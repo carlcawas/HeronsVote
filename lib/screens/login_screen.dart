@@ -8,7 +8,8 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   late final AnimationController _logoController;
   late final Animation<Offset> _logoSlide;
 
@@ -29,12 +30,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       duration: const Duration(milliseconds: 800),
     );
     _logoSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3), 
-      end: Offset.zero,            
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
     ).animate(CurvedAnimation(parent: _logoController, curve: Curves.easeOut));
     _logoController.forward();
 
-   
     _textController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -53,10 +53,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _bottomSlide = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _bottomController, curve: Curves.easeOut));
+    _bottomSlide = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _bottomController, curve: Curves.easeOut),
+        );
     Future.delayed(const Duration(milliseconds: 500), () {
       _bottomController.forward();
     });
@@ -73,13 +73,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       backgroundColor: const Color(0xFFF9F2D7),
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 90),
+                padding: const EdgeInsets.only(top: 120),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -90,23 +92,50 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         child: SizedBox(
                           width: 230,
                           child: Image.asset(
+                            alignment: Alignment.bottomCenter,
                             'assets/HeronVoteLogo.png',
                             fit: BoxFit.contain,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
                     SlideTransition(
                       position: _textSlide,
                       child: FadeTransition(
                         opacity: _textFade,
-                        child: const Text(
-                          'HeronsVote',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF273E58),
+                        child: Center(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: "H",
+                                  style: TextStyle(
+                                    color: const Color(0xFF414141),
+                                    fontSize: 32,
+                                    fontFamily: 'Geist',
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: "erons",
+                                  style: TextStyle(
+                                    color: const Color(0xFF414141),
+                                    fontSize: 32,
+                                    fontFamily: 'Geist',
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: "Vote",
+                                  style: TextStyle(
+                                    color: const Color(0xFF414141),
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Geist',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ),
@@ -126,18 +155,47 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     topRight: Radius.circular(40),
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50
+                ),
                 child: GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const RegistrationStep1(),
+                      PageRouteBuilder(
+                        transitionDuration: const Duration(milliseconds: 700),
+                        pageBuilder: (context, animation, secondaryAnimation) =>
+                            const RegistrationStep1(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              final offsetAnimation =
+                                  Tween<Offset>(
+                                    begin: const Offset(0, 0.1),
+                                    end: Offset.zero,
+                                  ).animate(
+                                    CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeOutCubic,
+                                    ),
+                                  );
+
+                              final fadeAnimation = CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeInOut,
+                              );
+
+                              return FadeTransition(
+                                opacity: fadeAnimation,
+                                child: SlideTransition(
+                                  position: offsetAnimation,
+                                  child: child,
+                                ),
+                              );
+                            },
                       ),
                     );
                   },
                   child: Container(
-                    height: 60,
+                    height: 61,
                     decoration: BoxDecoration(
                       color: const Color(0xFF5C6AA0),
                       borderRadius: BorderRadius.circular(40),
@@ -157,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                             color: Colors.white,
                             fontSize: 16,
                             fontFamily: 'Geist',
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
