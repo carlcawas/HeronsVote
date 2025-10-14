@@ -1,3 +1,20 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+val keystorePropertiesFile = rootProject.file("android/key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
+
+fun prop(key: String): String? = keystoreProperties.getProperty(key)
+
+fun storeFileExists(): Boolean {
+    val sf = prop("storeFile")
+    return sf != null && sf.isNotBlank() && rootProject.file(sf).exists()
+}
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
@@ -20,21 +37,59 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.heronsvote"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("sharedDebug") {
+            val storeFileProp = prop("storeFile")
+            if (storeFileProp != null && storeFileProp.isNotBlank()) {
+                val resolved = rootProject.file(storeFileProp)
+                if (resolved.exists()) {
+                    storeFile = resolved
+                }
+            }
+            storePassword = prop("storePassword") ?: ""
+            keyAlias = prop("keyAlias") ?: ""
+            keyPassword = prop("keyPassword") ?: ""
+        }
+
+        create("sharedRelease") {
+            val storeFileProp = prop("storeFile")
+            if (storeFileProp != null && storeFileProp.isNotBlank()) {
+                val resolved = rootProject.file(storeFileProp)
+                if (resolved.exists()) {
+                    storeFile = resolved
+                }
+            }
+            storePassword = prop("storePassword") ?: ""
+            keyAlias = prop("keyAlias") ?: ""
+            keyPassword = prop("keyPassword") ?: ""
+        }
+    }
+
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+        getByName("debug") {
+            if (storeFileExists()) {
+                signingConfig = signingConfigs.getByName("sharedDebug")
+            } // else keep default debug signing
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+
+        getByName("release") {
+            if (storeFileExists()) {
+                signingConfig = signingConfigs.getByName("sharedRelease")
+            } else {
+                // no signing configured for release — useful for quick builds during dev
+                // If you need a signed release for Play Store, make sure key.properties and keystore are present.
+            }
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

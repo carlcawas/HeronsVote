@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "510958334373-slrulgifk8bm2lg4gnvqhd8kj05lg7h1.apps.googleusercontent.com",
+          "client_id": "510958334373-b46v7hea7es20jpvjl1u9jl4jtkrs7tm.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.heronsvote",
-            "certificate_hash": "9d32ea0a238434bce522bcb55dba275c2177fe59"
+            "certificate_hash": "382d108e16e6f3c402df5c4912badc7b43882d83"
           }
         },
         {
