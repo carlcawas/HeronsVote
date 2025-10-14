@@ -10,6 +10,39 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+// ========================= For Google Sign in
+final GoogleSignIn _googleSignIn = GoogleSignIn();
+
+Future<UserCredential?> login({bool forceAccountSelection = false}) async {
+  try {
+    if (forceAccountSelection) {
+      await FirebaseAuth.instance.signOut();
+
+      try {
+        await _googleSignIn.disconnect();
+      } catch (e) {
+        await _googleSignIn.signOut();
+      }
+    }
+
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    return await FirebaseAuth.instance.signInWithCredential(credential);
+  } catch (e, st) {
+    debugPrint('Google sign-in error: $e\n$st');
+    return null;
+  }
+}
+
+// ================================================== 
+
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
   late final AnimationController _logoController;
@@ -71,6 +104,8 @@ class _LoginScreenState extends State<LoginScreen>
     _bottomController.dispose();
     super.dispose();
   }
+
+  bool _isSigningIn = false; 
 
   @override
   Widget build(BuildContext context) {
@@ -161,22 +196,70 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 child: GestureDetector(
                   onTap: () async{
-                      final UserCredential = await login();
+                    if (_isSigningIn) return; 
+                    setState(() => _isSigningIn = true);
 
-                      if (UserCredential != null){
-                        final user = UserCredential.user;
-                        final email = user?.email;
+                    try {
+                      final userCred = await login(forceAccountSelection: true);
+
+                      if (!mounted) return;
+
+                      if (userCred == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Google sign-in failed: No user found.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final user = userCred.user;
+                      final email = user?.email ?? '';
+                      
+                      if (!email.toLowerCase().endsWith('@umak.edu.ph')) {
+                        await FirebaseAuth.instance.signOut();
+                        await _googleSignIn.signOut();
+
+                        if (!mounted) return;
 
                         ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Attempting to log in $email"),
-                          duration: Duration(seconds: 3),
-                        ));
-                        
-                        await Future.delayed(const Duration(milliseconds: 800));
-                        
-                        Navigator.push(context, MaterialPageRoute(builder: (_)=> RegistrationStep1()));
+                          const SnackBar(
+                            content: Text('Google sign-in failed: Please use your UMak Account.'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                        return;
                       }
+
+                      if (!mounted) return;
+            
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Signed in as $email'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+
+                      await Future.delayed(const Duration(milliseconds: 500));
+                      if (!mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => RegistrationStep1()),
+                      );
+                      
+                    } catch (e, st) {
+                      debugPrint('Sign-in handler error: $e\n$st');
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('An error occurred during sign-in.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    } finally {
+                      if (mounted) setState(() => _isSigningIn = false);
+                    }
                   },
                   child: Container(
                     height: 61,
@@ -212,23 +295,5 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       ),
     );
-  }
-
-  Future<UserCredential?> login() async{
-    try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-
-      if (googleUser == null){
-        return null;
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(accessToken: googleAuth.accessToken, idToken: googleAuth.idToken);
-
-      return await FirebaseAuth.instance.signInWithCredential(credential);
-
-    } catch(e){
-      return null;
-    }
   }
 }
