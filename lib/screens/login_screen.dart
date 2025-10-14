@@ -17,10 +17,9 @@ Future<UserCredential?> login({bool forceAccountSelection = false}) async {
   try {
     if (forceAccountSelection) {
       await FirebaseAuth.instance.signOut();
-
       try {
         await _googleSignIn.disconnect();
-      } catch (e) {
+      } catch (_) {
         await _googleSignIn.signOut();
       }
     }
@@ -28,16 +27,19 @@ Future<UserCredential?> login({bool forceAccountSelection = false}) async {
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return null;
 
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
+    
+    final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+    debugPrint('Signed in: ${userCred.user?.email}');
+    return userCred;
 
-    return await FirebaseAuth.instance.signInWithCredential(credential);
   } catch (e, st) {
-    debugPrint('Google sign-in error: $e\n$st');
-    return null;
+    debugPrint('login() error: $e\n$st');
+    rethrow;
   }
 }
 
