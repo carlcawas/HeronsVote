@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:heronsvote/home/home.dart';
 
 class RegistrationVerified extends StatefulWidget {
   const RegistrationVerified({super.key});
@@ -160,7 +161,26 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                     ),
                     const SizedBox(height: 40),
                     GestureDetector(
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          PageRouteBuilder(
+                            transitionDuration: const Duration(milliseconds: 0),
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    const HomeScreen(),
+                            transitionsBuilder:
+                                (
+                                  context,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) {
+                                  return child;
+                                },
+                          ),
+                        );
+                      },
                       child: Container(
                         height: 60,
                         decoration: BoxDecoration(

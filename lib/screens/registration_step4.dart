@@ -138,6 +138,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       extendBody: true,
       backgroundColor: const Color(0xFFF6EFD2),
       appBar: AppBar(
