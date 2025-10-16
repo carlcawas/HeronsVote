@@ -11,22 +11,21 @@ app.use(bodyParser.json());
 // 🩺 Health check
 app.get('/', (req, res) => res.send('✅ HeronsVote TOTP backend online'));
 
-// 🧩 Generate TOTP secret + QR
 app.get('/generate', async (req, res) => {
   try {
-    const label = 'user@heronsvote'; // You can make this dynamic per user
+    const label = 'user@heronsvote'; // dynamic in production
     const issuer = 'HeronsVote App';
 
-    // ✅ Explicitly set encoding and secret length for Authenticator compatibility
+    //Generate secret in ASCII form
     const secret = speakeasy.generateSecret({
+      length: 20,
       name: `${issuer}:${label}`,
       issuer: issuer,
-      length: 20, // standard RFC length
     });
 
-    // ✅ Construct proper otpauth URL
+    // Construct URL using speakeasy helper (prevents encoding mismatch)
     const otpauthUrl = speakeasy.otpauthURL({
-      secret: secret.ascii,
+      secret: secret.ascii,  // critical change
       label: `${issuer}:${label}`,
       issuer: issuer,
       encoding: 'ascii',
@@ -35,11 +34,10 @@ app.get('/generate', async (req, res) => {
       period: 30,
     });
 
-    // ✅ Generate QR code
     const qr = await QRCode.toDataURL(otpauthUrl, { width: 300 });
 
-    console.log('✅ Generated TOTP Secret:', secret.base32);
-    console.log('OTPAuth URL:', otpauthUrl);
+    console.log('✅ Generated Secret:', secret.base32);
+    console.log('✅ OTPAuth URL:', otpauthUrl);
 
     res.json({
       secret: secret.base32,
