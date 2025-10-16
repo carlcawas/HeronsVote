@@ -80,7 +80,7 @@ app.post('/verify', (req, res) => {
     secret,
     encoding: 'base32',
     token,
-    window: 1, // Allows tokens one time step before or after (30 sec tolerance)
+    window: 2, // Allows tokens one time step before or after (30 sec tolerance)
   });
 
   console.log(`🔍 Verifying token=${token} | verified=${verified}`);
