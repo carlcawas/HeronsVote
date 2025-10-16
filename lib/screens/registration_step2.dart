@@ -239,6 +239,67 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
+                    // DEBUG: Test current code generation
+                    ElevatedButton(
+                      onPressed: () async {
+                        final nowMillis = await _utcMillis();
+                        final nowSeconds = (nowMillis / 1000).floor();
+                        final testCode = OTP.generateTOTPCodeString(
+                          _normalizeSecret(secret),
+                          nowSeconds,
+                          interval: 30,
+                          length: 6,
+                          algorithm: Algorithm.SHA1,
+                        );
+                        debugPrint(
+                          '🧪 TEST: Current code should be: $testCode',
+                        );
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Expected Code'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    testCode,
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'This should match the code in your Google Authenticator app RIGHT NOW.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Secret: ${secret.substring(0, 8)}...',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'monospace',
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('Show Expected Code Now'),
+                    ),
                   ],
                 ),
               ),
