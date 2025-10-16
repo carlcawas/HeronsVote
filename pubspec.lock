@@ -653,14 +653,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.10.1"
-  totp_authenticator:
-    dependency: "direct main"
-    description:
-      name: totp_authenticator
-      sha256: b8ec23bcd7fc549dd144d7161367cb08f0a3f8f805cc1462a68963850c3f2f60
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.1"
   typed_data:
     dependency: transitive
     description:
