@@ -168,8 +168,9 @@ class _RegistrationStep2State extends State<RegistrationStep2>
     try {
       // Call your backend to get a unique secret and QR per user
       final res = await http.get(
-        Uri.parse('http://192.168.254.103:3000/generate'),
-      ); // replace with your local IP
+        Uri.parse('https://heronsvote-totp.onrender.com/generate'),
+      );
+
       if (res.statusCode != 200) throw Exception('Backend error');
       final data = jsonDecode(res.body);
       final secret = data['secret'] as String;

@@ -63,7 +63,8 @@ app.post('/verify', (req, res) => {
     secret,
     encoding: 'base32',
     token,
-    window: 1, // allow ±30s drift
+    window: 1,
+    step: 30, // allow ±30s drift
   });
 
   console.log(`🔍 Verify token=${token}, verified=${verified}`);
