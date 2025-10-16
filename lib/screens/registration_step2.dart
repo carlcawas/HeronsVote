@@ -38,6 +38,8 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   bool _forceSecretReset = false;
 
   String _enteredCode = '';
+  // FIX 1: New state variable to track validation failure for UI feedback
+  bool _isCodeInvalid = false;
 
   @override
   void initState() {
@@ -85,11 +87,12 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   }
 
   String _normalizeSecret(String raw) {
-    return raw.replaceAll(' ', '').toUpperCase(); //keep '='
+    return raw.replaceAll(' ', '').toUpperCase();
   }
 
   Future<int> _utcMillis() async {
     try {
+      // NOTE: Using 'time.google.com' for NTP is good for high time accuracy
       final offset = await NTP.getNtpOffset(lookUpAddress: 'time.google.com');
       final nowUtcMilliseconds =
           DateTime.now().toUtc().millisecondsSinceEpoch + offset;
@@ -101,72 +104,71 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   }
 
   Future<int> _verifyTotpAndGetWindow({
-  required String secret,
-  required String code,
-  int interval = 30,
-  int length = 6,
-  int window = 1,
-  int? lastVerifiedWindow,
-}) async {
-  // Ensure the secret is properly formatted for Base32
-  final normalized = _normalizeSecret(secret);
+    required String secret,
+    required String code,
+    int interval = 30,
+    int length = 6,
+    int window = 1,
+    int? lastVerifiedWindow,
+  }) async {
+    // Ensure the secret is properly formatted for Base32
+    final normalized = _normalizeSecret(secret);
 
-  // Use NTP (fallback to device clock)
-  final nowMillis = await _utcMillis();
-  final nowSeconds = (nowMillis / 1000).floor();
+    // Use NTP (fallback to device clock)
+    final nowMillis = await _utcMillis();
+    final nowSeconds = (nowMillis / 1000).floor();
 
-  // Directly use timestamp — let package handle counter math
-  final expectedCode = OTP.generateTOTPCodeString(
-    normalized,
-    nowSeconds,
-    interval: interval,
-    length: length,
-    algorithm: Algorithm.SHA1,
-  );
-
-  debugPrint(
-    'DEBUG: nowSeconds=$nowSeconds | expectedCode=$expectedCode | input=$code',
-  );
-
-  // Try the current, previous, and next window for drift tolerance
-  for (int drift = -window; drift <= window; drift++) {
-    final driftedTime = nowSeconds + (drift * interval);
-
-    // Skip already verified windows to prevent code reuse
-    if (lastVerifiedWindow != null &&
-        driftedTime ~/ interval <= lastVerifiedWindow) {
-      continue;
-    }
-
-    final candidateCode = OTP.generateTOTPCodeString(
+    // Directly use timestamp — let package handle counter math
+    final expectedCode = OTP.generateTOTPCodeString(
       normalized,
-      driftedTime,
+      nowSeconds,
       interval: interval,
       length: length,
       algorithm: Algorithm.SHA1,
     );
 
     debugPrint(
-      'DEBUG drift=$drift | driftedTime=$driftedTime | candidateCode=$candidateCode',
+      'DEBUG: nowSeconds=$nowSeconds | expectedCode=$expectedCode | input=$code',
     );
 
-    if (candidateCode == code) {
-      // Success: return the time window (counter)
-      return driftedTime ~/ interval;
+    // Try the current, previous, and next window for drift tolerance
+    for (int drift = -window; drift <= window; drift++) {
+      final driftedTime = nowSeconds + (drift * interval);
+
+      // Skip already verified windows to prevent code reuse
+      if (lastVerifiedWindow != null &&
+          driftedTime ~/ interval <= lastVerifiedWindow) {
+        continue;
+      }
+
+      final candidateCode = OTP.generateTOTPCodeString(
+        normalized,
+        driftedTime,
+        interval: interval,
+        length: length,
+        algorithm: Algorithm.SHA1,
+      );
+
+      debugPrint(
+        'DEBUG drift=$drift | driftedTime=$driftedTime | candidateCode=$candidateCode',
+      );
+
+      if (candidateCode == code) {
+        // Success: return the time window (counter)
+        return driftedTime ~/ interval;
+      }
     }
+
+    // No match
+    return -1;
   }
-
-  // No match
-  return -1;
-}
-
 
   Future<void> _prepareTotpAndShowDialog() async {
     if (_isGenerating) return;
     _isGenerating = true;
 
     try {
-      // Call your backend to get a unique secret and QR per user
+      // Call your backend to get a unique secret
       final res = await http.get(
         Uri.parse('https://heronsvote-totp.onrender.com/generate'),
       );
@@ -174,7 +176,13 @@ class _RegistrationStep2State extends State<RegistrationStep2>
       if (res.statusCode != 200) throw Exception('Backend error');
       final data = jsonDecode(res.body);
       final secret = data['secret'] as String;
-      final qrDataUrl = data['qr'] as String;
+
+      // Generate the otpauth URL yourself to ensure consistency
+      final userEmail =
+          FirebaseAuth.instance.currentUser?.email ?? 'user@umak.edu.ph';
+      final issuer = 'UMak HeronVote';
+      final otpauthUrl =
+          'otpauth://totp/$issuer:$userEmail?secret=$secret&issuer=$issuer';
 
       // Save to Firestore for this specific user
       await FirebaseFirestore.instance.collection('users').doc(widget.uid).set({
@@ -184,10 +192,10 @@ class _RegistrationStep2State extends State<RegistrationStep2>
       if (!mounted) return;
       setState(() {
         _totpSecret = secret;
-        _otpauthUrl = qrDataUrl; // we’ll use this for displaying the QR
+        _otpauthUrl = otpauthUrl;
       });
 
-      // Show the QR dialog
+      // Show the QR dialog with QR generated in Flutter
       if (!_dialogShown) {
         _dialogShown = true;
         await showDialog(
@@ -196,20 +204,43 @@ class _RegistrationStep2State extends State<RegistrationStep2>
           builder: (context) {
             return AlertDialog(
               title: const Text('Authenticator Setup'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Scan this QR code using Google Authenticator:'),
-                  const SizedBox(height: 10),
-                  Image.memory(
-                    base64Decode(qrDataUrl.split(',').last),
-                    width: 180,
-                    height: 180,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('Or manually enter this key:'),
-                  SelectableText(secret),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Scan this QR code using Google Authenticator:'),
+                    const SizedBox(height: 10),
+                    // Wrap QR code in a Container with fixed constraints
+                    Container(
+                      width: 200,
+                      height: 200,
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(10),
+                      child: QrImageView(
+                        data: otpauthUrl,
+                        version: QrVersions.auto,
+                        size: 180,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text('Or manually enter this key:'),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: SelectableText(
+                        secret,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -231,6 +262,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
       }
     } finally {
       _isGenerating = false;
+      _forceSecretReset = false;
     }
   }
 
@@ -253,7 +285,9 @@ class _RegistrationStep2State extends State<RegistrationStep2>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-            const Center(child: StepProgressIndicator(currentStep: 1)),
+            const Center(
+              child: StepProgressIndicator(currentStep: 2),
+            ), // FIX: Corrected step to 2
             const SizedBox(height: 10),
             Expanded(
               child: SlideTransition(
@@ -334,15 +368,37 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                               activeFillColor: const Color(0xFFDFE3F0),
                               inactiveFillColor: const Color(0xFFDFE3F0),
                               selectedFillColor: const Color(0xFFDFE3F0),
+                              // FIX 2: Highlight error state
+                              errorBorderColor: _isCodeInvalid
+                                  ? Colors.redAccent
+                                  : const Color(0xFFDFE3F0),
                             ),
                             animationDuration: const Duration(milliseconds: 10),
                             backgroundColor: Colors.transparent,
                             enableActiveFill: true,
                             onCompleted: (v) => debugPrint("Completed: $v"),
-                            onChanged: (value) =>
-                                setState(() => _enteredCode = value),
+                            // FIX 3: Clear the invalid code state when the user starts typing again
+                            onChanged: (value) => setState(() {
+                              _enteredCode = value;
+                              _isCodeInvalid = false;
+                            }),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 10),
+                          // FIX 4: Display error message when verification fails
+                          if (_isCodeInvalid)
+                            const Center(
+                              child: Text(
+                                'Invalid or expired code. Please check the time on your Authenticator app or reset.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 14,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 10),
                           Padding(
                             padding: const EdgeInsets.only(left: 16, top: 16),
                             child: Text(
@@ -364,6 +420,8 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                 }
                                 setState(() {
                                   _forceSecretReset = true;
+                                  _isCodeInvalid =
+                                      false; // Clear error on reset
                                 });
                                 _prepareTotpAndShowDialog();
                               },
@@ -439,6 +497,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                     );
 
                                 if (matchedWindow >= 0) {
+                                  // SUCCESS
                                   await FirebaseFirestore.instance
                                       .collection('users')
                                       .doc(widget.uid)
@@ -448,6 +507,11 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                             FieldValue.serverTimestamp(),
                                       });
 
+                                  // FIX 5: Clear error state on success
+                                  if (mounted) {
+                                    setState(() => _isCodeInvalid = false);
+                                  }
+
                                   if (!mounted) return;
                                   Navigator.pushReplacement(
                                     context,
@@ -456,13 +520,18 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                     ),
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Invalid or expired code. Please try again.',
+                                  // FAILURE
+                                  // FIX 6: Set the invalid code state for UI feedback
+                                  if (mounted) {
+                                    setState(() => _isCodeInvalid = true);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Invalid or expired code. Please try again.',
+                                        ),
                                       ),
-                                    ),
-                                  );
+                                    );
+                                  }
                                 }
                               },
                               child: Container(

@@ -8,27 +8,28 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// 🩺 Health check
-app.get('/', (req, res) => res.send('✅ HeronsVote TOTP backend online'));
+// Health check
+app.get('/', (req, res) => res.send('HeronsVote TOTP backend online'));
 
 app.get('/generate', async (req, res) => {
   try {
     const label = 'user@heronsvote'; // dynamic in production
     const issuer = 'HeronsVote App';
 
-    //Generate secret in ASCII form
+    // Generate secret - speakeasy returns both ascii and base32
     const secret = speakeasy.generateSecret({
       length: 20,
       name: `${issuer}:${label}`,
       issuer: issuer,
     });
 
-    // Construct URL using speakeasy helper (prevents encoding mismatch)
+    // CRITICAL FIX: Use base32 encoding (not ascii) for consistency
+    // TOTP apps expect base32-encoded secrets
     const otpauthUrl = speakeasy.otpauthURL({
-      secret: secret.ascii,  // critical change
+      secret: secret.base32,  // ← Changed from secret.ascii
       label: `${issuer}:${label}`,
       issuer: issuer,
-      encoding: 'ascii',
+      encoding: 'base32',     // ← Changed from 'ascii'
       algorithm: 'sha1',
       digits: 6,
       period: 30,
@@ -36,8 +37,8 @@ app.get('/generate', async (req, res) => {
 
     const qr = await QRCode.toDataURL(otpauthUrl, { width: 300 });
 
-    console.log('✅ Generated Secret:', secret.base32);
-    console.log('✅ OTPAuth URL:', otpauthUrl);
+    console.log('Generated Secret (base32):', secret.base32);
+    console.log('OTPAuth URL:', otpauthUrl);
 
     res.json({
       secret: secret.base32,
@@ -45,12 +46,12 @@ app.get('/generate', async (req, res) => {
       qr,
     });
   } catch (err) {
-    console.error('❌ Error generating TOTP:', err);
+    console.error('Error generating TOTP:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 🔒 Verify endpoint (optional)
+// 🔒 Verify endpoint
 app.post('/verify', (req, res) => {
   const { token, secret } = req.body;
 
@@ -72,4 +73,4 @@ app.post('/verify', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 TOTP server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`OTP server running on port ${PORT}`));
