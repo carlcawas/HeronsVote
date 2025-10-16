@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'registration_step1.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -9,6 +10,10 @@ class LoginScreen extends StatefulWidget {
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
+
+// ========================= For Firestore Database
+final FirebaseFirestore _db = FirebaseFirestore.instance;
+// ================================================== 
 
 // ========================= For Google Sign in
 final GoogleSignIn _googleSignIn = GoogleSignIn();
@@ -42,7 +47,6 @@ Future<UserCredential?> login({bool forceAccountSelection = false}) async {
     rethrow;
   }
 }
-
 // ================================================== 
 
 class _LoginScreenState extends State<LoginScreen>
@@ -209,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen>
                       if (userCred == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Google sign-in failed: No user found.'),
+                            content: Text('Google sign-in cancelled.'),
                             duration: Duration(seconds: 2),
                           ),
                         );
@@ -227,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Google sign-in failed: Please use your UMak Account.'),
+                            content: Text('Google sign-in failed. Please use your UMak Account.'),
                             duration: Duration(seconds: 3),
                           ),
                         );
@@ -243,13 +247,31 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       );
 
-                      await Future.delayed(const Duration(milliseconds: 500));
+                      final uid = user?.uid ?? '';
+                      final name = user?.displayName ?? '';
+
+                      final userRef = _db.collection('users').doc(uid);
+                      final doc = await userRef.get();
+
+                      // Register User
+                      await userRef.set({
+                        'uid': uid,
+                        'email': email,
+                        'name': name,
+                        'createdAt': FieldValue.serverTimestamp(),
+                        'isTotpEnabled': true,
+                      }, SetOptions(merge: true));
+
+                      debugPrint(doc.exists ? 'User exists' : 'User registered');
+
                       if (!mounted) return;
+
+                      // If login successful, go to authentication/verification page
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => RegistrationStep1()),
+                        MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
                       );
-                      
+
                     } catch (e, st) {
                       debugPrint('Sign-in handler error: $e\n$st');
                       if (!mounted) return;

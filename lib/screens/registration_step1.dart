@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:heronsvote/screens/registration_step2.dart';
+import 'registration_step2.dart';
 
 class RegistrationStep1 extends StatefulWidget {
-  const RegistrationStep1({super.key});
+  final String uid;
+  const RegistrationStep1({super.key, required this.uid});
 
   @override
   State<RegistrationStep1> createState() => _RegistrationStep1State();
@@ -18,30 +19,22 @@ class _RegistrationStep1State extends State<RegistrationStep1>
   @override
   void initState() {
     super.initState();
-
-    //top slide
     _contentController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
     _contentSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _contentController, curve: Curves.easeOut),
-        );
-    //bottom rise to
+        .animate(CurvedAnimation(parent: _contentController, curve: Curves.easeOut));
+
     _bottomController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
     _bottomSlide = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _bottomController, curve: Curves.easeOut),
-        );
+        .animate(CurvedAnimation(parent: _bottomController, curve: Curves.easeOut));
 
     _contentController.forward();
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _bottomController.forward();
-    });
+    Future.delayed(const Duration(milliseconds: 300), () => _bottomController.forward());
   }
 
   @override
@@ -69,136 +62,75 @@ class _RegistrationStep1State extends State<RegistrationStep1>
         child: Column(
           children: [
             const SizedBox(height: 150),
-              SlideTransition(
-                position: _contentSlide,
-                child: Column(
-                  children: [
-                    Container(
-                      height: 300,
-                      width: 300,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.transparent,
+            SlideTransition(
+              position: _contentSlide,
+              child: Column(
+                children: [
+                  Container(
+                    height: 300,
+                    width: 300,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.transparent),
+                    child: SizedBox(width: 300, child: Image.asset('assets/verify.png', fit: BoxFit.contain)),
+                  ),
+                  const SizedBox(height: 45),
+                  Center(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: "First, let's ",
+                            style: TextStyle(color: const Color(0xFF414141), fontSize: 24, fontFamily: 'Geist'),
+                          ),
+                          TextSpan(
+                            text: "verify\n",
+                            style: TextStyle(
+                              color: const Color(0xFF414141),
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Geist',
+                            ),
+                          ),
+                          TextSpan(
+                            text: "your identity",
+                            style: TextStyle(
+                              color: const Color(0xFF414141),
+                              fontSize: 24,
+                              fontWeight: FontWeight.normal,
+                              fontFamily: 'Geist',
+                            ),
+                          ),
+                        ],
                       ),
-                      child: SizedBox(
-                        width: 300,
-                        child: Image.asset(
-                          'assets/verify.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 45),
-                    Center(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: "First, let's ",
-                              style: TextStyle(
-                                color: const Color(0xFF414141),
-                                fontSize: 24,
-                                fontFamily: 'Geist',
-                              ),
-                            ),
-                            TextSpan(
-                              text: "verify\n",
-                              style: TextStyle(
-                                color: const Color(0xFF414141),
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Geist',
-                              ),
-                            ),
-                            TextSpan(
-                              text: "your identity",
-                              style: TextStyle(
-                                color: const Color(0xFF414141),
-                                fontSize: 24,
-                                fontWeight: FontWeight.normal,
-                                fontFamily: 'Geist',
-                              ),
-                            ),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-
+            ),
             const Spacer(),
-            
             SlideTransition(
               position: _bottomSlide,
               child: Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   color: Color(0xFF354372),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(40),
-                    topRight: Radius.circular(40),
-                  ),
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
                 ),
-                padding: const EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 30,
-                  bottom: 50,
-                ),
+                padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50),
                 child: GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
-                      PageRouteBuilder(
-                        transitionDuration: const Duration(milliseconds: 700),
-                        pageBuilder: (context, animation, secondaryAnimation) =>
-                            const RegistrationStep2(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              final offsetAnimation =
-                                  Tween<Offset>(
-                                    begin: const Offset(0, 0.1),
-                                    end: Offset.zero,
-                                  ).animate(
-                                    CurvedAnimation(
-                                      parent: animation,
-                                      curve: Curves.easeOutCubic,
-                                    ),
-                                  );
-
-                              final fadeAnimation = CurvedAnimation(
-                                parent: animation,
-                                curve: Curves.easeInOut,
-                              );
-
-                              return FadeTransition(
-                                opacity: fadeAnimation,
-                                child: SlideTransition(
-                                  position: offsetAnimation,
-                                  child: child,
-                                ),
-                              );
-                            },
-                      ),
+                      MaterialPageRoute(builder: (_) => RegistrationStep2(uid: widget.uid)),
                     );
                   },
                   child: Container(
                     height: 60,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF5C6AA0),
-                      borderRadius: BorderRadius.circular(40),
-                    ),
+                    decoration: BoxDecoration(color: const Color(0xFF5C6AA0), borderRadius: BorderRadius.circular(40)),
                     child: const Center(
                       child: Text(
                         'Verify Identity',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Geist',
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Geist'),
                       ),
                     ),
                   ),
