@@ -42,4 +42,5 @@ app.post('/verify', (req, res) => {
 
 // Render provides process.env.PORT
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => console.log(`TOTP server running on port ${PORT}`));
