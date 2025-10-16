@@ -4,11 +4,9 @@ const cors = require('cors');
 const QRCode = require('qrcode');
 const speakeasy = require('speakeasy');
 
-// --- Configuration ---
-// Use environment variables for sensitive/configurable data
 const PORT = process.env.PORT || 3000;
 const ISSUER_NAME = process.env.TOTP_ISSUER || 'HeronsVote App';
-// DEFAULT_LABEL is removed as the label will now be fetched from the request
+
 
 const app = express();
 app.use(cors());
@@ -22,24 +20,22 @@ app.get('/generate', async (req, res) => {
 
     const label = req.query.email || 'guest@heronsvote.local'; 
 
-    // Generate secret - speakeasy returns both ascii and base32
     const secret = speakeasy.generateSecret({
       length: 20,
       name: `${ISSUER_NAME}:${label}`,
       issuer: ISSUER_NAME,
-      // Use 'base32' here to ensure the secret itself is base32 encoded
+  
     });
 
-    // CRITICAL: Use base32 encoding for the secret in the otpauthURL
-    // TOTP apps expect base32-encoded secrets
+    
     const otpauthUrl = speakeasy.otpauthURL({
       secret: secret.base32,
       label: `${ISSUER_NAME}:${label}`,
       issuer: ISSUER_NAME,
-      encoding: 'base32', // Must match the secret encoding
+      encoding: 'base32', 
       algorithm: 'sha1',
       digits: 6,
-      period: 30, // 30 seconds is standard
+      period: 30, 
     });
 
     const qr = await QRCode.toDataURL(otpauthUrl, { width: 300 });
@@ -47,8 +43,6 @@ app.get('/generate', async (req, res) => {
     console.log('Generated Secret (base32):', secret.base32);
     console.log('OTPAuth URL:', otpauthUrl);
 
-    // IMPORTANT: The secret must be stored on the server (e.g., database)
-    // and associated with the user's account for verification later.
     res.json({
       secret: secret.base32,
       otpauth_url: otpauthUrl,
@@ -60,13 +54,9 @@ app.get('/generate', async (req, res) => {
   }
 });
 
-/**
- * 🔒 Verify endpoint
- * In a real application, the 'secret' should be retrieved from the database
- * using a userId passed in the request, not sent by the client.
- */
+
 app.post('/verify', (req, res) => {
-  // Client sends the one-time 'token' and the 'secret' (for this example only)
+
   const { token, secret } = req.body;
 
   if (!token || !secret) {
@@ -75,12 +65,11 @@ app.post('/verify', (req, res) => {
       .json({ verified: false, error: 'Missing token or secret' });
   }
 
-  // Use speakeasy.totp.verify to check the token against the secret
   const verified = speakeasy.totp.verify({
     secret,
     encoding: 'base32',
     token,
-    window: 2, // Allows tokens one time step before or after (30 sec tolerance)
+    window: 2, 
   });
 
   console.log(`🔍 Verifying token=${token} | verified=${verified}`);

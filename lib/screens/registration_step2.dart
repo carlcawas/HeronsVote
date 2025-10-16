@@ -38,7 +38,6 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   bool _forceSecretReset = false;
 
   String _enteredCode = '';
-  // New state variable to track validation failure for UI feedback
   bool _isCodeInvalid = false;
 
   @override
@@ -92,7 +91,6 @@ class _RegistrationStep2State extends State<RegistrationStep2>
 
   Future<int> _utcMillis() async {
     try {
-      // Use 'time.google.com' for high time accuracy
       final offset = await NTP.getNtpOffset(lookUpAddress: 'time.google.com');
       final nowUtcMilliseconds =
           DateTime.now().toUtc().millisecondsSinceEpoch + offset;
@@ -127,11 +125,9 @@ class _RegistrationStep2State extends State<RegistrationStep2>
       'DEBUG: nowSeconds=$nowSeconds | expectedCode=$expectedCode | input=$code',
     );
 
-    // Try the current, previous, and next window for drift tolerance
     for (int drift = -window; drift <= window; drift++) {
       final driftedTime = nowSeconds + (drift * interval);
 
-      // Skip already verified windows to prevent code reuse
       if (lastVerifiedWindow != null &&
           driftedTime ~/ interval <= lastVerifiedWindow) {
         continue;
@@ -150,12 +146,10 @@ class _RegistrationStep2State extends State<RegistrationStep2>
       );
 
       if (candidateCode == code) {
-        // Success: return the time window (counter)
         return driftedTime ~/ interval;
       }
     }
 
-    // No match
     return -1;
   }
 
@@ -164,7 +158,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
     _isGenerating = true;
 
     try {
-      // Call your backend to get a unique secret
+
       final res = await http.get(
         Uri.parse('https://heronsvote-totp.onrender.com/generate'),
       );
@@ -172,14 +166,12 @@ class _RegistrationStep2State extends State<RegistrationStep2>
       if (res.statusCode != 200) throw Exception('Backend error');
       final data = jsonDecode(res.body);
       final secret = data['secret'] as String;
-      
-      // FIX: Construct the otpauth URL in Flutter to guarantee it uses the new secret
+
       final userEmail =
           FirebaseAuth.instance.currentUser?.email ?? 'user@umak.edu.ph';
       const issuer = 'UMak HeronVote';
       final otpauthUrl =
           'otpauth://totp/$issuer:$userEmail?secret=$secret&issuer=$issuer';
-
 
       // Save to Firestore for this specific user
       await FirebaseFirestore.instance.collection('users').doc(widget.uid).set({
@@ -207,7 +199,6 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                   children: [
                     const Text('Scan this QR code using Google Authenticator:'),
                     const SizedBox(height: 10),
-                    // Use QrImageView with the constructed otpauthUrl
                     Container(
                       width: 200,
                       height: 200,
@@ -237,7 +228,6 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                       ),
                     ),
                     const SizedBox(height: 15),
-                    // DEBUG: Test current code generation button for verification
                     ElevatedButton(
                       onPressed: () async {
                         final nowMillis = await _utcMillis();
@@ -249,9 +239,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                           length: 6,
                           algorithm: Algorithm.SHA1,
                         );
-                        debugPrint(
-                          '🧪 TEST: Current code should be: $testCode',
-                        );
+                        debugPrint('TEST: Current code should be: $testCode');
                         if (context.mounted) {
                           showDialog(
                             context: context,
@@ -343,9 +331,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-            const Center(
-              child: StepProgressIndicator(currentStep: 2),
-            ),
+            const Center(child: StepProgressIndicator(currentStep: 2)),
             const SizedBox(height: 10),
             Expanded(
               child: SlideTransition(
@@ -478,7 +464,8 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                 }
                                 setState(() {
                                   _forceSecretReset = true;
-                                  _isCodeInvalid = false; // Clear error on reset
+                                  _isCodeInvalid =
+                                      false; // Clear error on reset
                                 });
                                 _prepareTotpAndShowDialog();
                               },
@@ -545,13 +532,13 @@ class _RegistrationStep2State extends State<RegistrationStep2>
 
                                 final matchedWindow =
                                     await _verifyTotpAndGetWindow(
-                                  secret: secret,
-                                  code: _enteredCode,
-                                  interval: 30,
-                                  length: 6,
-                                  window: 1,
-                                  lastVerifiedWindow: lastVerifiedWindow,
-                                );
+                                      secret: secret,
+                                      code: _enteredCode,
+                                      interval: 30,
+                                      length: 6,
+                                      window: 1,
+                                      lastVerifiedWindow: lastVerifiedWindow,
+                                    );
 
                                 if (matchedWindow >= 0) {
                                   // SUCCESS
@@ -559,14 +546,14 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                       .collection('users')
                                       .doc(widget.uid)
                                       .update({
-                                    'lastVerifiedWindow': matchedWindow,
-                                    'lastVerified':
-                                        FieldValue.serverTimestamp(),
-                                  });
+                                        'lastVerifiedWindow': matchedWindow,
+                                        'lastVerified':
+                                            FieldValue.serverTimestamp(),
+                                      });
 
                                   // Clear error state on success
                                   if (mounted) {
-                                      setState(() => _isCodeInvalid = false);
+                                    setState(() => _isCodeInvalid = false);
                                   }
 
                                   if (!mounted) return;
