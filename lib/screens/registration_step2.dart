@@ -85,7 +85,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   }
 
   String _normalizeSecret(String raw) {
-    return raw.replaceAll(' ', '').toUpperCase(); // ✅ keep '='
+    return raw.replaceAll(' ', '').toUpperCase(); //keep '='
   }
 
   Future<int> _utcMillis() async {
@@ -101,65 +101,65 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   }
 
   Future<int> _verifyTotpAndGetWindow({
-    required String secret,
-    required String code,
-    int interval = 30,
-    int length = 6,
-    int window = 1,
-    int? lastVerifiedWindow,
-  }) async {
-    // Ensure the secret is properly formatted for Base32
-    final normalized = _normalizeSecret(secret);
+  required String secret,
+  required String code,
+  int interval = 30,
+  int length = 6,
+  int window = 1,
+  int? lastVerifiedWindow,
+}) async {
+  // Ensure the secret is properly formatted for Base32
+  final normalized = _normalizeSecret(secret);
 
-    // Use NTP (fallback to device clock)
-    final nowMillis = await _utcMillis();
-    final nowSeconds = (nowMillis / 1000).floor(); // ✅ convert ms → seconds
+  // Use NTP (fallback to device clock)
+  final nowMillis = await _utcMillis();
+  final nowSeconds = (nowMillis / 1000).floor();
 
-    final currentCounter = nowSeconds ~/ interval;
+  // Directly use timestamp — let package handle counter math
+  final expectedCode = OTP.generateTOTPCodeString(
+    normalized,
+    nowSeconds,
+    interval: interval,
+    length: length,
+    algorithm: Algorithm.SHA1,
+  );
 
-    // Optional: print one example expected code for debugging
-    final expectedCode = OTP.generateTOTPCodeString(
+  debugPrint(
+    'DEBUG: nowSeconds=$nowSeconds | expectedCode=$expectedCode | input=$code',
+  );
+
+  // Try the current, previous, and next window for drift tolerance
+  for (int drift = -window; drift <= window; drift++) {
+    final driftedTime = nowSeconds + (drift * interval);
+
+    // Skip already verified windows to prevent code reuse
+    if (lastVerifiedWindow != null &&
+        driftedTime ~/ interval <= lastVerifiedWindow) {
+      continue;
+    }
+
+    final candidateCode = OTP.generateTOTPCodeString(
       normalized,
-      currentCounter * interval,
+      driftedTime,
       interval: interval,
       length: length,
       algorithm: Algorithm.SHA1,
     );
+
     debugPrint(
-      'DEBUG: currentCounter=$currentCounter | expectedCode=$expectedCode | input=$code',
+      'DEBUG drift=$drift | driftedTime=$driftedTime | candidateCode=$candidateCode',
     );
 
-    // Try the current, previous, and next window for drift tolerance
-    for (int drift = -window; drift <= window; drift++) {
-      final candidateCounter = currentCounter + drift;
-
-      // Skip already verified windows to prevent code reuse
-      if (lastVerifiedWindow != null &&
-          candidateCounter <= lastVerifiedWindow) {
-        continue;
-      }
-
-      final candidateCode = OTP.generateTOTPCodeString(
-        normalized,
-        candidateCounter * interval,
-        interval: interval,
-        length: length,
-        algorithm: Algorithm.SHA1,
-      );
-
-      debugPrint(
-        'DEBUG drift=$drift | candidateCounter=$candidateCounter | candidateCode=$candidateCode',
-      );
-
-      if (candidateCode == code) {
-        // ✅ Success
-        return candidateCounter;
-      }
+    if (candidateCode == code) {
+      // Success: return the time window (counter)
+      return driftedTime ~/ interval;
     }
-
-    // ❌ No match
-    return -1;
   }
+
+  // No match
+  return -1;
+}
+
 
   Future<void> _prepareTotpAndShowDialog() async {
     if (_isGenerating) return;

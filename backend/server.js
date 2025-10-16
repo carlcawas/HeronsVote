@@ -20,17 +20,16 @@ app.get('/generate', async (req, res) => {
 
     // Generate TOTP secret
     const secret = speakeasy.generateSecret({
-      name: `${issuer}:${label}`,
+      name: label,
       issuer: issuer,
-      length: 20, // standard length for Google Auth
+      length: 32, // ensure consistent Base32 length
+      encoding: 'base32'
     });
 
+
     // Construct a fully compatible otpauth URL manually
-    const otpauthUrl = `otpauth://totp/${encodeURIComponent(
-      issuer
-    )}:${encodeURIComponent(label)}?secret=${secret.base32}&issuer=${encodeURIComponent(
-      issuer
-    )}&algorithm=SHA1&digits=6&period=30`;
+    const otpauthUrl = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(label)}?secret=${secret.base32}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+
 
     // Generate QR code in base64
     const qr = await QRCode.toDataURL(otpauthUrl);
