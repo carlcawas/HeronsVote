@@ -73,6 +73,5 @@ app.post('/verify', (req, res) => {
 
 // 🚀 Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`✅ HeronsVote TOTP server running on port ${PORT}`)
-);
+
+app.listen(PORT, () => console.log(`TOTP server running on port ${PORT}`));
