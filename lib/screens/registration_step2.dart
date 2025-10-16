@@ -11,7 +11,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'registration_step3.dart';
 import 'package:ntp/ntp.dart';
 import 'package:convert/convert.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:totp_authenticator/totp_authenticator.dart';
 
 class RegistrationStep2 extends StatefulWidget {
@@ -135,166 +136,74 @@ class _RegistrationStep2State extends State<RegistrationStep2> with TickerProvid
   }
 
   Future<void> _prepareTotpAndShowDialog() async {
-    if (_isGenerating) return;
-    _isGenerating = true;
+  if (_isGenerating) return;
+  _isGenerating = true;
 
-    try {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(widget.uid);
-      final doc = await userRef.get();
+  try {
+    // Call your backend to get a unique secret and QR per user
+    final res = await http.get(Uri.parse('http://192.168.0.12:3000/generate')); // replace with your local IP
+    if (res.statusCode != 200) throw Exception('Backend error');
+    final data = jsonDecode(res.body);
+    final secret = data['secret'] as String;
+    final qrDataUrl = data['qr'] as String;
 
-      String secret = '';
-      bool mustGenerateNew = true;
+    // Save to Firestore for this specific user
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.uid)
+        .set({'totpSecret': secret}, SetOptions(merge: true));
 
-      if (doc.exists && doc.data()?['totpSecret'] != null && !_forceSecretReset) {
-        secret = doc.data()!['totpSecret'] as String;
-        mustGenerateNew = false;
-      }
+    if (!mounted) return;
+    setState(() {
+      _totpSecret = secret;
+      _otpauthUrl = qrDataUrl; // we’ll use this for displaying the QR
+    });
 
-      if (mustGenerateNew) {
-        try {
-          secret = TOTP.generateSecret();
-        } catch (e) {
-          final random = Random.secure();
-          final bytes = List<int>.generate(20, (_) => random.nextInt(256));
-          secret = base32.encode(Uint8List.fromList(bytes));
-        }
-
-        _forceSecretReset = false;
-      }
-
-      secret = _normalizeSecret(secret);
-      await userRef.set({'totpSecret': secret}, SetOptions(merge: true));
-
-      if (!mounted) return;
-
-      final issuer = 'HeronsVote';
-      final email = FirebaseAuth.instance.currentUser?.email ?? 'unknown';
-      final label = '${Uri.encodeComponent(issuer)}:${Uri.encodeComponent(email)}';
-
-      String uriFromLib;
-      try {
-        final totpLib = TOTP();
-
-        uriFromLib = totpLib.generateQRCodeUri(label, secret, issuer: issuer, interval: 30);
-      } catch (e) {
-        uriFromLib = 'otpauth://totp/$label'
-            '?secret=$secret'
-            '&issuer=${Uri.encodeComponent(issuer)}'
-            '&algorithm=SHA1'
-            '&digits=6'
-            '&period=30';
-      }
-
-      setState(() {
-        _totpSecret = secret;
-        _otpauthUrl = uriFromLib;
-      });
-
-      debugPrint('SECRET FROM FIRESTORE: $secret');
-      debugPrint('OTP URL = $uriFromLib');
-
-      if (!_dialogShown) {
-        _dialogShown = true;
-
-        String decodedHex = 'N/A';
-        List<Map<String, String>> debugCandidates = [];
-        try {
-          final decodedBytes = base32.decode(secret);
-          decodedHex = hex.encode(decodedBytes);
-        } catch (e) {
-          decodedHex = 'failed to decode: $e';
-        }
-
-        final nowMillisForDebug = await _utcMillis();
-        final intervalDebug = 30;
-        final timeStepCounterDebug = (nowMillisForDebug ~/ 1000) ~/ intervalDebug;
-        for (int drift = -1; drift <= 1; drift++) {
-          final candidateWindow = timeStepCounterDebug + drift;
-          final tsMillis = candidateWindow * intervalDebug * 1000;
-          final candidate = OTP.generateTOTPCodeString(
-            _normalizeSecret(secret),
-            tsMillis,
-            interval: intervalDebug,
-            length: 6,
-            algorithm: Algorithm.SHA1,
-          );
-          debugCandidates.add({
-            'drift': drift.toString(),
-            'window': candidateWindow.toString(),
-            'tsMillis': tsMillis.toString(),
-            'code': candidate,
-          });
-        }
-
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) {
-            return AlertDialog(
-              title: const Text('Authenticator Setup'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Text('Scan this QR code with Google Authenticator app:'),
-                    const SizedBox(height: 12),
-                    SizedBox(width: 180, height: 180, child: QrImageView(data: _otpauthUrl, version: QrVersions.auto)),
-                    const SizedBox(height: 16),
-                    const Text('Or manually enter this key:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    const SizedBox(height: 6),
-                    SelectableText(secret, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 14),
-
-                    // DEBUG temporary
-                    const Divider(),
-                    const SizedBox(height: 6),
-                    const Text('DEBUG INFO (temporary)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 8),
-                    Align(alignment: Alignment.centerLeft, child: Text('Decoded secret (hex):', style: TextStyle(fontSize: 11, color: Colors.black54))),
-                    SelectableText(decodedHex, textAlign: TextAlign.left, style: const TextStyle(fontSize: 12)),
-                    const SizedBox(height: 8),
-                    Align(alignment: Alignment.centerLeft, child: Text('Server expected codes (drift -1,0,+1):', style: TextStyle(fontSize: 11, color: Colors.black54))),
-                    const SizedBox(height: 6),
-
-                    for (final c in debugCandidates)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
-                          'drift=${c['drift']} window=${c['window']} code=${c['code']}',
-                          style: const TextStyle(fontSize: 13, fontFamily: 'Geist'),
-                        ),
-                      ),
-
-                    const SizedBox(height: 6),
-                    const Divider(),
-                    const SizedBox(height: 6),
-                    const Text('After scanning, compare the code shown on your phone with the three "code=..." lines above.', style: TextStyle(fontSize: 11)),
-                    const SizedBox(height: 6),
-                    const Text('If the phone value does NOT match any of the three, check: (1) you scanned the new QR, (2) the entry is TOTP/time-based (not HOTP), (3) phone clock is correct, (4) try a different authenticator app.', style: TextStyle(fontSize: 11)),
-                  ],
+    // Show the QR dialog
+    if (!_dialogShown) {
+      _dialogShown = true;
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Authenticator Setup'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Scan this QR code using Google Authenticator:'),
+                const SizedBox(height: 10),
+                Image.memory(
+                  base64Decode(qrDataUrl.split(',').last),
+                  width: 180,
+                  height: 180,
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Continue'),
-                ),
+                const SizedBox(height: 10),
+                const Text('Or manually enter this key:'),
+                SelectableText(secret),
               ],
-            );
-          },
-        );
-        if (mounted) setState(() => _dialogShown = false);
-      }
-    } catch (e, st) {
-      debugPrint('Error preparing TOTP: $e\n$st');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error preparing authenticator.')));
-      }
-    } finally {
-      _isGenerating = false;
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Continue'),
+              ),
+            ],
+          );
+        },
+      );
+      if (mounted) setState(() => _dialogShown = false);
     }
+  } catch (e, st) {
+    debugPrint('Error preparing TOTP: $e\n$st');
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Error preparing authenticator.')));
+    }
+  } finally {
+    _isGenerating = false;
   }
+}
 
   @override
   Widget build(BuildContext context) {
