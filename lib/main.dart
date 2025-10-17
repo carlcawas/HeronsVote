@@ -2,9 +2,20 @@ import 'package:flutter/material.dart';
 import 'screens/splash_screen.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
+// Firebase Imports
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
+  // Firebase Init
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  print('\x1B[32mFirebase: Okay\x1B[0m');
+
   await Future.delayed(const Duration(seconds: 1));
   FlutterNativeSplash.remove();
 
