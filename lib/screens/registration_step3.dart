@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_step4.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'dart:io';
+import 'package:read_pdf_text/read_pdf_text.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegistrationStep3 extends StatefulWidget {
-  const RegistrationStep3({super.key});
+  final String uid;
+  const RegistrationStep3({super.key, required this.uid});
 
   @override
   State<RegistrationStep3> createState() => _RegistrationStep3State();
@@ -141,52 +149,37 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                             ),
                           ),
                           const SizedBox(height: 40),
-                          Container(
-                            height: 250,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF5C6AA0),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Colors.yellowAccent,
-                                width: 1,
+                          
+                          // When box with icon is clicked
+                          GestureDetector(
+                            onTap: () async {
+                              await _openCOR(context);
+                            },
+                            child: Container(
+                              height: 250,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF5C6AA0),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: Colors.yellowAccent,
+                                  width: 1,
+                                ),
                               ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.file_present_rounded,
-                                color: Colors.white,
-                                size: 40,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.file_present_rounded,
+                                  color: Colors.white,
+                                  size: 40,
+                                ),
                               ),
                             ),
                           ),
+                          //
+
                           const Spacer(),
                           Center(
                             child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  PageRouteBuilder(
-                                    transitionDuration: const Duration(
-                                      milliseconds: 0,
-                                    ),
-                                    pageBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                        ) => const RegistrationStep4(),
-                                    transitionsBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                          child,
-                                        ) {
-                                          return child;
-                                        },
-                                  ),
-                                );
-                              },
+                              // TODO: REMOVE NATO SINCE AFTER MAGSELECT NG FILE AUTO READ NA SIYA
                               child: Container(
                                 height: 60,
                                 decoration: BoxDecoration(
@@ -276,6 +269,187 @@ class StepProgressIndicator extends StatelessWidget {
           ],
         );
       }),
+    );
+  }
+}
+
+// Opens PDF file and read PDF to extract information
+Future<void> _openCOR(BuildContext context) async {
+  // Init and check storage permission
+  PermissionStatus status;
+
+  if (Platform.isAndroid) {
+    status = await Permission.manageExternalStorage.request();
+  } else {
+    status = await Permission.storage.request();
+  }
+
+  if (!status.isGranted) {
+    Fluttertoast.showToast(
+      msg: "Please enable the storage permission.",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+    );
+    openAppSettings();
+    return;
+  }
+
+  // Select PDF file
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf'],
+    allowMultiple: false,
+  );
+
+  // If no PDF file is selected
+  if (result == null || result.files.single.path == null) {
+    Fluttertoast.showToast(
+      msg: "Please select your COR in PDF format",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+    );
+
+    // TODO: Add UI updates etc...
+    return;
+  }
+
+  // If PDF file is selected, get path
+  final filePath = result.files.single.path!;
+  debugPrint('Selected PDF: $filePath');
+
+  // TODO: Customize UI update again
+  Fluttertoast.showToast(
+    msg: "Reading your COR...",
+    toastLength: Toast.LENGTH_SHORT,
+    gravity: ToastGravity.BOTTOM,
+  );
+  //
+
+  // Read PDF Process
+  try {
+    final text = await ReadPdfText.getPDFtext(filePath);
+    final pdfText = text.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+    // For terminal debugging
+    debugPrint('--- Raw Extracted PDF Text ---');
+    debugPrint(pdfText.substring(0, pdfText.length > 2000 ? 2000 : pdfText.length));
+
+    // Extract NEEDED data === DON'T TOUCH PLZ ===
+    final name = RegExp(r'name\s*:? ([a-z\s\.\-]+) student no').firstMatch(pdfText)?.group(1)?.trim();
+    final studentNo = RegExp(r'student no\.?\s*:? ([a-z0-9\-]+)').firstMatch(pdfText)?.group(1)?.trim();
+    final email = RegExp(r'email\s*:? ([\w\.\@]+)').firstMatch(pdfText)?.group(1)?.trim();
+    final program = RegExp(r'program/?major\s*:? ([a-z\s\.\-]+) year level').firstMatch(pdfText)?.group(1)?.trim();
+    var yearLevel = RegExp(r'year level\s*:? ([a-z0-9\s]+)').firstMatch(pdfText)?.group(1)?.trim();
+    final college = RegExp(r'college\s*:? ([a-z\s]+) semester').firstMatch(pdfText)?.group(1)?.trim();
+    var semester = RegExp(r'semester\s*&?\s*academic year\s*:? ([a-z0-9\s\.\-]+)').firstMatch(pdfText)?.group(1)?.trim();    
+    final gender = RegExp(r'gender\s*:? ([a-z]+)').firstMatch(pdfText)?.group(1)?.trim();
+    final section = RegExp(r'\b([ivx]{1,4}-[a-z]+)\b', caseSensitive: false).firstMatch(pdfText)?.group(1)?.toUpperCase().trim();
+
+    // Format extracted information
+    String capitalizeWords(String? input) {
+      if (input == null || input.isEmpty) return '';
+      return input
+          .split(' ')
+          .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
+          .join(' ')
+          .trim();
+    }
+
+    String cleanSection(String? input) {
+      if (input == null || input.isEmpty) return '';
+      return input
+          .replaceAll(RegExp(r'\s*-\s*'), '-')
+          .toUpperCase()
+          .trim();
+    }
+
+    final nameCap = capitalizeWords(name);
+    final studentNoCap = studentNo?.toUpperCase() ?? '';
+    final programCap = capitalizeWords(program);
+    final collegeCap = capitalizeWords(college);
+    final genderCap = capitalizeWords(gender);
+    final sectionCap = cleanSection(section);
+
+    if (yearLevel != null && yearLevel.contains('year')) {
+      final idx = yearLevel.indexOf('year');
+      yearLevel = yearLevel.substring(0, idx + 4).trim();
+      yearLevel = capitalizeWords(yearLevel);
+    }
+
+    
+    if (semester != null) {
+      final match = RegExp(r'(20\d{2}-20\d{2})').firstMatch(semester);
+      if (match != null) semester = semester.substring(0, match.end).trim();
+      semester = semester.replaceAll(RegExp(r'a\.y\.', caseSensitive: false), 'A.Y.');
+      semester = capitalizeWords(semester);
+    }
+
+    // For terminal debugging
+    debugPrint('--- Parsed COR Data ---');
+    debugPrint('Name: $nameCap');
+    debugPrint('Student No: $studentNoCap');
+    debugPrint('Email: $email');
+    debugPrint('Program: $programCap');
+    debugPrint('College: $collegeCap');
+    debugPrint('Year Level: $yearLevel');
+    debugPrint('Section: $sectionCap');
+    debugPrint('Semester: $semester');
+    debugPrint('Gender: $genderCap');
+
+    // Checks passed uid from registration_step2, step1, and login
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      Fluttertoast.showToast(
+        msg: "User is not authenticated. Please log in again.",
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+      );
+      return;
+    }
+
+    // Init database's users collection
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    // Update fields
+    await userRef.set({
+      'name': nameCap,
+      'student_number': studentNoCap,
+      'email': email,
+      'program': programCap,
+      'college': collegeCap,
+      'year_level': yearLevel,
+      'section': sectionCap,
+      'semester': semester,
+      'gender': genderCap,
+      'lastUpdateCOR': DateTime.now(),
+    }, SetOptions(merge: true));
+
+    // TODO: Add UI changes to show COR is sucessfully read
+    Fluttertoast.showToast(
+      msg: "COR information updated successfully.",
+      toastLength: Toast.LENGTH_LONG,
+      gravity: ToastGravity.BOTTOM,
+    );
+    
+    // Move to next step, pass ONLY NEEDED information in next window and auto fill the fields on step4 :)))
+    Navigator.pushReplacement(context,
+      MaterialPageRoute(
+        builder: (_) => RegistrationStep4(
+          name: nameCap,
+          college: collegeCap,
+          yearLevel: yearLevel,
+          semester: semester,
+          section: sectionCap,
+        ),
+      ),
+    );
+
+  } catch (e) {
+    debugPrint('Error reading COR: $e');
+    Fluttertoast.showToast(
+      msg: "Failed to read COR PDF.",
+      toastLength: Toast.LENGTH_LONG,
+      gravity: ToastGravity.BOTTOM,
     );
   }
 }

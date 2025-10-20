@@ -17,14 +17,19 @@ dependencies:
   google_sign_in: ^6.3.0
   cloud_firestore: ^5.4.4
   iconify_flutter: ^0.0.5
-  
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_native_splash: ^2.4.6
   pin_code_fields: ^8.0.1
 
-  
+  # For file opener
+  file_picker: ^8.1.4
+  permission_handler: ^11.3.1
+  fluttertoast: ^8.2.4
+  read_pdf_text: ^0.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

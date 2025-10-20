@@ -3,7 +3,19 @@ import 'package:heronsvote/screens/registration_step5.dart';
 
 
 class RegistrationStep4 extends StatefulWidget {
-  const RegistrationStep4({super.key});
+  final String name;
+  final String college;
+  final String? yearLevel;
+  final String? semester;
+  final String section;
+  const RegistrationStep4({
+    super.key,
+    required this.name,
+    required this.college,
+    required this.yearLevel,
+    required this.semester,
+    required this.section,
+    });
 
   @override
   State<RegistrationStep4> createState() => _RegistrationStep4State();
@@ -18,18 +30,27 @@ class _RegistrationStep4State extends State<RegistrationStep4>
   late final Animation<Offset> _contentSlide;
   late final Animation<double> _contentFade;
 
-  static const Color textFieldFillColor = Color(
-    0xFFDFE3F0,
-  ); //bg TF
-  static const Color labelTextColor =
-      Colors.white; //label
-  static const Color hintTextColor = Color(
-    0xFF797979,
-  ); 
+  static const Color textFieldFillColor = Color(0xFFDFE3F0,); //bg TF
+  static const Color labelTextColor = Colors.white; //label
+  static const Color hintTextColor = Color(0xFF797979,); 
+
+  // Init TextField === similar to casting TextView
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _collegeController = TextEditingController();
+  final TextEditingController _yearLevelController = TextEditingController();
+  final TextEditingController _semesterController = TextEditingController();
+  final TextEditingController _sectionController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+
+    // Auto fill information :)
+    _nameController.text = widget.name;
+    _collegeController.text = widget.college;
+    _yearLevelController.text = widget.yearLevel ?? '';
+    _semesterController.text = widget.semester ?? '';
+    _sectionController.text = widget.section;
 
     _panelController = AnimationController(
       vsync: this,
@@ -76,6 +97,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
 
   Widget _buildStyledTextField({
     required String label,
+    required TextEditingController controller,
     required String hintText,
     bool showBottomSpacing = true,
     TextInputType keyboardType = TextInputType.text,
@@ -93,6 +115,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
         ),
         const SizedBox(height: 8),
         TextFormField(
+          controller: controller,
           keyboardType: keyboardType,
           style: const TextStyle(
             color: Colors.black,
@@ -213,12 +236,14 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                           ),
                           const SizedBox(height: 40),
                           _buildStyledTextField(
+                            controller: _nameController,
                             label: 'Name:',
                             hintText: 'Last name, First name, M.I.',
                           ),
                           const SizedBox(height: 10),
 
                           _buildStyledTextField(
+                            controller: _collegeController,
                             label: 'College:',
                             hintText:
                                 'e.g. College of Computing and Information Sciences',
@@ -232,6 +257,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                               Expanded(
                                 flex: 2,
                                 child: _buildStyledTextField(
+                                  controller: _yearLevelController,
                                   label: 'Yr/Level:',
                                   hintText: 'e.g. Third Year',
                                   showBottomSpacing: false,
@@ -242,6 +268,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                               Expanded(
                                 flex: 3,
                                 child: _buildStyledTextField(
+                                  controller: _sectionController,
                                   label: 'Section:',
                                   hintText: 'e.g. III-ACSAD',
                                   showBottomSpacing: false,
@@ -253,6 +280,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                           const SizedBox(height: 10),
 
                           _buildStyledTextField(
+                            controller: _semesterController,
                             label: 'Semester & Academic Year:',
                             hintText: 'e.g. First Semester A.Y. 2025-2026',
                           ),

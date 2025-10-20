@@ -220,8 +220,13 @@ class _LoginScreenState extends State<LoginScreen>
                         return;
                       }
 
-                      final user = userCred.user;
-                      final email = user?.email ?? '';
+                      final user = userCred.user!;
+                      final uid = user.uid;
+                      final email = user.email ?? '';
+                      final name = user.displayName ?? '';
+
+                      final userRef = _db.collection('users').doc(uid);
+                      final doc = await userRef.get();
                       
                       if (!email.toLowerCase().endsWith('@umak.edu.ph')) {
                         await FirebaseAuth.instance.signOut();
@@ -247,19 +252,20 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                       );
 
-                      final uid = user?.uid ?? '';
-                      final name = user?.displayName ?? '';
-
-                      final userRef = _db.collection('users').doc(uid);
-                      final doc = await userRef.get();
-
                       // Register User
                       await userRef.set({
                         'uid': uid,
                         'email': email,
                         'name': name,
-                        'createdAt': FieldValue.serverTimestamp(),
-                        'isTotpEnabled': true,
+                        'student_number': '',
+                        'program': '',
+                        'college': '',
+                        'year_level': '',
+                        'section': '',
+                        'semester': '',
+                        'gender': '',
+                        'createdAt': doc.exists ? FieldValue.serverTimestamp() : DateTime.now(),
+                        'lastUpdateCOR': DateTime.now(),
                       }, SetOptions(merge: true));
 
                       debugPrint(doc.exists ? 'User exists' : 'User registered');

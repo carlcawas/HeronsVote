@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+import 'registration_step3.dart';
 
 class RegistrationStep2 extends StatefulWidget {
   final String uid;
@@ -9,7 +10,8 @@ class RegistrationStep2 extends StatefulWidget {
   State<RegistrationStep2> createState() => _RegistrationStep2State();
 }
 
-class _RegistrationStep2State extends State<RegistrationStep2> with TickerProviderStateMixin {
+class _RegistrationStep2State extends State<RegistrationStep2>
+    with TickerProviderStateMixin {
   late final AnimationController _panelController;
   late final Animation<Offset> _panelSlide;
   late final AnimationController _contentController;
@@ -20,14 +22,29 @@ class _RegistrationStep2State extends State<RegistrationStep2> with TickerProvid
   void initState() {
     super.initState();
 
-    _panelController = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _panelController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
     _panelSlide = Tween<Offset>(begin: const Offset(0, 1.0), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic));
+        .animate(
+          CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
+        );
 
-    _contentController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _contentController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
     _contentSlide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _contentController, curve: Curves.easeOutCubic));
-    _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _contentController, curve: Curves.linear));
+        .animate(
+          CurvedAnimation(
+            parent: _contentController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+    _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _contentController, curve: Curves.linear),
+    );
 
     _panelController.forward();
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -50,7 +67,10 @@ class _RegistrationStep2State extends State<RegistrationStep2> with TickerProvid
       appBar: AppBar(
         backgroundColor: const Color(0xFFF6EFD2),
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SafeArea(
         bottom: false,
@@ -66,8 +86,19 @@ class _RegistrationStep2State extends State<RegistrationStep2> with TickerProvid
                 child: Container(
                   margin: const EdgeInsets.only(top: 35),
                   width: double.infinity,
-                  decoration: const BoxDecoration(color: Color(0xFF354372), borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40))),
-                  padding: const EdgeInsets.only(left: 24, right: 24, top: 40, bottom: 50),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF354372),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(40),
+                      topRight: Radius.circular(40),
+                    ),
+                  ),
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: 40,
+                    bottom: 50,
+                  ),
                   child: FadeTransition(
                     opacity: _contentFade,
                     child: SlideTransition(
@@ -79,9 +110,31 @@ class _RegistrationStep2State extends State<RegistrationStep2> with TickerProvid
                             child: Text.rich(
                               TextSpan(
                                 children: [
-                                  TextSpan(text: "Enter the code from your\n", style: TextStyle(color: Colors.white, fontSize: 24, fontFamily: 'Geist')),
-                                  TextSpan(text: "Google Authenticator", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24, fontFamily: 'Geist')),
-                                  TextSpan(text: " app", style: TextStyle(color: Colors.white, fontSize: 24, fontFamily: 'Geist')),
+                                  TextSpan(
+                                    text: "Enter the code from your\n",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontFamily: 'Geist',
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: "Google Authenticator",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 24,
+                                      fontFamily: 'Geist',
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: " app",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontFamily: 'Geist',
+                                    ),
+                                  ),
                                 ],
                               ),
                               textAlign: TextAlign.center,
@@ -117,19 +170,43 @@ class _RegistrationStep2State extends State<RegistrationStep2> with TickerProvid
                             padding: const EdgeInsets.only(left: 16, top: 16),
                             child: Text(
                               "Step 1: Open your Google Authenticator app.\n\nStep 2: Find the 6-digit code for your UMak account.\n\nStep 3: Enter the code below.",
-                              style: TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'Geist'),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontFamily: 'Geist',
+                              ),
                             ),
                           ),
                           const Spacer(),
 
                           Center(
                             child: GestureDetector(
-                              onTap: () async {
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        RegistrationStep3(uid: widget.uid),
+                                  ),
+                                );
                               },
                               child: Container(
                                 height: 60,
-                                decoration: BoxDecoration(color: const Color(0xFF5C6AA0), borderRadius: BorderRadius.circular(40)),
-                                child: const Center(child: Text('Authenticate', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Geist'))),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF5C6AA0),
+                                  borderRadius: BorderRadius.circular(40),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Authenticate',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Geist',
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -177,7 +254,12 @@ class StepProgressIndicator extends StatelessWidget {
               child: Center(
                 child: Text(
                   '${index + 1}',
-                  style: TextStyle(color: isActive ? Colors.white : Colors.black87, fontWeight: FontWeight.w700, fontSize: 12, fontFamily: 'Geist'),
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    fontFamily: 'Geist',
+                  ),
                 ),
               ),
             ),
@@ -187,7 +269,9 @@ class StepProgressIndicator extends StatelessWidget {
                 width: 40,
                 height: 7,
                 decoration: BoxDecoration(
-                  color: index + 1 <= currentStep ? lineActiveColor : Colors.grey[300],
+                  color: index + 1 <= currentStep
+                      ? lineActiveColor
+                      : Colors.grey[300],
                   border: Border.all(color: const Color(0xFFD9D9D9), width: 2),
                 ),
               ),
