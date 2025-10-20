@@ -265,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen>
                         'semester': '',
                         'gender': '',
                         'createdAt': doc.exists ? FieldValue.serverTimestamp() : DateTime.now(),
-                        'lastUpdateCOR': DateTime.now(),
+                        'lastUpdateCOR': '',
                       }, SetOptions(merge: true));
 
                       debugPrint(doc.exists ? 'User exists' : 'User registered');
