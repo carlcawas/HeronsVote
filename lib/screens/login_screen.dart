@@ -91,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 120),
+                padding: const EdgeInsets.only(top: 224),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       child: Hero(
                         tag: 'logoHero',
                         child: SizedBox(
-                          width: 230,
+                          width: 130,
                           child: Image.asset(
                             alignment: Alignment.bottomCenter,
                             'assets/HeronVoteLogo.png',
@@ -165,37 +165,39 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     topRight: Radius.circular(40),
                   ),
                 ),
-                padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50
+                padding: const EdgeInsets.only(left: 25, right: 25, top: 30, bottom: 46 //always 25 padding ko left and right
                 ),
-                child: GestureDetector(
-                  onTap: () async{
-                    await _loginAuth(context);
-                  },
-                  child: Container(
-                    height: 61,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF5C6AA0),
-                      borderRadius: BorderRadius.circular(40),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          'assets/google_logo.png',
-                          width: 30,
-                          height: 30,
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Sign in with Google',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontFamily: 'Geist',
-                            fontWeight: FontWeight.w700,
+                child: Material(  // 1. Replace GestureDetector with Material
+                  color: const Color(0xFF5C6AA0),      // 2. Move color here
+                  borderRadius: BorderRadius.circular(40), // 3. Move border radius here
+                  child: InkWell( // 4. Add InkWell
+                    borderRadius: BorderRadius.circular(40), // 5. Add matching border radius for ripple
+                    onTap: () async { // 6. Your onTap logic
+                      await _loginAuth(context);
+                    },
+                    child: SizedBox(
+                      height: 56,
+                      // 7. IMPORTANT: Decoration is removed from here
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/google_logo.png',
+                            width: 28,
+                            height: 28,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Sign in with Google',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontFamily: 'Geist',
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -70,7 +70,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       CurvedAnimation(parent: _contentController, curve: Curves.linear),
     );
 
-    _panelController.forward();
+    //_panelController.forward();
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
@@ -392,14 +392,21 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
     return Scaffold(
       extendBody: true,
-      backgroundColor: const Color(0xFFF6EFD2),
+      backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF6EFD2),
+        toolbarHeight: 80,
+        backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Hero( // <--- 1. ADD HERO WIDGET
+          tag: 'appBarBackButton', // <--- 2. GIVE IT A UNIQUE TAG
+          child: Padding( 
+            padding: const EdgeInsets.only(left: 6.0), 
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ), 
       ),
       body: SafeArea(
         bottom: false,
@@ -411,232 +418,244 @@ class _RegistrationStep3State extends State<RegistrationStep3>
             const SizedBox(height: 10),
 
             Expanded(
-              child: SlideTransition(
-                position: _panelSlide,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 35),
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF354372),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
-                    ),
-                  ),
-                  padding: const EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 30,
-                    bottom: 50,
-                  ),
-
-                  child: FadeTransition(
-                    opacity: _contentFade,
-                    child: SlideTransition(
-                      position: _contentSlide,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 5),
-                          Center(
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: "Upload your ",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: "COR",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+              child: Stack(
+                children: [
+                  Hero( // <--- 1. ADD THE HERO WIDGET
+                    tag: 'bluePanel', // <--- 2. USE THE SAME TAG
+                    child: Material (
+                      type: MaterialType.transparency, // avoids text flash
+                      child: Container( // <--- Container is the child of Hero
+                        margin: const EdgeInsets.only(top: 35),
+                        width: double.infinity,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF354372),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(40),
+                            topRight: Radius.circular(40),
                           ),
-                          const SizedBox(height: 40),
-
-                          // File selection box
-                          GestureDetector(
-                            onTap: isButtonActive
-                                ? () => _handleCORUpload(context)
-                                : null,
-                            child: Container(
-                              height: 250,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF5C6AA0),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: Colors.yellowAccent,
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.file_present_rounded,
-                                  color: Colors.white,
-                                  size: 40,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          if (_isUploading || _uploadComplete)
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              margin: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF354372),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  //file icon
-                                  const Icon(
-                                    Icons.insert_drive_file,
-                                    color: Colors.white,
-                                    size: 34,
-                                  ),
-                                  const SizedBox(width: 20),
-                                  // Middle column
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        //top row
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                _selectedFileName,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: 'Geist',
-                                                  fontSize: 12,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              '${(_uploadProgress * 100).toInt()}%',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontFamily: 'Geist',
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        // Progress bar
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          child: LinearProgressIndicator(
-                                            value: _uploadProgress,
-                                            minHeight: 6,
-                                            backgroundColor: Colors.white24,
-                                            valueColor:
-                                                const AlwaysStoppedAnimation<
-                                                  Color
-                                                >(Colors.white),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 20),
-                                  if (_selectedFilePath != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        top: 12,
-                                      ), 
-                                      child: GestureDetector(
-                                        onTap: _cancelUpload,
-                                        child: const Icon(
-                                          Icons.close,
-                                          color: Color(0xFFF3C8C8),
-                                          size: 24,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-
-                          const Spacer(),
-                          Center(
-                            child: GestureDetector(
-                              onTap: _uploadComplete
-                                  ? () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => RegistrationStep4(
-                                            uid: widget.uid,
-                                            name: _nameCap!,
-                                            college: _collegeCap!,
-                                            yearLevel: _yearLevel!,
-                                            semester: _semester!,
-                                            section: _sectionCap!,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  : isButtonActive
-                                  ? () => _handleCORUpload(context)
-                                  : null,
-                              child: Opacity(
-                                opacity: (_uploadComplete || isButtonActive)
-                                    ? 1.0
-                                    : 0.5,
-                                child: Container(
-                                  height: 60,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: (_uploadComplete || isButtonActive)
-                                        ? buttonColor
-                                        : Colors.grey,
-                                    borderRadius: BorderRadius.circular(40),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      _uploadComplete
-                                          ? 'Proceed'
-                                          : 'Uplaod COR',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        fontFamily: 'Geist',
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
+                  
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 30,
+                      bottom: 50,
+                    ),
+
+                    child: FadeTransition(
+                      opacity: _contentFade,
+                      child: SlideTransition(
+                        position: _contentSlide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 43),
+                            Center(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    const TextSpan(
+                                      text: "Upload your ",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: "COR",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+
+                            // File selection box
+                            // File selection box
+                          Material(
+                            color: const Color(0xFF5C6AA0),      // <--- Keep color here
+                            borderRadius: BorderRadius.circular(30), // <--- Keep radius here
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(30), // Match radius for ripple
+                              onTap: isButtonActive
+                                  ? () => _handleCORUpload(context)
+                                  : null,
+                              child: Container(
+                                height: 238,
+                                // 👇 Add decoration back to Container, but ONLY for the border
+                                decoration: BoxDecoration(
+                                  // Color is handled by Material now
+                                  borderRadius: BorderRadius.circular(30), // Keep radius for shape
+                                  border: Border.all( // Add border back here
+                                    color: const Color(0xFFFFEB66),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.file_present_rounded,
+                                    color: Color(0xFFF9F2D7),
+                                    size: 26,
+                                  ),
+                                ),
+                              ), // <-- Container ends
+                            ), // <-- InkWell ends
+                          ), // <-- Material ends
+
+                            if (_isUploading || _uploadComplete)
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF354372),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    //file icon
+                                    const Icon(
+                                      Icons.insert_drive_file,
+                                      color: Color(0xFFF9F2D7),
+                                      size: 28,
+                                    ),
+                                    const SizedBox(width: 20),
+                                    // Middle column
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          //top row
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  _selectedFileName,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontFamily: 'Geist',
+                                                    fontSize: 12,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                '${(_uploadProgress * 100).toInt()}%',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontFamily: 'Geist',
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          // Progress bar
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            child: LinearProgressIndicator(
+                                              value: _uploadProgress,
+                                              minHeight: 6,
+                                              backgroundColor: Colors.white24,
+                                              valueColor:
+                                                  const AlwaysStoppedAnimation<
+                                                    Color
+                                                  >(Colors.white),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 20),
+                                    if (_selectedFilePath != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 12,
+                                        ), 
+                                        child: GestureDetector(
+                                          onTap: _cancelUpload,
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Color(0xFFF3C8C8),
+                                            size: 24,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+
+                            const Spacer(),
+                            Center(
+                              child: Opacity(
+                                opacity: (_uploadComplete || isButtonActive) ? 1.0 : 0.5,
+                                child: Material(
+                                  color: (_uploadComplete || isButtonActive) ? const Color(0xFF5C6AA0) : Colors.grey,
+                                  borderRadius: BorderRadius.circular(40),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(40),
+                                    onTap: _uploadComplete
+                                        ? () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => RegistrationStep4(
+                                                  uid: widget.uid,
+                                                  name: _nameCap!,
+                                                  college: _collegeCap!,
+                                                  yearLevel: _yearLevel!,
+                                                  semester: _semester!,
+                                                  section: _sectionCap!,
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        : isButtonActive
+                                        ? () => _handleCORUpload(context)
+                                        : null,
+                                    child: SizedBox(
+                                      height: 56,
+                                      width: double.infinity,
+                                      child: Center(
+                                        child: Text(
+                                          _uploadComplete ? 'Proceed' : 'Upload COR',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            fontFamily: 'Geist',
+                                          ),
+                                        ),
+                                      )
+                                    )
+                                  )
+                                ),
+                              )
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                ]
+              )
             ),
           ],
         ),
@@ -678,7 +697,7 @@ class StepProgressIndicator extends StatelessWidget {
                   '${index + 1}',
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                     fontFamily: 'Geist',
                   ),
@@ -686,20 +705,46 @@ class StepProgressIndicator extends StatelessWidget {
               ),
             ),
             if (!isLast)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 40,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: index + 1 <= currentStep
-                      ? lineActiveColor
-                      : Colors.grey[300],
-                  border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+              SizedBox(
+                width: 40, // Keep the original line width for spacing
+                height: 7 + (2 * 2), // Total height including potential border
+                child: Stack(
+                  alignment: Alignment.centerLeft, // Align active line to the left
+                  children: [
+                    // --- Background (Inactive Line) ---
+                    Container(
+                      width: 40,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300], // Inactive fill color
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                        // Optional: Add border radius if you want rounded ends
+                        // borderRadius: BorderRadius.circular(3.5), 
+                      ),
+                    ),
+                    // --- Foreground (Active Line - Animated Width) ---
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: (index + 1 == currentStep) 
+                             ? 40 / 2 // Half width if this is the *current* step
+                             : (index + 1 < currentStep) 
+                               ? 40 // Full width if this step is *already passed*
+                               : 0, // Zero width if it's a future step
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: lineActiveColor, // Active fill color
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2), // Keep border consistent
+                         // Optional: Add border radius if you want rounded ends
+                        // borderRadius: BorderRadius.circular(3.5), 
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-          ],
-        );
-      }),
-    );
+              ), // End of Line SizedBox/Stack
+
+          ], // End of inner Row children
+        ); // End of inner Row
+      }), // End of List.generate
+    ); // End of outer Row
   }
 }

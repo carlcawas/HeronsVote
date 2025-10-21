@@ -50,27 +50,34 @@ class _RegistrationStep1State extends State<RegistrationStep1>
       extendBody: true,
       backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF6EFD2),
+        toolbarHeight: 80,
+        backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Hero( // <--- 1. ADD HERO WIDGET
+          tag: 'appBarBackButton', // <--- 2. GIVE IT A UNIQUE TAG
+          child: Padding( 
+            padding: const EdgeInsets.only(left: 6.0), 
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ), 
       ),
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            const SizedBox(height: 150),
+            const SizedBox(height: 65),
             SlideTransition(
               position: _contentSlide,
               child: Column(
                 children: [
                   Container(
-                    height: 300,
-                    width: 300,
+                    height: 238,
+                    width: 238,
                     decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.transparent),
-                    child: SizedBox(width: 300, child: Image.asset('assets/verify.png', fit: BoxFit.contain)),
+                    child: SizedBox(width: 0, child: Image.asset('assets/verified.png', fit: BoxFit.contain)),
                   ),
                   const SizedBox(height: 45),
                   Center(
@@ -86,7 +93,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                             style: TextStyle(
                               color: const Color(0xFF414141),
                               fontSize: 24,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.bold,
                               fontFamily: 'Geist',
                             ),
                           ),
@@ -110,36 +117,64 @@ class _RegistrationStep1State extends State<RegistrationStep1>
             const Spacer(),
             SlideTransition(
               position: _bottomSlide,
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF354372),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
-                ),
-                padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => RegistrationStep3(uid: widget.uid)),
-                    );
-                  },
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(color: const Color(0xFF5C6AA0), borderRadius: BorderRadius.circular(40)),
-                    child: const Center(
-                      child: Text(
-                        'Verify Identity',
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Geist'),
+              child: Stack(
+                children: [
+                  // Hero for background panel only
+                  Hero(
+                    tag: 'bluePanel',
+                    child: Material(
+                      type: MaterialType.transparency, // <-- prevents text flash
+                      child: Container(
+                        width: double.infinity,
+                        height: 146, // height of the panel you want to animate
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF354372),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(40),
+                            topRight: Radius.circular(40),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+
+                  // Panel content (button, padding, etc.)
+                  Container(
+                    padding: const EdgeInsets.only(left: 25, right: 25, top: 30, bottom: 46),
+                    child: Material(
+                      color: const Color(0xFF5C6AA0),
+                      borderRadius: BorderRadius.circular(40),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(40),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => RegistrationStep3(uid: widget.uid)),
+                          );
+                        },
+                        child: SizedBox(
+                          height: 56,
+                          child: const Center(
+                            child: Text(
+                              'Verify Identity',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Geist',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
+            ),  
           ],
         ),
-      ),
+      ), 
     );
   }
 }

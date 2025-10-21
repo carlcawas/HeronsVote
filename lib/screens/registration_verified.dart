@@ -72,8 +72,8 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      height: 300,
-                      width: 300,
+                      height: 220,
+                      width: 220,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.transparent,
@@ -81,13 +81,14 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                       alignment: Alignment.bottomCenter,
                       child: SizedBox(
                         child: Image.asset(
-                          height: 300,
+                          height: 220,
                           'assets/verified.png',
                           fit: BoxFit.contain,
                         ),
                       ),
                     ),
                     Center(
+                      
                       child: Text.rich(
                         TextSpan(
                           children: [
@@ -95,7 +96,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                               text: "Verified",
                               style: TextStyle(
                                 color: const Color(0xFF414141),
-                                fontSize: 25,
+                                fontSize: 24,
                                 fontFamily: 'Geist',
                               ),
                             ),
@@ -128,7 +129,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 0),
                     Center(
                       child: Text.rich(
                         TextSpan(
@@ -163,45 +164,53 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 40),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            transitionDuration: const Duration(milliseconds: 0),
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) =>
-                                    const HomeScreen(),
-                            transitionsBuilder:
-                                (
-                                  context,
-                                  animation,
-                                  secondaryAnimation,
-                                  child,
-                                ) {
-                                  return child;
-                                },
-                          ),
-                        );
-                      },
-                      child: Container(
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF5C6AA0),
+                    const SizedBox(height: 44),
+
+                    
+                    Center(
+                      child: Material(
+                        color: const Color(0xFF5C6AA0),
+                        borderRadius: BorderRadius.circular(40),
+                      
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(40),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'Continue',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Geist',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              PageRouteBuilder(
+                                transitionDuration: const Duration(milliseconds: 0),
+                                pageBuilder:
+                                    (context, animation, secondaryAnimation) =>
+                                        const HomeScreen(),
+                                transitionsBuilder:
+                                    (
+                                      context,
+                                      animation,
+                                      secondaryAnimation,
+                                      child,
+                                    ) {
+                                      return child;
+                                    },
+                              ),
+                            );
+                          },
+                          child: SizedBox(
+                          height: 56,
+                          width: double.infinity, 
+                      
+                            child: const Center(
+                              child: Text(
+                                'Continue',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Geist',
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                        ),   
                       ),
                     ),
                   ],
@@ -216,7 +225,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
 }
 
 
-//steps
+// Steps
 class StepProgressIndicator extends StatelessWidget {
   final int currentStep;
   const StepProgressIndicator({super.key, required this.currentStep});
@@ -249,7 +258,7 @@ class StepProgressIndicator extends StatelessWidget {
                   '${index + 1}',
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                     fontFamily: 'Geist',
                   ),
@@ -257,20 +266,46 @@ class StepProgressIndicator extends StatelessWidget {
               ),
             ),
             if (!isLast)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 40,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: index + 1 <= currentStep
-                      ? lineActiveColor
-                      : Colors.grey[300],
-                  border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+              SizedBox(
+                width: 40, // Keep the original line width for spacing
+                height: 7 + (2 * 2), // Total height including potential border
+                child: Stack(
+                  alignment: Alignment.centerLeft, // Align active line to the left
+                  children: [
+                    // --- Background (Inactive Line) ---
+                    Container(
+                      width: 40,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300], // Inactive fill color
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                        // Optional: Add border radius if you want rounded ends
+                        // borderRadius: BorderRadius.circular(3.5), 
+                      ),
+                    ),
+                    // --- Foreground (Active Line - Animated Width) ---
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: (index + 1 == currentStep) 
+                             ? 40 / 2 // Half width if this is the *current* step
+                             : (index + 1 < currentStep) 
+                               ? 40 // Full width if this step is *already passed*
+                               : 0, // Zero width if it's a future step
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: lineActiveColor, // Active fill color
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2), // Keep border consistent
+                         // Optional: Add border radius if you want rounded ends
+                        // borderRadius: BorderRadius.circular(3.5), 
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-          ],
-        );
-      }),
-    );
+              ), // End of Line SizedBox/Stack
+
+          ], // End of inner Row children
+        ); // End of inner Row
+      }), // End of List.generate
+    ); // End of outer Row
   }
 }

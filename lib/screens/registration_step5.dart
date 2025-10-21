@@ -221,14 +221,21 @@ class _RegistrationStep5State extends State<RegistrationStep5>
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      backgroundColor: const Color(0xFFF6EFD2),
+      backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF6EFD2),
+        toolbarHeight: 80,
+        backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Hero( // <--- 1. ADD HERO WIDGET
+          tag: 'appBarBackButton', // <--- 2. GIVE IT A UNIQUE TAG
+          child: Padding( 
+            padding: const EdgeInsets.only(left: 6.0), 
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ), 
       ),
       body: SafeArea(
         bottom: false,
@@ -239,146 +246,159 @@ class _RegistrationStep5State extends State<RegistrationStep5>
             const Center(child: StepProgressIndicator(currentStep: 3)),
             const SizedBox(height: 10),
             Expanded(
-              child: SlideTransition(
-                position: _panelSlide,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 35),
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF354372),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
-                    ),
-                  ),
-                  padding: const EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 30,
-                    bottom: 50,
-                  ),
-                  child: FadeTransition(
-                    opacity: _contentFade,
-                    child: SlideTransition(
-                      position: _contentSlide,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 5),
-                          Center(
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: "Verify student ",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: "Face",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+              child: Stack (
+                children: [
+                  Hero (
+                    tag: 'bluePanel', // <--- 2. USE THE SAME TAG
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 35),
+                        width: double.infinity,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF354372),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(40),
+                            topRight: Radius.circular(40),
                           ),
-                          const SizedBox(height: 40),
-                          Container(
-                            height: 480,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF5C6AA0),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Colors.yellowAccent,
-                                width: 1,
-                              ),
-                            ),
-                            //camera area
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(30),
-                              child:
-                                  _cameraInitialized &&
-                                      _cameraController != null
-                                  ? Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        FittedBox(
-                                          fit: BoxFit.cover,
-                                          child: SizedBox(
-                                            width: _cameraController!
-                                                .value
-                                                .previewSize!
-                                                .height,
-                                            height: _cameraController!
-                                                .value
-                                                .previewSize!
-                                                .width,
-                                            child: CameraPreview(
-                                              _cameraController!,
-                                            ),
-                                          ),
-                                        ),
-                                        if (_processing)
-                                          Positioned.fill(
-                                            child: Container(
-                                              color: Colors.black.withOpacity(
-                                                0.4,
-                                              ),
-                                              child: const Center(
-                                                child:
-                                                    CircularProgressIndicator(),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    )
-                                  : const Center(
-                                      child: Icon(
-                                        Icons.camera_alt,
-                                        color: Colors.white,
-                                        size: 40,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          const Spacer(),
-                          Center(
-                            child: GestureDetector(
-                              onTap: _processing ? null : _onCapturePressed,
-                              child: Container(
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF5C6AA0),
-                                  borderRadius: BorderRadius.circular(40),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    _processing ? 'Processing...' : 'Capture',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: 25,
+                      right: 25,
+                      top: 30,
+                      bottom: 50,
+                    ),
+                    child: FadeTransition(
+                      opacity: _contentFade,
+                      child: SlideTransition(
+                        position: _contentSlide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 43),
+                            Center(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: "Verify student ",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: "Face",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 48),
+                            Container(
+                              height: 320,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF5C6AA0),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: const Color(0xFFFFEB66),
+                                  width: 2,
+                                ),
+                              ),
+                              //camera area
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(30),
+                                child:
+                                    _cameraInitialized &&
+                                        _cameraController != null
+                                    ? Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          FittedBox(
+                                            fit: BoxFit.cover,
+                                            child: SizedBox(
+                                              width: _cameraController!
+                                                  .value
+                                                  .previewSize!
+                                                  .height,
+                                              height: _cameraController!
+                                                  .value
+                                                  .previewSize!
+                                                  .width,
+                                              child: CameraPreview(
+                                                _cameraController!,
+                                              ),
+                                            ),
+                                          ),
+                                          if (_processing)
+                                            Positioned.fill(
+                                              child: Container(
+                                                color: Colors.black.withOpacity(
+                                                  0.4,
+                                                ),
+                                                child: const Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      )
+                                    : const Center(
+                                        child: Icon(
+                                          Icons.camera_alt,
+                                          color: Colors.white,
+                                          size: 40,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Center(
+                              child: Material(
+                                color: const Color(0xFF5C6AA0),
+                                borderRadius: BorderRadius.circular(40),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(40),
+                                  onTap: _processing ? null : _onCapturePressed,
+                                  child: SizedBox(
+                                    width: double.infinity,  
+                                    height: 56,
+                                    
+                                    child: Center(
+                                      child: Text(
+                                        _processing ? 'Processing...' : 'Capture',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: 'Geist',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                ]
               ),
             ),
           ],
@@ -388,7 +408,7 @@ class _RegistrationStep5State extends State<RegistrationStep5>
   }
 }
 
-//steps
+// Steps
 class StepProgressIndicator extends StatelessWidget {
   final int currentStep;
   const StepProgressIndicator({super.key, required this.currentStep});
@@ -421,7 +441,7 @@ class StepProgressIndicator extends StatelessWidget {
                   '${index + 1}',
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                     fontFamily: 'Geist',
                   ),
@@ -429,20 +449,47 @@ class StepProgressIndicator extends StatelessWidget {
               ),
             ),
             if (!isLast)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 40,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: index + 1 <= currentStep
-                      ? lineActiveColor
-                      : Colors.grey[300],
-                  border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+              SizedBox(
+                width: 40, // Keep the original line width for spacing
+                height: 7 + (2 * 2), // Total height including potential border
+                child: Stack(
+                  alignment: Alignment.centerLeft, // Align active line to the left
+                  children: [
+                    // --- Background (Inactive Line) ---
+                    Container(
+                      width: 40,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300], // Inactive fill color
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                        // Optional: Add border radius if you want rounded ends
+                        // borderRadius: BorderRadius.circular(3.5), 
+                      ),
+                    ),
+                    // --- Foreground (Active Line - Animated Width) ---
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: (index + 1 == currentStep) 
+                             ? 40 / 2 // Half width if this is the *current* step
+                             : (index + 1 < currentStep) 
+                               ? 40 // Full width if this step is *already passed*
+                               : 0, // Zero width if it's a future step
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: lineActiveColor, // Active fill color
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2), // Keep border consistent
+                         // Optional: Add border radius if you want rounded ends
+                        // borderRadius: BorderRadius.circular(3.5), 
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-          ],
-        );
-      }),
-    );
+              ), // End of Line SizedBox/Stack
+
+          ], // End of inner Row children
+        ); // End of inner Row
+      }), // End of List.generate
+    ); // End of outer Row
   }
 }
+

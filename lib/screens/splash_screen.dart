@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
           tag: 'logoHero',
           child: Image.asset(
             'assets/HeronVoteLogo.png',
-            width: 230, 
+            width: 130, 
           ),
         ),
       ),

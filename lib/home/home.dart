@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:iconify_flutter/iconify_flutter.dart';
-import 'package:iconify_flutter/icons/mdi.dart';
-import 'package:iconify_flutter/icons/material_symbols.dart';
 import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
@@ -289,21 +286,21 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Expanded(
               child: _buildTimeBox(
-                "${timeLeft.inDays.toString().padLeft(2, '0')}",
+                timeLeft.inDays.toString().padLeft(2, '0'),
                 "Days",
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildTimeBox(
-                "${(timeLeft.inHours % 24).toString().padLeft(2, '0')}",
+                (timeLeft.inHours % 24).toString().padLeft(2, '0'),
                 "Hours",
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildTimeBox(
-                "${(timeLeft.inMinutes % 60).toString().padLeft(2, '0')}",
+                (timeLeft.inMinutes % 60).toString().padLeft(2, '0'),
                 "Minutes",
               ),
             ),
