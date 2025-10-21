@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:heronsvote/home/home.dart';
 
+
 class RegistrationVerified extends StatefulWidget {
   const RegistrationVerified({super.key});
 
@@ -61,6 +62,9 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
         child: Column(
           children: [
             const SizedBox(height: 50),
+            const SizedBox(height: 50),
+            const StepProgressIndicator(currentStep: 4), 
+            const SizedBox(height: 20),
             Expanded(
               child: SlideTransition(
                 position: _contentSlide,
@@ -207,6 +211,66 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
           ],
         ),
       ),
+    );
+  }
+}
+
+
+//steps
+class StepProgressIndicator extends StatelessWidget {
+  final int currentStep;
+  const StepProgressIndicator({super.key, required this.currentStep});
+
+  @override
+  Widget build(BuildContext context) {
+    const activeColor = Color(0xFF354372);
+    const inactiveColor = Color(0xFFD9D9D9);
+    const lineActiveColor = Color(0xFF273E58);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(4, (index) {
+        final isActive = index + 1 <= currentStep;
+        final isLast = index == 3;
+
+        return Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isActive ? activeColor : inactiveColor,
+                border: Border.all(color: inactiveColor, width: 4),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    fontFamily: 'Geist',
+                  ),
+                ),
+              ),
+            ),
+            if (!isLast)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 40,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: index + 1 <= currentStep
+                      ? lineActiveColor
+                      : Colors.grey[300],
+                  border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                ),
+              ),
+          ],
+        );
+      }),
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'registration_step2.dart';
+import 'registration_step3.dart';
 
 class RegistrationStep1 extends StatefulWidget {
   final String uid;
@@ -121,7 +121,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => RegistrationStep2(uid: widget.uid)),
+                      MaterialPageRoute(builder: (_) => RegistrationStep3(uid: widget.uid)),
                     );
                   },
                   child: Container(

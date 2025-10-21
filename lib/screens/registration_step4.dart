@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_step5.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -182,7 +181,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-            const Center(child: StepProgressIndicator(currentStep: 3)),
+            const Center(child: StepProgressIndicator(currentStep: 2)),
             const SizedBox(height: 10),
             Expanded(
               child: SlideTransition(
