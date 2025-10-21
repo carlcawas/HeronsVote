@@ -35,7 +35,7 @@ android {
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
-
+    
     defaultConfig {
         applicationId = "com.example.heronsvote"
         minSdk = flutter.minSdkVersion
@@ -45,20 +45,7 @@ android {
     }
 
     signingConfigs {
-        create("sharedDebug") {
-            val storeFileProp = prop("storeFile")
-            if (storeFileProp != null && storeFileProp.isNotBlank()) {
-                val resolved = rootProject.file(storeFileProp)
-                if (resolved.exists()) {
-                    storeFile = resolved
-                }
-            }
-            storePassword = prop("storePassword") ?: ""
-            keyAlias = prop("keyAlias") ?: ""
-            keyPassword = prop("keyPassword") ?: ""
-        }
-
-        create("sharedRelease") {
+        create("unified") {
             val storeFileProp = prop("storeFile")
             if (storeFileProp != null && storeFileProp.isNotBlank()) {
                 val resolved = rootProject.file(storeFileProp)
@@ -75,18 +62,15 @@ android {
     buildTypes {
         getByName("debug") {
             if (storeFileExists()) {
-                signingConfig = signingConfigs.getByName("sharedDebug")
-            } // else keep default debug signing
+                signingConfig = signingConfigs.getByName("unified")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
         }
 
         getByName("release") {
             if (storeFileExists()) {
-                signingConfig = signingConfigs.getByName("sharedRelease")
-            } else {
-                // no signing configured for release — useful for quick builds during dev
-                // If you need a signed release for Play Store, make sure key.properties and keystore are present.
+                signingConfig = signingConfigs.getByName("unified")
             }
             isMinifyEnabled = false
             isShrinkResources = false

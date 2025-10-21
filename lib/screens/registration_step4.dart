@@ -376,7 +376,6 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       'section': nSection,
       'semester': nSemester,
       'lastUpdateCOR': DateTime.now(),
-      'registerComplete': true,
     }, SetOptions(merge: true));
 
     // TODO: Replace Toast with UI update
