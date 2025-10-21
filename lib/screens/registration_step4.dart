@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_step5.dart';
-
+import 'package:fluttertoast/fluttertoast.dart';
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegistrationStep4 extends StatefulWidget {
+  final String uid;
   final String name;
   final String college;
   final String? yearLevel;
@@ -10,6 +14,7 @@ class RegistrationStep4 extends StatefulWidget {
   final String section;
   const RegistrationStep4({
     super.key,
+    required this.uid,
     required this.name,
     required this.college,
     required this.yearLevel,
@@ -21,8 +26,7 @@ class RegistrationStep4 extends StatefulWidget {
   State<RegistrationStep4> createState() => _RegistrationStep4State();
 }
 
-class _RegistrationStep4State extends State<RegistrationStep4>
-    with TickerProviderStateMixin {
+class _RegistrationStep4State extends State<RegistrationStep4> with TickerProviderStateMixin {
   late final AnimationController _panelController;
   late final Animation<Offset> _panelSlide;
 
@@ -288,30 +292,8 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                           const Spacer(),
                           Center(
                             child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  PageRouteBuilder(
-                                    transitionDuration: const Duration(
-                                      milliseconds: 0,
-                                    ),
-                                    pageBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                        ) => const RegistrationStep5(),
-                                    transitionsBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                          child,
-                                        ) {
-                                          return child;
-                                        },
-                                  ),
-                                );
+                              onTap: () async {
+                                await _updateDetails(context);
                               },
                               child: Container(
                                 height: 60,
@@ -342,6 +324,76 @@ class _RegistrationStep4State extends State<RegistrationStep4>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _updateDetails(BuildContext context)  async {
+    // Checks passed uid if still authenticated by firebase
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      Fluttertoast.showToast(
+        msg: "User is not authenticated. Please log in again.",
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+      );
+      return;
+    }
+    
+    // Get new information input by user
+    String nName = _nameController.text;
+    String nCollege = _collegeController.text;
+    String nYrLvl = _yearLevelController.text;
+    String nSection = _sectionController.text;
+    String nSemester = _semesterController.text;
+
+    // Init database's users collection
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    // Validate inputs
+    final hasCompletedInput =
+        nName.isNotEmpty &&
+        nCollege.isNotEmpty &&
+        nYrLvl.isNotEmpty &&
+        nSection.isNotEmpty &&
+        nSemester.isNotEmpty;
+
+      if (!hasCompletedInput) {
+        // TODO: Replace Toast with UI update
+        Fluttertoast.showToast(
+          msg: "All fields must not be empty. Please re-enter your details or re-upload your COR.",
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+        );
+        debugPrint('Invalid Inputs.');
+        return;
+      }
+
+    // Update fields in firestore firebase
+    await userRef.set({
+      'name': nName,
+      'college': nCollege,
+      'year_level': nYrLvl,
+      'section': nSection,
+      'semester': nSemester,
+      'lastUpdateCOR': DateTime.now(),
+      'registerComplete': true,
+    }, SetOptions(merge: true));
+
+    // TODO: Replace Toast with UI update
+    Fluttertoast.showToast(
+      msg: "Student information updated successfully.",
+      toastLength: Toast.LENGTH_LONG,
+      gravity: ToastGravity.BOTTOM,
+    );
+
+    // Move to next page if all steps are successful
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 0),
+        pageBuilder: (context, animation, secondaryAnimation) => const RegistrationStep5(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {return child;},
       ),
     );
   }

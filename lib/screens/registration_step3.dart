@@ -179,7 +179,10 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                           const Spacer(),
                           Center(
                             child: GestureDetector(
-                              // TODO: REMOVE NATO SINCE AFTER MAGSELECT NG FILE AUTO READ NA SIYA
+                              // TODO: PWEDE NATO REMOVE SINCE AFTER MAGSELECT NG FILE AUTO READ NA SIYA
+                              onTap: () async {
+                                await _openCOR(context);
+                              },
                               child: Container(
                                 height: 60,
                                 decoration: BoxDecoration(
@@ -483,9 +486,10 @@ class StepProgressIndicator extends StatelessWidget {
       );
       
       // Move to next step, pass ONLY NEEDED information in next window and auto fill the fields on step4 :)))
-      Navigator.pushReplacement(context,
+      Navigator.push(context,
         MaterialPageRoute(
           builder: (_) => RegistrationStep4(
+            uid: uid,
             name: nameCap,
             college: collegeCap,
             yearLevel: yearLevel,
