@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:heronsvote/home/home.dart';
 import 'registration_step1.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:heronsvote/services/firebase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,46 +13,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-// ========================= For Firestore Database
-final FirebaseFirestore _db = FirebaseFirestore.instance;
-// ================================================== 
-
-// ========================= For Google Sign in
-final GoogleSignIn _googleSignIn = GoogleSignIn();
-
-Future<UserCredential?> login({bool forceAccountSelection = false}) async {
-  try {
-    if (forceAccountSelection) {
-      await FirebaseAuth.instance.signOut();
-      try {
-        await _googleSignIn.disconnect();
-      } catch (_) {
-        await _googleSignIn.signOut();
-      }
-    }
-
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null;
-
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    
-    final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
-    debugPrint('Signed in: ${userCred.user?.email}');
-    return userCred;
-
-  } catch (e, st) {
-    debugPrint('login() error: $e\n$st');
-    rethrow;
-  }
-}
-// ================================================== 
-
-class _LoginScreenState extends State<LoginScreen>
-    with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   late final AnimationController _logoController;
   late final Animation<Offset> _logoSlide;
 
@@ -60,11 +23,17 @@ class _LoginScreenState extends State<LoginScreen>
 
   late final AnimationController _bottomController;
   late final Animation<Offset> _bottomSlide;
-
+  
+  // Init Firebase auth and google sign-in
+  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  bool _isSigningIn = false;
+  
   @override
   void initState() {
     super.initState();
-
+    
     //slide
     _logoController = AnimationController(
       vsync: this,
@@ -110,8 +79,6 @@ class _LoginScreenState extends State<LoginScreen>
     _bottomController.dispose();
     super.dispose();
   }
-
-  bool _isSigningIn = false; 
 
   @override
   Widget build(BuildContext context) {
@@ -202,94 +169,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 child: GestureDetector(
                   onTap: () async{
-                    if (_isSigningIn) return; 
-                    setState(() => _isSigningIn = true);
-
-                    try {
-                      final userCred = await login(forceAccountSelection: true);
-
-                      if (!mounted) return;
-
-                      if (userCred == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Google sign-in cancelled.'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                        return;
-                      }
-
-                      final user = userCred.user!;
-                      final uid = user.uid;
-                      final email = user.email ?? '';
-                      final name = user.displayName ?? '';
-
-                      final userRef = _db.collection('users').doc(uid);
-                      final doc = await userRef.get();
-                      
-                      if (!email.toLowerCase().endsWith('@umak.edu.ph')) {
-                        await FirebaseAuth.instance.signOut();
-                        await _googleSignIn.signOut();
-
-                        if (!mounted) return;
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Google sign-in failed. Please use your UMak Account.'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                        return;
-                      }
-
-                      if (!mounted) return;
-            
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Signed in as $email'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-
-                      // Register User
-                      await userRef.set({
-                        'uid': uid,
-                        'email': email,
-                        'name': name,
-                        'student_number': '',
-                        'program': '',
-                        'college': '',
-                        'year_level': '',
-                        'section': '',
-                        'semester': '',
-                        'gender': '',
-                        'createdAt': doc.exists ? FieldValue.serverTimestamp() : DateTime.now(),
-                        'lastUpdateCOR': '',
-                      }, SetOptions(merge: true));
-
-                      debugPrint(doc.exists ? 'User exists' : 'User registered');
-
-                      if (!mounted) return;
-
-                      // If login successful, go to authentication/verification page
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
-                      );
-
-                    } catch (e, st) {
-                      debugPrint('Sign-in handler error: $e\n$st');
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('An error occurred during sign-in.'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    } finally {
-                      if (mounted) setState(() => _isSigningIn = false);
-                    }
+                    await _loginAuth(context);
                   },
                   child: Container(
                     height: 61,
@@ -325,5 +205,137 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _loginAuth(BuildContext context) async {
+    if (_isSigningIn) return;
+    setState(() => _isSigningIn = true);
+
+    try {
+      final userCred = await login(forceAccountSelection: true);
+      if (!mounted) return;
+
+      if (userCred == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in cancelled.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      final user = userCred.user!;
+      final uid = user.uid;
+      final email = user.email ?? '';
+      final name = user.displayName ?? '';
+
+      if (!email.toLowerCase().endsWith('@umak.edu.ph')) {
+        await FirebaseAuth.instance.signOut();
+        await _googleSignIn.signOut();
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google sign-in failed. Please use your UMak Account.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      // Uses 'services/firebase_service.dart
+      final userData = await _firebaseService.getDocument('users', uid);
+      
+      // Check if user is existing 
+      if (userData == null) {
+        // Register the user if not yet existed
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'uid': uid,
+          'email': email,
+          'name': name,
+          'createdAt': FieldValue.serverTimestamp(),
+          'student_number': '',
+          'program': '',
+          'college': '',
+          'year_level': '',
+          'section': '',
+          'semester': '',
+          'gender': '',
+          'lastUpdateCOR': '',
+          'registerComplete': false,
+        });
+
+        debugPrint('User Registered: $email');
+      } else {
+        debugPrint('Existing: $email — skipping overwrite.');
+      }
+
+      // Checks if user has completed registration
+      final updatedData = await _firebaseService.getDocument('users', uid);
+      final registerComplete = updatedData?['registerComplete'] ?? false;
+      
+      // Successful login
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Signed in as $email'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // checks if registration is completed or all fields are filled
+      // If true skip to home, else, continue with register
+      if (registerComplete) {
+        Navigator.pushReplacement(context,
+          MaterialPageRoute(builder: (_) => HomeScreen()),
+        );
+      } else {
+        Navigator.push(context,
+          MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
+        );
+      }
+
+    } catch (e, st) {
+      debugPrint('Sign-in handler error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('An error occurred during sign-in.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSigningIn = false);
+    }
+  }
+
+  Future<UserCredential?> login({bool forceAccountSelection = false}) async {
+    try {
+      if (forceAccountSelection) {
+        await FirebaseAuth.instance.signOut();
+        try {
+          await _googleSignIn.disconnect();
+        } catch (_) {
+          await _googleSignIn.signOut();
+        }
+      }
+
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null;
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      
+      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+      debugPrint('Signed in: ${userCred.user?.email}');
+      return userCred;
+
+    } catch (e, st) {
+      debugPrint('login() error: $e\n$st');
+      rethrow;
+    }
   }
 }

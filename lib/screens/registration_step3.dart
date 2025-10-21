@@ -303,13 +303,13 @@ class StepProgressIndicator extends StatelessWidget {
 
     // If no PDF file is selected
     if (result == null || result.files.single.path == null) {
+      // TODO: Replace Toast with UI update
       Fluttertoast.showToast(
         msg: "Please select your COR in PDF format",
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
       );
 
-      // TODO: Add UI updates etc...
       return;
     }
 
@@ -317,7 +317,7 @@ class StepProgressIndicator extends StatelessWidget {
     final filePath = result.files.single.path!;
     debugPrint('Selected PDF: $filePath');
 
-    // TODO: Customize UI update again
+    // TODO: Replace Toast with UI update
     Fluttertoast.showToast(
       msg: "Reading your COR...",
       toastLength: Toast.LENGTH_SHORT,
@@ -424,7 +424,7 @@ class StepProgressIndicator extends StatelessWidget {
       final hasEssentialData = nameCap.isNotEmpty && programCap.isNotEmpty && collegeCap.isNotEmpty && yearLevel != null && semester != null;
 
       if (!studentNoValid || !emailValid || !hasEssentialData) {
-        // TODO: Invalid COR/PDF used
+        // TODO: Replace Toast with UI update
         Fluttertoast.showToast(
           msg: "Invalid COR file. Please upload your official UMak COR.",
           toastLength: Toast.LENGTH_LONG,
@@ -460,7 +460,7 @@ class StepProgressIndicator extends StatelessWidget {
       // Init database's users collection
       final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
-      // Update fields
+      // Update fields in firestore firebase
       await userRef.set({
         'name': nameCap,
         'student_number': studentNoCap,
@@ -472,9 +472,10 @@ class StepProgressIndicator extends StatelessWidget {
         'semester': semester,
         'gender': genderCap,
         'lastUpdateCOR': DateTime.now(),
+        'registerComplete': true,
       }, SetOptions(merge: true));
 
-      // TODO: Add UI changes to show COR is sucessfully read
+      // TODO: Replace Toast with UI update
       Fluttertoast.showToast(
         msg: "COR information updated successfully.",
         toastLength: Toast.LENGTH_LONG,
@@ -496,6 +497,7 @@ class StepProgressIndicator extends StatelessWidget {
 
     } catch (e) {
       debugPrint('Error reading COR: $e');
+      // TODO: Replace Toast with UI update
       Fluttertoast.showToast(
         msg: "Failed to read COR PDF.",
         toastLength: Toast.LENGTH_LONG,
