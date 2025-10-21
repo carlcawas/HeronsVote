@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:heronsvote/home/home.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegistrationVerified extends StatefulWidget {
-  const RegistrationVerified({super.key});
+  final String uid;
+  const RegistrationVerified({super.key, required this.uid});
 
   @override
   State<RegistrationVerified> createState() => _RegistrationVerifiedState();
@@ -165,7 +167,12 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                     ),
                     const SizedBox(height: 40),
                     GestureDetector(
-                      onTap: () {
+                      onTap: () async {
+                        final uid = FirebaseAuth.instance.currentUser?.uid;
+                        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+                        await userRef.set({
+                          'registerComplete': true,
+                        }, SetOptions(merge: true));
                         Navigator.push(
                           context,
                           PageRouteBuilder(

@@ -9,7 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_verified.dart';
 
 class RegistrationStep5 extends StatefulWidget {
-  const RegistrationStep5({super.key});
+  final String? uid;
+  const RegistrationStep5({super.key, required this.uid,});
 
   @override
   State<RegistrationStep5> createState() => _RegistrationStep5State();
@@ -207,7 +208,7 @@ class _RegistrationStep5State extends State<RegistrationStep5>
         context,
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 0),
-          pageBuilder: (_, __, ___) => const RegistrationVerified(),
+          pageBuilder: (_, __, ___) => RegistrationVerified(uid: uid),
         ),
       );
     } catch (e) {

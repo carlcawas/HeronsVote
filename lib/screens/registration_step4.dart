@@ -390,7 +390,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 0),
-        pageBuilder: (context, animation, secondaryAnimation) => const RegistrationStep5(),
+        pageBuilder: (context, animation, secondaryAnimation) => RegistrationStep5(uid: widget.uid,),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {return child;},
       ),
     );
