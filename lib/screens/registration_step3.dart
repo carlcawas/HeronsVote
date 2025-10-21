@@ -529,9 +529,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                     const Icon(
                                       Icons.insert_drive_file,
                                       color: Color(0xFFF9F2D7),
-                                      size: 28,
+                                      size: 30,
                                     ),
-                                    const SizedBox(width: 20),
+                                    const SizedBox(width: 21),
                                     // Middle column
                                     Expanded(
                                       child: Column(
@@ -564,7 +564,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 8),
+                                          const SizedBox(height: 4),
                                           // Progress bar
                                           ClipRRect(
                                             borderRadius: BorderRadius.circular(
@@ -583,11 +583,11 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(width: 20),
+                                    const SizedBox(width: 26),
                                     if (_selectedFilePath != null)
                                       Padding(
                                         padding: const EdgeInsets.only(
-                                          top: 12,
+                                          top: 5,
                                         ), 
                                         child: GestureDetector(
                                           onTap: _cancelUpload,
