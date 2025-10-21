@@ -1,3 +1,10 @@
+import 'dart:io';
+import 'dart:math';
+import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_verified.dart';
 
@@ -12,10 +19,14 @@ class _RegistrationStep5State extends State<RegistrationStep5>
     with TickerProviderStateMixin {
   late final AnimationController _panelController;
   late final Animation<Offset> _panelSlide;
-
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
   late final Animation<double> _contentFade;
+
+  CameraController? _cameraController;
+  bool _cameraInitialized = false;
+  bool _processing = false;
+  late final FaceMeshDetector _meshDetector;
 
   @override
   void initState() {
@@ -49,19 +60,161 @@ class _RegistrationStep5State extends State<RegistrationStep5>
     );
 
     _panelController.forward();
-
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         _contentController.forward();
       }
     });
+
+    _meshDetector = FaceMeshDetector(option: FaceMeshDetectorOptions.faceMesh);
+
+    _initCameraAndPermission();
   }
 
   @override
   void dispose() {
     _panelController.dispose();
     _contentController.dispose();
+    _cameraController?.dispose();
+    _meshDetector.close();
     super.dispose();
+  }
+
+  Future<void> _initCameraAndPermission() async {
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (mounted) {
+        _showError("Camera permission is required to capture your face.");
+      }
+      return;
+    }
+
+    try {
+      final cameras = await availableCameras();
+      CameraDescription? front;
+      for (var cam in cameras) {
+        if (cam.lensDirection == CameraLensDirection.front) {
+          front = cam;
+          break;
+        }
+      }
+      final cameraToUse = front ?? (cameras.isNotEmpty ? cameras.first : null);
+      if (cameraToUse == null) {
+        _showError("No camera found on this device.");
+        return;
+      }
+
+      _cameraController = CameraController(
+        cameraToUse,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await _cameraController!.initialize();
+      if (!mounted) return;
+      setState(() => _cameraInitialized = true);
+    } catch (e) {
+      _showError("Failed to initialize camera: $e");
+    }
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _onCapturePressed() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      _showError("Camera not ready.");
+      return;
+    }
+    if (_processing) return;
+    setState(() => _processing = true);
+
+    try {
+      final XFile raw = await _cameraController!.takePicture();
+
+      final File file = File(raw.path);
+
+      final inputImage = InputImage.fromFile(file);
+      final List<FaceMesh> meshes = await _meshDetector.processImage(
+        inputImage,
+      );
+
+      if (meshes.isEmpty) {
+        _showError(
+          "No face detected — please try again with your face centered.",
+        );
+        setState(() => _processing = false);
+        return;
+      }
+
+      final FaceMesh mesh = meshes.first;
+      final List<FaceMeshPoint> points = mesh.points;
+
+      final leftEye = points[33];
+      final rightEye = points[263];
+
+      final double eyeDist = sqrt(
+        pow(rightEye.x - leftEye.x, 2) +
+            pow(rightEye.y - leftEye.y, 2) +
+            pow(rightEye.z - leftEye.z, 2),
+      );
+
+      if (eyeDist == 0) {
+        _showError("Invalid mesh detected. Try again.");
+        return;
+      }
+
+      final double cx = (leftEye.x + rightEye.x) / 2.0;
+      final double cy = (leftEye.y + rightEye.y) / 2.0;
+      final double cz = (leftEye.z + rightEye.z) / 2.0;
+
+      final List<double> embedding = [];
+      for (final p in points) {
+        final double nx = (p.x - cx) / eyeDist;
+        final double ny = (p.y - cy) / eyeDist;
+        final double nz = (p.z - cz) / eyeDist;
+        embedding.addAll([nx, ny, nz]);
+      }
+
+      final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
+      final List<double> normalized = norm == 0
+          ? embedding
+          : embedding.map((e) => e / norm).toList();
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showError("Unable to find current user");
+        setState(() => _processing = false);
+        return;
+      }
+
+      final uid = user.uid;
+      final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+      await docRef.update({
+        'faceEmbedding': normalized,
+        'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await file.delete();
+      } catch (_) {}
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 0),
+          pageBuilder: (_, __, ___) => const RegistrationVerified(),
+        ),
+      );
+    } catch (e, s) {
+      _showError("Failed to capture/process face: $e");
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
   }
 
   @override
@@ -85,7 +238,6 @@ class _RegistrationStep5State extends State<RegistrationStep5>
             const SizedBox(height: 20),
             const Center(child: StepProgressIndicator(currentStep: 4)),
             const SizedBox(height: 10),
-
             Expanded(
               child: SlideTransition(
                 position: _panelSlide,
@@ -105,7 +257,6 @@ class _RegistrationStep5State extends State<RegistrationStep5>
                     top: 30,
                     bottom: 50,
                   ),
-
                   child: FadeTransition(
                     opacity: _contentFade,
                     child: SlideTransition(
@@ -151,52 +302,68 @@ class _RegistrationStep5State extends State<RegistrationStep5>
                                 width: 1,
                               ),
                             ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 40,
-                              ),
+                            //camera area
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(30),
+                              child:
+                                  _cameraInitialized &&
+                                      _cameraController != null
+                                  ? Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        FittedBox(
+                                          fit: BoxFit.cover,
+                                          child: SizedBox(
+                                            width: _cameraController!
+                                                .value
+                                                .previewSize!
+                                                .height,
+                                            height: _cameraController!
+                                                .value
+                                                .previewSize!
+                                                .width,
+                                            child: CameraPreview(
+                                              _cameraController!,
+                                            ),
+                                          ),
+                                        ),
+                                        if (_processing)
+                                          Positioned.fill(
+                                            child: Container(
+                                              color: Colors.black.withOpacity(
+                                                0.4,
+                                              ),
+                                              child: const Center(
+                                                child:
+                                                    CircularProgressIndicator(),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    )
+                                  : const Center(
+                                      child: Icon(
+                                        Icons.camera_alt,
+                                        color: Colors.white,
+                                        size: 40,
+                                      ),
+                                    ),
                             ),
                           ),
                           const Spacer(),
                           Center(
                             child: GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  PageRouteBuilder(
-                                    transitionDuration: const Duration(
-                                      milliseconds: 0,
-                                    ),
-                                    pageBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                        ) => const RegistrationVerified(),
-                                    transitionsBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                          child,
-                                        ) {
-                                          return child;
-                                        },
-                                  ),
-                                );
-                              },
+                              onTap: _processing ? null : _onCapturePressed,
                               child: Container(
                                 height: 60,
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF5C6AA0),
                                   borderRadius: BorderRadius.circular(40),
                                 ),
-                                child: const Center(
+                                child: Center(
                                   child: Text(
-                                    'Capture',
-                                    style: TextStyle(
+                                    _processing ? 'Processing...' : 'Capture',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
