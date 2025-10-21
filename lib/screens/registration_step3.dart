@@ -349,7 +349,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         'semester': semester,
         'gender': genderCap,
         'lastUpdateCOR': DateTime.now(),
-        'registerComplete': false, // complete step 4
+        'registerComplete': false,
       }, SetOptions(merge: true));
 
       Fluttertoast.showToast(
@@ -357,6 +357,13 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
       );
+
+      // Delay before enabling button
+      setState(() {
+        _isUploading = true; // lock the button
+      });
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
 
       // Successfully processed, now navigate
 
@@ -584,19 +591,25 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                             child: GestureDetector(
                               onTap: _uploadComplete
                                   ? () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => RegistrationStep4(
-                                            uid: widget.uid,
-                                            name: _nameCap!,
-                                            college: _collegeCap!,
-                                            yearLevel: _yearLevel!,
-                                            semester: _semester!,
-                                            section: _sectionCap!,
+                                      if (_nameCap != null &&
+                                          _collegeCap != null &&
+                                          _yearLevel != null &&
+                                          _semester != null &&
+                                          _sectionCap != null) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => RegistrationStep4(
+                                              uid: widget.uid,
+                                              name: _nameCap!,
+                                              college: _collegeCap!,
+                                              yearLevel: _yearLevel!,
+                                              semester: _semester!,
+                                              section: _sectionCap!,
+                                            ),
                                           ),
-                                        ),
-                                      );
+                                        );
+                                      }
                                     }
                                   : isButtonActive
                                   ? () => _handleCORUpload(context)

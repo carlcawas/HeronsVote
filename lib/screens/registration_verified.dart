@@ -173,7 +173,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                         await userRef.set({
                           'registerComplete': true,
                         }, SetOptions(merge: true));
-                        Navigator.push(
+                        Navigator.pushReplacement(
                           context,
                           PageRouteBuilder(
                             transitionDuration: const Duration(milliseconds: 0),
