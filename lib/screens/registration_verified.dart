@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:heronsvote/home/home.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegistrationVerified extends StatefulWidget {
-  const RegistrationVerified({super.key});
+  final String uid;
+  const RegistrationVerified({super.key, required this.uid});
 
   @override
   State<RegistrationVerified> createState() => _RegistrationVerifiedState();
@@ -164,50 +166,47 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 44),
-
-                    
-                    Center(
-                      child: Material(
-                        color: const Color(0xFF5C6AA0),
-                        borderRadius: BorderRadius.circular(40),
-                      
-                        child: InkWell(
+                    const SizedBox(height: 40),
+                    GestureDetector(
+                      onTap: () async {
+                        final uid = FirebaseAuth.instance.currentUser?.uid;
+                        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+                        await userRef.set({
+                          'registerComplete': true,
+                        }, SetOptions(merge: true));
+                        Navigator.pushReplacement(
+                          context,
+                          PageRouteBuilder(
+                            transitionDuration: const Duration(milliseconds: 0),
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    const HomeScreen(),
+                            transitionsBuilder:
+                                (
+                                  context,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) {
+                                  return child;
+                                },
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF5C6AA0),
                           borderRadius: BorderRadius.circular(40),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                transitionDuration: const Duration(milliseconds: 0),
-                                pageBuilder:
-                                    (context, animation, secondaryAnimation) =>
-                                        const HomeScreen(),
-                                transitionsBuilder:
-                                    (
-                                      context,
-                                      animation,
-                                      secondaryAnimation,
-                                      child,
-                                    ) {
-                                      return child;
-                                    },
-                              ),
-                            );
-                          },
-                          child: SizedBox(
-                          height: 56,
-                          width: double.infinity, 
-                      
-                            child: const Center(
-                              child: Text(
-                                'Continue',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'Geist',
-                                ),
-                              ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Continue',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Geist',
                             ),
                           ),
                         ),   

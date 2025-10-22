@@ -349,7 +349,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         'semester': semester,
         'gender': genderCap,
         'lastUpdateCOR': DateTime.now(),
-        'registerComplete': false, // complete step 4
+        'registerComplete': false,
       }, SetOptions(merge: true));
 
       Fluttertoast.showToast(
@@ -357,6 +357,13 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
       );
+
+      // Delay before enabling button
+      setState(() {
+        _isUploading = true; // lock the button
+      });
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
 
       // Successfully processed, now navigate
 
@@ -517,7 +524,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                             if (_isUploading || _uploadComplete)
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                margin: const EdgeInsets.symmetric(vertical: 12),
+                                margin: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF354372),
                                   borderRadius: BorderRadius.circular(12),
@@ -549,7 +558,8 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                                     fontFamily: 'Geist',
                                                     fontSize: 12,
                                                   ),
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
@@ -586,9 +596,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                     const SizedBox(width: 26),
                                     if (_selectedFilePath != null)
                                       Padding(
-                                        padding: const EdgeInsets.only(
-                                          top: 5,
-                                        ), 
+                                        padding: const EdgeInsets.only(top: 5),
                                         child: GestureDetector(
                                           onTap: _cancelUpload,
                                           child: const Icon(
@@ -604,58 +612,69 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
                             const Spacer(),
                             Center(
-                              child: Opacity(
-                                opacity: (_uploadComplete || isButtonActive) ? 1.0 : 0.5,
-                                child: Material(
-                                  color: (_uploadComplete || isButtonActive) ? const Color(0xFF5C6AA0) : Colors.grey,
-                                  borderRadius: BorderRadius.circular(40),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(40),
-                                    onTap: _uploadComplete
-                                        ? () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => RegistrationStep4(
-                                                  uid: widget.uid,
-                                                  name: _nameCap!,
-                                                  college: _collegeCap!,
-                                                  yearLevel: _yearLevel!,
-                                                  semester: _semester!,
-                                                  section: _sectionCap!,
-                                                ),
+                              child: GestureDetector(
+                                onTap: _uploadComplete
+                                    ? () {
+                                        if (_nameCap != null &&
+                                            _collegeCap != null &&
+                                            _yearLevel != null &&
+                                            _semester != null &&
+                                            _sectionCap != null) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RegistrationStep4(
+                                                uid: widget.uid,
+                                                name: _nameCap!,
+                                                college: _collegeCap!,
+                                                yearLevel: _yearLevel!,
+                                                semester: _semester!,
+                                                section: _sectionCap!,
                                               ),
-                                            );
-                                          }
-                                        : isButtonActive
-                                        ? () => _handleCORUpload(context)
-                                        : null,
-                                    child: SizedBox(
-                                      height: 56,
-                                      width: double.infinity,
-                                      child: Center(
-                                        child: Text(
-                                          _uploadComplete ? 'Proceed' : 'Upload COR',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            fontFamily: 'Geist',
-                                          ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    : isButtonActive
+                                    ? () => _handleCORUpload(context)
+                                    : null,
+                                child: Opacity(
+                                  opacity: (_uploadComplete || isButtonActive)
+                                      ? 1.0
+                                      : 0.5,
+                                  child: Container(
+                                    height: 60,
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: (_uploadComplete || isButtonActive)
+                                          ? buttonColor
+                                          : Colors.grey,
+                                      borderRadius: BorderRadius.circular(40),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _uploadComplete
+                                            ? 'Proceed'
+                                            : 'Uplaod COR',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Geist',
                                         ),
-                                      )
-                                    )
-                                  )
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              )
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  )
+                  ),
                 ]
-              )
+              ),
             ),
           ],
         ),
