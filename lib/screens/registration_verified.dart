@@ -154,7 +154,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                               ),
                             ),
                             TextSpan(
-                              text: "\nYou may now log in.",
+                              text: "\nYou are now logged in.",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
