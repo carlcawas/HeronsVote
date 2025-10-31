@@ -652,8 +652,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
                                     const SizedBox(
                                       width: 12,
-                                    ), // separation between center group and close button
-                                    // right: close button
+                                    ),
                                     GestureDetector(
                                       onTap: () {
                                         setState(() {
@@ -707,7 +706,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                 decoration: BoxDecoration(
                                   color: const Color(
                                     0xFF5C6AA0,
-                                  ), // same color always
+                                  ),
                                   borderRadius: BorderRadius.circular(40),
                                 ),
                                 child: Center(
@@ -716,7 +715,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                     style: TextStyle(
                                       color: _uploadComplete
                                           ? Colors.white
-                                          : Colors.white70,
+                                          : Colors.white60,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
                                       fontFamily: 'Geist',

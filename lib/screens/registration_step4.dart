@@ -44,6 +44,29 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
   final TextEditingController _semesterController = TextEditingController();
   final TextEditingController _sectionController = TextEditingController();
 
+  bool _isNameEmpty = false;
+  bool _isCollegeEmpty = false;
+  bool _isYearLevelEmpty = false;
+  bool _isSectionEmpty = false;
+  bool _isSemesterEmpty = false;
+  bool _isFormValid = true;
+
+  void _validateFields() {
+    setState(() {
+      _isNameEmpty = _nameController.text.trim().isEmpty;
+      _isCollegeEmpty = _collegeController.text.trim().isEmpty;
+      _isYearLevelEmpty = _yearLevelController.text.trim().isEmpty;
+      _isSectionEmpty = _sectionController.text.trim().isEmpty;
+      _isSemesterEmpty = _semesterController.text.trim().isEmpty;
+
+      _isFormValid = !(_isNameEmpty ||
+          _isCollegeEmpty ||
+          _isYearLevelEmpty ||
+          _isSectionEmpty ||
+          _isSemesterEmpty);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -102,19 +125,33 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
     required String label,
     required TextEditingController controller,
     required String hintText,
+    required bool isEmpty,
     bool showBottomSpacing = true,
     TextInputType keyboardType = TextInputType.text,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: labelTextColor,
-            fontSize: 12,
-            fontFamily: 'Geist',
-          ),
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: labelTextColor,
+                fontSize: 12,
+                fontFamily: 'Geist',
+              ),
+            ),
+            if (isEmpty)
+              const Text(
+                ' *Required',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                  fontFamily: 'Geist',
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         TextFormField(
@@ -125,6 +162,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
             fontSize: 12,
             fontFamily: 'Geist',
           ),
+          onChanged: (_) => _validateFields(),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: const TextStyle(
@@ -132,27 +170,45 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
               fontSize: 12,
               fontFamily: 'Geist',
             ),
-
             filled: true,
             fillColor: textFieldFillColor,
 
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10.0), 
-              borderSide: BorderSide.none, 
+              borderRadius: BorderRadius.circular(10.0),
+              borderSide: BorderSide(
+                color: isEmpty ? Colors.red : Colors.transparent,
+                width: isEmpty ? 1.5 : 0,
+              ),
             ),
-
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 5.0,
-              horizontal: 3.0,
-            ),
-
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10.0),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(
+                color: isEmpty ? Colors.red : Colors.transparent,
+                width: isEmpty ? 1.5 : 0,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10.0),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(
+                color: isEmpty ? Colors.red : Colors.transparent,
+                width: isEmpty ? 1.5 : 0,
+              ),
+            ),
+
+            suffixIcon: isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Image.asset(
+                      'assets/error_icon.png',
+                      width: 18,
+                      height: 18,
+                    ),
+                  )
+                : null,
+
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 5.0,
+              horizontal: 8.0,
             ),
           ),
         ),
@@ -242,14 +298,15 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                             controller: _nameController,
                             label: 'Name:',
                             hintText: 'Last name, First name, M.I.',
+                            isEmpty: _isNameEmpty,
                           ),
                           const SizedBox(height: 10),
 
                           _buildStyledTextField(
                             controller: _collegeController,
                             label: 'College:',
-                            hintText:
-                                'e.g. College of Computing and Information Sciences',
+                            hintText: 'e.g. College of Computing and Information Sciences',
+                            isEmpty: _isCollegeEmpty,
                           ),
 
                           const SizedBox(height: 10),
@@ -263,6 +320,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                                   controller: _yearLevelController,
                                   label: 'Yr/Level:',
                                   hintText: 'e.g. Third Year',
+                                  isEmpty: _isYearLevelEmpty,
                                   showBottomSpacing: false,
                                   keyboardType: TextInputType.text,
                                 ),
@@ -274,6 +332,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                                   controller: _sectionController,
                                   label: 'Section:',
                                   hintText: 'e.g. III-ACSAD',
+                                  isEmpty: _isSectionEmpty,
                                   showBottomSpacing: false,
                                 ),
                               ),
@@ -286,28 +345,47 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                             controller: _semesterController,
                             label: 'Semester & Academic Year:',
                             hintText: 'e.g. First Semester A.Y. 2025-2026',
+                            isEmpty: _isSemesterEmpty,
                           ),
 
                           const Spacer(),
                           Center(
-                            child: GestureDetector(
-                              onTap: () async {
-                                await _updateDetails(context);
-                              },
-                              child: Container(
+                            child: AbsorbPointer(
+                              absorbing: !_isFormValid,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
                                 height: 60,
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF5C6AA0),
                                   borderRadius: BorderRadius.circular(40),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(_isFormValid ? 0.25 : 0.15),
+                                      offset: const Offset(0, 3),
+                                      blurRadius: _isFormValid ? 6 : 3,
+                                    ),
+                                  ],
                                 ),
-                                child: const Center(
-                                  child: Text(
-                                    'Confirm',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      fontFamily: 'Geist',
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(40),
+                                  onTap: () async {
+                                    _validateFields();
+                                    if (_isFormValid) {
+                                      await _updateDetails(context);
+                                    }
+                                  },
+                                  child: Center(
+                                    child: AnimatedDefaultTextStyle(
+                                      duration: const Duration(milliseconds: 200),
+                                      style: TextStyle(
+                                        color: _isFormValid
+                                            ? Colors.white
+                                            : Colors.white60,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: 'Geist',
+                                      ),
+                                      child: const Text('Confirm'),
                                     ),
                                   ),
                                 ),
@@ -356,17 +434,6 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
         nYrLvl.isNotEmpty &&
         nSection.isNotEmpty &&
         nSemester.isNotEmpty;
-
-      if (!hasCompletedInput) {
-        // TODO: Replace Toast with UI update
-        Fluttertoast.showToast(
-          msg: "All fields must not be empty. Please re-enter your details or re-upload your COR.",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-        );
-        debugPrint('Invalid Inputs.');
-        return;
-      }
 
     // Update fields in firestore firebase
     await userRef.set({
