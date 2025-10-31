@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class TermsCondition extends StatelessWidget {
   const TermsCondition({super.key});
@@ -27,10 +28,8 @@ class TermsCondition extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: Color(0xFF5C6AA0),
                       ),
-
-                      padding: const EdgeInsets.all(12),
-                      child: Image.asset(
-                        'assets/BackButton.png',
+                      child: SvgPicture.asset(
+                        'assets/back.svg',
                         fit: BoxFit.contain,
                       )
                     ),

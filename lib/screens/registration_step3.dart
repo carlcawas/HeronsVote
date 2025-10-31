@@ -511,7 +511,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                             Text(
                                               'Tap here to upload your COR',
                                               style: TextStyle(
-                                                color: const Color(0xFFECECEC),
+                                                color: const Color(0xFFF8F8F8),
                                                 fontSize: 14,
                                                 fontFamily: 'Geist',
                                               ),
@@ -521,7 +521,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                             Text(
                                               'Max file size 5mb.',
                                               style: TextStyle(
-                                                color: const Color(0xFFECECEC),
+                                                color: const Color(0xFFF8F8F8),
                                                 fontSize: 12,
                                                 fontFamily: 'Geist',
                                               ),

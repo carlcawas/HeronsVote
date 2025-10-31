@@ -57,6 +57,7 @@ flutter:
     - assets/error.svg
     - assets/verified.svg
     - assets/verify.svg
+    - assets/back.svg
   fonts:  
     - family: Geist
       fonts:
