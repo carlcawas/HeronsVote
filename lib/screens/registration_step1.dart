@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'registration_step3.dart';
+import './Privacy&Terms/privacyPolicy.dart';
+import './Privacy&Terms/termsCondition.dart';
+import 'package:flutter/gestures.dart';
 
 class RegistrationStep1 extends StatefulWidget {
   final String uid;
@@ -15,30 +18,60 @@ class _RegistrationStep1State extends State<RegistrationStep1>
   late final Animation<Offset> _contentSlide;
   late final AnimationController _bottomController;
   late final Animation<Offset> _bottomSlide;
+  late TapGestureRecognizer _termsTapRecognizer;
+  late TapGestureRecognizer _privacyTapRecognizer;
+
+  bool _isBoxChecked = false;
 
   @override
   void initState() {
     super.initState();
+
+    _termsTapRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TermsCondition()),
+        );
+      };
+
+    _privacyTapRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PrivacyPolicy()),
+        );
+      };
+
     _contentController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
     _contentSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _contentController, curve: Curves.easeOut));
+        .animate(
+          CurvedAnimation(parent: _contentController, curve: Curves.easeOut),
+        );
 
     _bottomController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
     _bottomSlide = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _bottomController, curve: Curves.easeOut));
+        .animate(
+          CurvedAnimation(parent: _bottomController, curve: Curves.easeOut),
+        );
 
     _contentController.forward();
-    Future.delayed(const Duration(milliseconds: 300), () => _bottomController.forward());
+    Future.delayed(
+      const Duration(milliseconds: 300),
+      () => _bottomController.forward(),
+    );
   }
 
   @override
   void dispose() {
+    _termsTapRecognizer.dispose();
+    _privacyTapRecognizer.dispose();
     _contentController.dispose();
     _bottomController.dispose();
     super.dispose();
@@ -69,8 +102,17 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                   Container(
                     height: 300,
                     width: 300,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.transparent),
-                    child: SizedBox(width: 300, child: Image.asset('assets/verify.png', fit: BoxFit.contain)),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.transparent,
+                    ),
+                    child: SizedBox(
+                      width: 300,
+                      child: Image.asset(
+                        'assets/verify.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 45),
                   Center(
@@ -79,7 +121,11 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                         children: [
                           TextSpan(
                             text: "First, let's ",
-                            style: TextStyle(color: const Color(0xFF414141), fontSize: 24, fontFamily: 'Geist'),
+                            style: TextStyle(
+                              color: const Color(0xFF414141),
+                              fontSize: 24,
+                              fontFamily: 'Geist',
+                            ),
                           ),
                           TextSpan(
                             text: "verify\n",
@@ -114,26 +160,133 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   color: Color(0xFF354372),
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(40),
+                    topRight: Radius.circular(40),
+                  ),
                 ),
-                padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => RegistrationStep3(uid: widget.uid)),
-                    );
-                  },
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(color: const Color(0xFF5C6AA0), borderRadius: BorderRadius.circular(40)),
-                    child: const Center(
-                      child: Text(
-                        'Verify Identity',
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, fontFamily: 'Geist'),
+                padding: const EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 30,
+                  bottom: 50,
+                ),
+                child: Column(
+                  children: [
+                    // Verify Identity button
+                    GestureDetector(
+                      onTap: _isBoxChecked
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      RegistrationStep3(uid: widget.uid),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF5C6AA0),
+                          borderRadius: BorderRadius.circular(40),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Verify Identity',
+                            style: TextStyle(
+                              color: _isBoxChecked
+                                  ? Colors.white
+                                  : Colors.white70,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Geist',
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isBoxChecked = !_isBoxChecked;
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24.0,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment
+                              .center, // centers the row horizontally
+                          crossAxisAlignment:
+                              CrossAxisAlignment.center, // vertical center
+                          children: [
+                            // Checkbox
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 350),
+                              curve: Curves.easeInOut,
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: _isBoxChecked
+                                    ? const Color(0xFF74B6F9)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: _isBoxChecked
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 18,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            // Text with clickable parts
+                            Flexible(
+                              child: RichText(
+                                textAlign: TextAlign.left,
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                      text:
+                                          'By signing in to this app, you agree to our ',
+                                    ),
+                                    TextSpan(
+                                      text: 'Terms & Conditions',
+                                      style: const TextStyle(
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: Colors.white70,
+                                      ),
+                                      recognizer: _termsTapRecognizer,
+                                    ),
+                                    const TextSpan(text: ' and '),
+                                    TextSpan(
+                                      text: 'Privacy Policy',
+                                      style: const TextStyle(
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: Colors.white70,
+                                      ),
+                                      recognizer: _privacyTapRecognizer,
+                                    ),
+                                    const TextSpan(text: '.'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

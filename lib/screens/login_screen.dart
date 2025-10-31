@@ -5,6 +5,9 @@ import 'package:heronsvote/home/home.dart';
 import 'registration_step1.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:heronsvote/services/firebase_service.dart';
+import './Privacy&Terms/privacyPolicy.dart';
+import './Privacy&Terms/termsCondition.dart';
+import 'loadingScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -165,39 +168,104 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     topRight: Radius.circular(40),
                   ),
                 ),
-                padding: const EdgeInsets.only(left: 24, right: 24, top: 30, bottom: 50
+                padding: const EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 30,
+                  bottom: 50,
                 ),
-                child: GestureDetector(
-                  onTap: () async{
-                    await _loginAuth(context);
-                  },
-                  child: Container(
-                    height: 61,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF5C6AA0),
-                      borderRadius: BorderRadius.circular(40),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          'assets/google_logo.png',
-                          width: 30,
-                          height: 30,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () async {
+                        await _loginAuth(context);
+                      },
+                      child: Container(
+                        height: 61,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF5C6AA0),
+                          borderRadius: BorderRadius.circular(40),
                         ),
-                        const SizedBox(width: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/google_logo.png',
+                              width: 30,
+                              height: 30,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Sign in with Google',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontFamily: 'Geist',
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      children: [
                         const Text(
-                          'Sign in with Google',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontFamily: 'Geist',
-                            fontWeight: FontWeight.w700,
+                          'By signing in to this app, you agree to our ',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PrivacyPolicy(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Privacy Policy',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.white70,
+                              fontSize: 13,
+                            ),
                           ),
+                        ),
+                        const Text(
+                          ' and ',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TermsCondition(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Privacy Policy',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              decoration: TextDecoration.underline, 
+                              decorationColor: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const Text(
+                          '.',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -211,9 +279,18 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     if (_isSigningIn) return;
     setState(() => _isSigningIn = true);
 
+    // Show loading screen
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
     try {
       final userCred = await login(forceAccountSelection: true);
+
       if (!mounted) return;
+      Navigator.pop(context);
 
       if (userCred == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -237,7 +314,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Google sign-in failed. Please use your UMak Account.'),
+            content: Text(
+              'Google sign-in failed. Please use your UMak Account.',
+            ),
             duration: Duration(seconds: 3),
           ),
         );
@@ -246,8 +325,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
       // Uses 'services/firebase_service.dart
       final userData = await _firebaseService.getDocument('users', uid);
-      
-      // Check if user is existing 
+
+      // Check if user is existing
       if (userData == null) {
         // Register the user if not yet existed
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
@@ -274,7 +353,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       // Checks if user has completed registration
       final updatedData = await _firebaseService.getDocument('users', uid);
       final registerComplete = updatedData?['registerComplete'] ?? false;
-      
+
       // Successful login
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -286,17 +365,20 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       // checks if registration is completed or all fields are filled
       // If true skip to home, else, continue with register
       if (registerComplete) {
-        Navigator.pushReplacement(context,
+        Navigator.pushReplacement(
+          context,
           MaterialPageRoute(builder: (_) => HomeScreen()),
         );
       } else {
-        Navigator.push(context,
+        Navigator.push(
+          context,
           MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
         );
       }
-
     } catch (e, st) {
+      if (mounted) Navigator.pop(context);
       debugPrint('Sign-in handler error: $e\n$st');
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

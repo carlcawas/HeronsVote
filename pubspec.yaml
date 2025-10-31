@@ -51,6 +51,8 @@ flutter:
     - assets/HeronsVoteText.png
     - assets/verify.png
     - assets/verified.png
+    - assets/BackButton.png
+    - assets/error_icon.png
   fonts:  
     - family: Geist
       fonts:

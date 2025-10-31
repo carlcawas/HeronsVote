@@ -34,11 +34,12 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   String? _yearLevel;
   String? _semester;
   String? _sectionCap;
+
   // Store the path of the selected PDF file
   String? _selectedFilePath;
+  String? _uploadErrorMessage;
 
   // --- Animation and Progress Methods ---
-
   @override
   void initState() {
     super.initState();
@@ -116,18 +117,25 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       _uploadProgress = 0;
       _uploadComplete = false;
       _selectedFileName = "";
-      _selectedFilePath = null; // Clear the selected file path
+      _selectedFilePath = null;
     });
   }
 
   // --- Core File Upload and Processing Method ---
-
   Future<void> _handleCORUpload(BuildContext context) async {
     if (_isUploading) return; // Prevent multiple taps
 
+    // Clear previous error and reset visible file state before starting
+    setState(() {
+      _uploadErrorMessage = null;
+      _selectedFileName = '';
+      _selectedFilePath = null;
+      _uploadProgress = 0;
+      _uploadComplete = false;
+    });
+
     // Init and check storage permission
     PermissionStatus status;
-
     if (Platform.isAndroid) {
       status = await Permission.manageExternalStorage.request();
     } else {
@@ -151,36 +159,40 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       allowMultiple: false,
     );
 
-    // If no PDF file is selected
     if (result == null || result.files.single.path == null) {
-      Fluttertoast.showToast(
-        msg: "Please select your COR in PDF format",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-      );
-      return;
+      return; // user cancelled
     }
 
     final filePath = result.files.single.path!;
     final fileName = result.files.single.name;
+    final fileSize = File(filePath).lengthSync();
 
+    // File size validation
+    if (fileSize > 5 * 1024 * 1024) {
+      setState(() {
+        _uploadErrorMessage = "Max file size reached.";
+        _selectedFilePath = null;
+      });
+      return;
+    }
+
+    // Save selected file and start upload UI
     setState(() {
       _isUploading = true;
       _selectedFilePath = filePath;
       _selectedFileName = fileName;
-      _uploadProgress = 1.0;
+      _uploadProgress = 0;
       _uploadComplete = false;
+      _uploadErrorMessage = null;
     });
 
-    // Start UI progress simulation
     final progressFuture = _simulateProgress();
 
-    // Start actual PDF reading and processing
     try {
       final text = await ReadPdfText.getPDFtext(filePath);
       final pdfText = text.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
-      // Check for mandatory fields/data to validate COR
+      // --- COR validation fields ---
       final hasStudentNo = RegExp(
         r'\b[ka]\d{8}\b',
         caseSensitive: false,
@@ -194,15 +206,17 @@ class _RegistrationStep3State extends State<RegistrationStep3>
           pdfText.contains('program') || pdfText.contains('major');
       final hasYearLevel = pdfText.contains('year level');
       final hasSemester = pdfText.contains('semester');
+
+      // --- Academic Year Validation ---
       final currentYear = DateTime.now().year;
       final ayMatch = RegExp(r'(20\d{2})\s*-\s*(20\d{2})').firstMatch(pdfText);
-
       bool hasValidAY = false;
       if (ayMatch != null) {
         final startYear = int.tryParse(ayMatch.group(1) ?? '');
         final endYear = int.tryParse(ayMatch.group(2) ?? '');
         if (startYear != null && endYear != null) {
-          hasValidAY = (startYear == currentYear && endYear == currentYear + 1);
+          hasValidAY =
+              (startYear == currentYear || startYear == currentYear + 1);
         }
       }
 
@@ -211,21 +225,23 @@ class _RegistrationStep3State extends State<RegistrationStep3>
           !hasCollege ||
           !hasProgram ||
           !hasYearLevel ||
-          !hasSemester ||
-          !hasValidAY) {
-        // Validation failed, cancel upload status
+          !hasSemester) {
         _cancelUpload();
-        Fluttertoast.showToast(
-          msg:
-              "Please upload an official UMak COR for A.Y. $currentYear-${currentYear + 1}.",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-        );
-        debugPrint('Rejected invalid COR: missing or invalid fields.');
+        setState(() {
+          _uploadErrorMessage = "This is not a University COR";
+        });
         return;
       }
 
-      // Extract NEEDED data
+      if (!hasValidAY) {
+        _cancelUpload();
+        setState(() {
+          _uploadErrorMessage = "This is an outdated COR";
+        });
+        return;
+      }
+
+      // --- Extract student info ---
       final name = RegExp(
         r'name\s*:? ([a-z\s\.\-]+) student no',
       ).firstMatch(pdfText)?.group(1)?.trim();
@@ -255,7 +271,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         caseSensitive: false,
       ).firstMatch(pdfText)?.group(1)?.toUpperCase().trim();
 
-      // Format extracted information
+      // --- Formatting helpers ---
       String capitalizeWords(String? input) {
         if (input == null || input.isEmpty) return '';
         return input
@@ -295,7 +311,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         semester = capitalizeWords(semester);
       }
 
-      // Final Data Validation
+      // --- Final Data Validation ---
       final studentNoValid = RegExp(
         r'^[KA]\d{8}$',
         caseSensitive: false,
@@ -311,33 +327,29 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       if (!studentNoValid || !emailValid || !hasEssentialData) {
         _cancelUpload();
-        Fluttertoast.showToast(
-          msg: "Invalid COR file. Please upload your official UMak COR.",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-        );
-        debugPrint('Invalid COR detected.');
+        setState(() {
+          _uploadErrorMessage =
+              "Invalid COR details. Please upload a valid University COR.";
+        });
         return;
       }
 
-      // Wait for progress simulation matapos
+      // Wait for progress simulation to finish
       await progressFuture;
-      if (!_isUploading) return; // Check if cancelled during waiting
+      if (!_isUploading) return;
 
-      // Database Update
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
         _cancelUpload();
-        Fluttertoast.showToast(
-          msg: "User is not authenticated. Please log in again.",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-        );
+        setState(() {
+          _uploadErrorMessage =
+              "An error has occurred. Please try uploading again.";
+        });
         return;
       }
 
+      // Save extracted info to Firestore
       final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-
       await userRef.set({
         'name': nameCap,
         'student_number': studentNoCap,
@@ -352,22 +364,10 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         'registerComplete': false,
       }, SetOptions(merge: true));
 
-      Fluttertoast.showToast(
-        msg: "COR information processed successfully. Proceeding to next step.",
-        toastLength: Toast.LENGTH_LONG,
-        gravity: ToastGravity.BOTTOM,
-      );
-
-      // Delay before enabling button
-      setState(() {
-        _isUploading = true; // lock the button
-      });
+      // Enable button
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return;
 
-      // Successfully processed, now navigate
-
-      // Reset upload state after successful navigation/completion
       setState(() {
         _isUploading = false;
         _uploadProgress = 1.0;
@@ -381,11 +381,10 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     } catch (e) {
       debugPrint('Error handling COR: $e');
       _cancelUpload();
-      Fluttertoast.showToast(
-        msg: "Failed to read or process COR PDF.",
-        toastLength: Toast.LENGTH_LONG,
-        gravity: ToastGravity.BOTTOM,
-      );
+      setState(() {
+        _uploadErrorMessage =
+            "An error has occurred while reading your COR. Please try again.";
+      });
     }
   }
 
@@ -488,101 +487,191 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                   width: 1,
                                 ),
                               ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.file_present_rounded,
-                                  color: Colors.white,
-                                  size: 40,
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      Icons.file_present_rounded,
+                                      color: Colors.white,
+                                      size: 40,
+                                    ),
+                                    SizedBox(height: 20),
+                                    Text(
+                                      'Tap here to upload your COR',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    SizedBox(height: 5),
+                                    Text(
+                                      'Max file size 5mb.',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-
-                          if (_isUploading || _uploadComplete)
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              margin: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF354372),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  //file icon
-                                  const Icon(
-                                    Icons.insert_drive_file,
-                                    color: Colors.white,
-                                    size: 34,
-                                  ),
-                                  const SizedBox(width: 20),
-                                  // Middle column
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        //top row
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                _selectedFileName,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontFamily: 'Geist',
-                                                  fontSize: 12,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              '${(_uploadProgress * 100).toInt()}%',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontFamily: 'Geist',
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        // Progress bar
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          child: LinearProgressIndicator(
-                                            value: _uploadProgress,
-                                            minHeight: 6,
-                                            backgroundColor: Colors.white24,
-                                            valueColor:
-                                                const AlwaysStoppedAnimation<
-                                                  Color
-                                                >(Colors.white),
-                                          ),
-                                        ),
-                                      ],
+                          if (_isUploading ||
+                              _uploadComplete ||
+                              _uploadErrorMessage != null)
+                            AnimatedOpacity(
+                              opacity:
+                                  (_selectedFilePath != null ||
+                                      _uploadErrorMessage != null)
+                                  ? 1.0
+                                  : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 24,
+                                ),
+                                margin: const EdgeInsets.symmetric(
+                                  vertical: 25,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF44558F),
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    // left: file icon
+                                    const Icon(
+                                      Icons.insert_drive_file,
+                                      color: Colors.white,
+                                      size: 32,
                                     ),
-                                  ),
-                                  const SizedBox(width: 20),
-                                  if (_selectedFilePath != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        top: 12,
-                                      ), 
-                                      child: GestureDetector(
-                                        onTap: _cancelUpload,
-                                        child: const Icon(
-                                          Icons.close,
-                                          color: Color(0xFFF3C8C8),
-                                          size: 24,
-                                        ),
+                                    const SizedBox(width: 12),
+
+                                    // center: message + error icon grouped tightly
+                                    Expanded(
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: _uploadErrorMessage != null
+                                            ? Row(
+                                                mainAxisSize: MainAxisSize
+                                                    .min, // <-- group only as wide as needed
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.center,
+                                                children: [
+                                                  // message (flexible, will ellipsize/wrap)
+                                                  Flexible(
+                                                    child: Text(
+                                                      _uploadErrorMessage!,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontFamily: 'Geist',
+                                                        fontSize: 14,
+                                                        height: 1.2,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      maxLines: 2,
+                                                      softWrap: true,
+                                                    ),
+                                                  ),
+
+                                                  // tiny gap, icon directly beside message
+                                                  const SizedBox(width: 4),
+
+                                                  Image.asset(
+                                                    'assets/error_icon.png',
+                                                    width: 18,
+                                                    height: 18,
+                                                  ),
+                                                ],
+                                              )
+                                            : Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          _selectedFileName,
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontFamily:
+                                                                    'Geist',
+                                                                fontSize: 12,
+                                                              ),
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Text(
+                                                        '${(_uploadProgress * 100).toInt()}%',
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          fontFamily: 'Geist',
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                    child: LinearProgressIndicator(
+                                                      value: _uploadProgress,
+                                                      minHeight: 6,
+                                                      backgroundColor:
+                                                          Colors.white24,
+                                                      valueColor:
+                                                          const AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(Colors.white),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                       ),
                                     ),
-                                ],
+
+                                    const SizedBox(
+                                      width: 12,
+                                    ), // separation between center group and close button
+                                    // right: close button
+                                    GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedFilePath = null;
+                                          _uploadErrorMessage = null;
+                                          _isUploading = false;
+                                          _uploadProgress = 0;
+                                          _uploadComplete = false;
+                                        });
+                                      },
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Color(0xFFF3C8C8),
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
 
@@ -611,33 +700,26 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                         );
                                       }
                                     }
-                                  : isButtonActive
-                                  ? () => _handleCORUpload(context)
                                   : null,
-                              child: Opacity(
-                                opacity: (_uploadComplete || isButtonActive)
-                                    ? 1.0
-                                    : 0.5,
-                                child: Container(
-                                  height: 60,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: (_uploadComplete || isButtonActive)
-                                        ? buttonColor
-                                        : Colors.grey,
-                                    borderRadius: BorderRadius.circular(40),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      _uploadComplete
-                                          ? 'Proceed'
-                                          : 'Uplaod COR',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        fontFamily: 'Geist',
-                                      ),
+                              child: Container(
+                                height: 60,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF5C6AA0,
+                                  ), // same color always
+                                  borderRadius: BorderRadius.circular(40),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Proceed',
+                                    style: TextStyle(
+                                      color: _uploadComplete
+                                          ? Colors.white
+                                          : Colors.white70,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Geist',
                                     ),
                                   ),
                                 ),
