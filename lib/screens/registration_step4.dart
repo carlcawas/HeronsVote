@@ -3,6 +3,7 @@ import 'package:heronsvote/screens/registration_step5.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class RegistrationStep4 extends StatefulWidget {
   final String uid;
@@ -25,9 +26,9 @@ class RegistrationStep4 extends StatefulWidget {
   State<RegistrationStep4> createState() => _RegistrationStep4State();
 }
 
-class _RegistrationStep4State extends State<RegistrationStep4> with TickerProviderStateMixin {
+class _RegistrationStep4State extends State<RegistrationStep4>
+    with TickerProviderStateMixin {
   late final AnimationController _panelController;
-  late final Animation<Offset> _panelSlide;
 
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
@@ -59,11 +60,12 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       _isSectionEmpty = _sectionController.text.trim().isEmpty;
       _isSemesterEmpty = _semesterController.text.trim().isEmpty;
 
-      _isFormValid = !(_isNameEmpty ||
-          _isCollegeEmpty ||
-          _isYearLevelEmpty ||
-          _isSectionEmpty ||
-          _isSemesterEmpty);
+      _isFormValid =
+          !(_isNameEmpty ||
+              _isCollegeEmpty ||
+              _isYearLevelEmpty ||
+              _isSectionEmpty ||
+              _isSemesterEmpty);
     });
   }
 
@@ -82,11 +84,6 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-
-    _panelSlide = Tween<Offset>(begin: const Offset(0, 1.0), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
-        );
 
     _contentController = AnimationController(
       vsync: this,
@@ -195,11 +192,11 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
 
             suffixIcon: isEmpty
                 ? Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Image.asset(
-                      'assets/error_icon.png',
-                      width: 18,
-                      height: 18,
+                    padding: const EdgeInsets.only(right: 8, top: 12, bottom: 12,),
+                    child: SvgPicture.asset(
+                      'assets/error.svg',
+                      width: 20,
+                      height: 20,
                     ),
                   )
                 : null,
@@ -318,7 +315,8 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                             _buildStyledTextField(
                               controller: _collegeController,
                               label: 'College:',
-                              hintText: 'e.g. College of Computing and Information Sciences',
+                              hintText:
+                                  'e.g. College of Computing and Information Sciences',
                               isEmpty: _isCollegeEmpty,
                             ),
 
@@ -373,7 +371,9 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                                     borderRadius: BorderRadius.circular(40),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(_isFormValid ? 0.25 : 0.15),
+                                        color: Colors.black.withOpacity(
+                                          _isFormValid ? 0.25 : 0.15,
+                                        ),
                                         offset: const Offset(0, 3),
                                         blurRadius: _isFormValid ? 6 : 3,
                                       ),
@@ -393,7 +393,9 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                                         width: double.infinity,
                                         child: Center(
                                           child: AnimatedDefaultTextStyle(
-                                            duration: const Duration(milliseconds: 200),
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
                                             style: TextStyle(
                                               color: _isFormValid
                                                   ? Colors.white
@@ -416,7 +418,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
                       ),
                     ),
                   ),
-                ]
+                ],
               ),
             ),
           ],
@@ -436,7 +438,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       );
       return;
     }
-    
+
     // Get new information input by user
     String nName = _nameController.text;
     String nCollege = _collegeController.text;
@@ -457,7 +459,8 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
 
     if (!hasCompletedInput) {
       Fluttertoast.showToast(
-        msg: "All fields must not be empty. Please re-enter your details or re-upload your COR.",
+        msg:
+            "All fields must not be empty. Please re-enter your details or re-upload your COR.",
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
       );
@@ -486,8 +489,10 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 0),
-        pageBuilder: (context, animation, secondaryAnimation) => RegistrationStep5(uid: widget.uid),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) => child,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            RegistrationStep5(uid: widget.uid),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            child,
       ),
     );
   }
@@ -550,11 +555,11 @@ class StepProgressIndicator extends StatelessWidget {
                     ),
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
-                      width: (index + 1 == currentStep) 
-                             ? 40 / 2
-                             : (index + 1 < currentStep) 
-                               ? 40
-                               : 0,
+                      width: (index + 1 == currentStep)
+                          ? 40 / 2
+                          : (index + 1 < currentStep)
+                          ? 40
+                          : 0,
                       height: 7,
                       decoration: BoxDecoration(
                         color: lineActiveColor,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:heronsvote/home/home.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class RegistrationVerified extends StatefulWidget {
   final String uid;
@@ -82,9 +83,9 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                       ),
                       alignment: Alignment.bottomCenter,
                       child: SizedBox(
-                        child: Image.asset(
+                        child: SvgPicture.asset(
                           height: 220,
-                          'assets/verified.png',
+                          'assets/verified.svg',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -174,7 +175,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                         await userRef.set({
                           'registerComplete': true,
                         }, SetOptions(merge: true));
-                        Navigator.pushReplacement(
+                        Navigator.pushAndRemoveUntil(
                           context,
                           PageRouteBuilder(
                             transitionDuration: const Duration(milliseconds: 0),
@@ -191,6 +192,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                                   return child;
                                 },
                           ),
+                          (route) => false,
                         );
                       },
                       child: Container(

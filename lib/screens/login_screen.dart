@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:heronsvote/services/firebase_service.dart';
 import './Privacy&Terms/privacyPolicy.dart';
 import './Privacy&Terms/termsCondition.dart';
-import 'loadingScreen.dart';
+import 'package:flutter/gestures.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +16,11 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
+  late TapGestureRecognizer _termsTapRecognizer;
+  late TapGestureRecognizer _privacyTapRecognizer;
+
   late final AnimationController _logoController;
   late final Animation<Offset> _logoSlide;
 
@@ -26,17 +30,32 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
   late final AnimationController _bottomController;
   late final Animation<Offset> _bottomSlide;
-  
+
   // Init Firebase auth and google sign-in
   final FirebaseService _firebaseService = FirebaseService();
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   bool _isSigningIn = false;
-  
+  bool _isProcessingEmail = false;
+
   @override
   void initState() {
     super.initState();
-    
+    //terms and condition tap
+    _termsTapRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TermsCondition()),
+        );
+      };
+
+    _privacyTapRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PrivacyPolicy()),
+        );
+      };
     //slide
     _logoController = AnimationController(
       vsync: this,
@@ -77,6 +96,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
   @override
   void dispose() {
+    _termsTapRecognizer.dispose();
+    _privacyTapRecognizer.dispose();
     _logoController.dispose();
     _textController.dispose();
     _bottomController.dispose();
@@ -159,137 +180,132 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             ),
             SlideTransition(
               position: _bottomSlide,
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF354372),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(40),
-                    topRight: Radius.circular(40),
-                  ),
-                ),
-                padding: const EdgeInsets.only(
-                  left: 24,
-                  right: 24,
-                  top: 30,
-                  bottom: 50,
-                ),
-                 child: Material(  // 1. Replace GestureDetector with Material
-                  color: const Color(0xFF5C6AA0),      // 2. Move color here
-                  borderRadius: BorderRadius.circular(40), // 3. Move border radius here
-                  child: InkWell( // 4. Add InkWell
-                    borderRadius: BorderRadius.circular(40), // 5. Add matching border radius for ripple
-                    onTap: () async { // 6. Your onTap logic
-                      await _loginAuth(context);
-                    },
-                    child: SizedBox(
-                      height: 56,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              child: Hero(
+                tag: 'bluePanel', 
+                child: Material(
+                  type: MaterialType
+                      .transparency, 
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF354372),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(40),
+                        topRight: Radius.circular(40),
+                      ),
+                    ),
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 30,
+                      bottom: 50,
+                    ),
+                    child: Column(
                       children: [
-                        Image.asset(
-                          'assets/google_logo.png',
-                          width: 30,
-                          height: 30,
+                        // Google Sign In Button
+                        Material(
+                          color: const Color(0xFF5C6AA0),
+                          borderRadius: BorderRadius.circular(40),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(40),
+                            onTap: (_isSigningIn || _isProcessingEmail)
+                                ? null
+                                : () async {
+                                    await _loginAuth(context);
+                                  },
+                            child: SizedBox(
+                              height: 56,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/google_logo.png',
+                                    width: 30,
+                                    height: 30,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    _isProcessingEmail
+                                        ? 'Signing in...'
+                                        : (_isSigningIn
+                                              ? 'Sign in with Google'
+                                              : 'Sign in with Google'),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontFamily: 'Geist',
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Sign in with Google',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontFamily: 'Geist',
-                            fontWeight: FontWeight.w700,
+                        const SizedBox(height: 14),
+                        // Terms and Privacy Policy
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: const TextStyle(
+                                color: Color(0xFFECECEC),
+                                fontSize: 10,
+                                fontFamily: 'Geist',
+                                height: 16 / 10,
+                                letterSpacing: 10 * 0.02,
+                              ),
+                              children: [
+                                const TextSpan(
+                                  text:
+                                      'By signing in to this app, you agree to our ',
+                                ),
+                                TextSpan(
+                                  text: 'Terms \n& Conditions',
+                                  style: const TextStyle(
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: Colors.white70,
+                                  ),
+                                  recognizer: _termsTapRecognizer,
+                                ),
+                                const TextSpan(text: ' and '),
+                                TextSpan(
+                                  text: 'Privacy Policy',
+                                  style: const TextStyle(
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: Colors.white70,
+                                  ),
+                                  recognizer: _privacyTapRecognizer,
+                                ),
+                                const TextSpan(text: '.'),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      children: [
-                        const Text(
-                          'By signing in to this app, you agree to our ',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const PrivacyPolicy(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Privacy Policy',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              decoration: TextDecoration.underline,
-                              decorationColor: Colors.white70,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                        const Text(
-                          ' and ',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const TermsCondition(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Privacy Policy',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              decoration: TextDecoration.underline, 
-                              decorationColor: Colors.white70,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                        const Text(
-                          '.',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
-                    ),
                 ),
               ),
-             ),
             ),
           ],
-        
         ),
       ),
     );
   }
 
   Future<void> _loginAuth(BuildContext context) async {
-    if (_isSigningIn) return;
+    if (_isSigningIn || _isProcessingEmail) return;
     setState(() => _isSigningIn = true);
-
-    // Show loading screen
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
 
     try {
       final userCred = await login(forceAccountSelection: true);
 
       if (!mounted) return;
-      Navigator.pop(context);
 
       if (userCred == null) {
+        setState(() => _isSigningIn = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Google sign-in cancelled.'),
@@ -304,11 +320,44 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       final email = user.email ?? '';
       final name = user.displayName ?? '';
 
+      // Show "Signing in..." when valid email is selected
+      setState(() {
+        _isSigningIn = false;
+        _isProcessingEmail = true;
+      });
+
+      // Show loading screen for email processing
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.transparent,
+        builder: (_) => Center(
+          child: Transform.translate(
+            offset: Offset(0, 5), //adjust the position of loading eme
+            child: SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFF666666),
+                ), // dark gray
+                backgroundColor: Color(0xFFB3B3A9),
+                strokeWidth: 7, //dito adjust ung size or width ng loading
+                strokeCap: StrokeCap.round,
+              ),
+            ),
+          ),
+        ),
+      );
+
       if (!email.toLowerCase().endsWith('@umak.edu.ph')) {
         await FirebaseAuth.instance.signOut();
         await _googleSignIn.signOut();
 
         if (!mounted) return;
+        Navigator.pop(context);
+        setState(() => _isProcessingEmail = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -351,6 +400,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       final updatedData = await _firebaseService.getDocument('users', uid);
       final registerComplete = updatedData?['registerComplete'] ?? false;
 
+      if (!mounted) return;
+      Navigator.pop(context);
+      setState(() => _isProcessingEmail = false);
+
       // Successful login
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -373,7 +426,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         );
       }
     } catch (e, st) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+        setState(() {
+          _isSigningIn = false;
+          _isProcessingEmail = false;
+        });
+      }
       debugPrint('Sign-in handler error: $e\n$st');
 
       if (!mounted) return;
@@ -383,8 +442,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           duration: Duration(seconds: 2),
         ),
       );
-    } finally {
-      if (mounted) setState(() => _isSigningIn = false);
     }
   }
 
@@ -407,11 +464,12 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-      
-      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final userCred = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
       debugPrint('Signed in: ${userCred.user?.email}');
       return userCred;
-
     } catch (e, st) {
       debugPrint('login() error: $e\n$st');
       rethrow;

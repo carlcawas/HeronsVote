@@ -19,7 +19,6 @@ class RegistrationStep5 extends StatefulWidget {
 class _RegistrationStep5State extends State<RegistrationStep5>
     with TickerProviderStateMixin {
   late final AnimationController _panelController;
-  late final Animation<Offset> _panelSlide;
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
   late final Animation<double> _contentFade;
@@ -37,11 +36,6 @@ class _RegistrationStep5State extends State<RegistrationStep5>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-
-    _panelSlide = Tween<Offset>(begin: const Offset(0, 1.0), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
-        );
 
     _contentController = AnimationController(
       vsync: this,

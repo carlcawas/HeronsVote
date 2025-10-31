@@ -3,6 +3,8 @@ import 'registration_step3.dart';
 import './Privacy&Terms/privacyPolicy.dart';
 import './Privacy&Terms/termsCondition.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
 
 class RegistrationStep1 extends StatefulWidget {
   final String uid;
@@ -81,6 +83,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
         toolbarHeight: 80,
@@ -115,8 +118,8 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                     ),
                     child: SizedBox(
                       width: 0,
-                      child: Image.asset(
-                        'assets/verified.png',
+                      child: SvgPicture.asset(
+                        'assets/verify.svg',
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -194,8 +197,9 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) =>
-                                              RegistrationStep3(uid: widget.uid),
+                                          builder: (_) => RegistrationStep3(
+                                            uid: widget.uid,
+                                          ),
                                         ),
                                       );
                                     }
@@ -205,7 +209,9 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                 decoration: BoxDecoration(
                                   color: _isBoxChecked
                                       ? const Color(0xFF5C6AA0)
-                                      : const Color(0xFF5C6AA0).withOpacity(0.6),
+                                      : const Color(
+                                          0xFF5C6AA0,
+                                        ).withValues(alpha: 0.6),
                                   borderRadius: BorderRadius.circular(40),
                                 ),
                                 child: Center(
@@ -214,7 +220,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                     style: TextStyle(
                                       color: _isBoxChecked
                                           ? Colors.white
-                                          : Colors.white70,
+                                          : Colors.white60,
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
                                       fontFamily: 'Geist',
@@ -223,7 +229,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                             GestureDetector(
                               onTap: () {
                                 setState(() {
@@ -233,7 +239,6 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 24.0,
-                                  vertical: 8,
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -241,7 +246,9 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                   children: [
                                     // Checkbox
                                     AnimatedContainer(
-                                      duration: const Duration(milliseconds: 350),
+                                      duration: const Duration(
+                                        milliseconds: 350,
+                                      ),
                                       curve: Curves.easeInOut,
                                       width: 20,
                                       height: 20,
@@ -259,15 +266,18 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                             )
                                           : null,
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 16),
                                     // Text with clickable parts
                                     Flexible(
                                       child: RichText(
                                         textAlign: TextAlign.left,
                                         text: TextSpan(
                                           style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 13,
+                                            color: Color(0xFFECECEC),
+                                            fontSize: 10,
+                                            fontFamily: 'Geist',
+                                            height: 16 / 10,
+                                            letterSpacing: 10 * 0.02,
                                           ),
                                           children: [
                                             const TextSpan(
@@ -275,9 +285,10 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                                   'By signing in to this app, you agree to our ',
                                             ),
                                             TextSpan(
-                                              text: 'Terms & Conditions',
+                                              text: 'Terms \n& Conditions',
                                               style: const TextStyle(
-                                                decoration: TextDecoration.underline,
+                                                decoration:
+                                                    TextDecoration.underline,
                                                 decorationColor: Colors.white70,
                                               ),
                                               recognizer: _termsTapRecognizer,
@@ -286,7 +297,8 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                                             TextSpan(
                                               text: 'Privacy Policy',
                                               style: const TextStyle(
-                                                decoration: TextDecoration.underline,
+                                                decoration:
+                                                    TextDecoration.underline,
                                                 decorationColor: Colors.white70,
                                               ),
                                               recognizer: _privacyTapRecognizer,

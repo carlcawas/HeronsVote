@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
 
   step_progress: ^2.7.0
-    
+  
   # For Firebase
   firebase_core: ^3.4.0
   firebase_auth: ^5.3.0
@@ -38,6 +38,8 @@ dependencies:
   google_mlkit_face_mesh_detection: ^0.4.1
   google_mlkit_commons: ^0.11.0
 
+  flutter_svg: ^2.0.9
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -51,13 +53,15 @@ flutter:
     - assets/google_logo.png
     - assets/HeronVoteLogo.png
     - assets/HeronsVoteText.png
-    - assets/verify.png
-    - assets/verified.png
     - assets/BackButton.png
-    - assets/error_icon.png
+    - assets/error.svg
+    - assets/verified.svg
+    - assets/verify.svg
   fonts:  
     - family: Geist
       fonts:
         - asset: assets/fonts/Geist-Regular.ttf
         - asset: assets/fonts/Geist-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Geist-SemiBold.ttf
+          weight: 600

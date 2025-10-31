@@ -19,7 +19,6 @@ class RegistrationStep3 extends StatefulWidget {
 class _RegistrationStep3State extends State<RegistrationStep3>
     with TickerProviderStateMixin {
   late final AnimationController _panelController;
-  late final Animation<Offset> _panelSlide;
 
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
@@ -48,11 +47,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-
-    _panelSlide = Tween<Offset>(begin: const Offset(0, 1.0), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
-        );
 
     _contentController = AnimationController(
       vsync: this,
@@ -437,7 +431,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                       ),
                     ),
                   ),
-                  
+
                   Container(
                     padding: const EdgeInsets.only(
                       left: 24,
@@ -499,31 +493,71 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                       width: 2,
                                     ),
                                   ),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.file_present_rounded,
-                                      color: Color(0xFFF9F2D7),
-                                      size: 26,
-                                    ),
+                                  child: Stack(
+                                    children: [
+                                      const Center(
+                                        child: Icon(
+                                          Icons.file_present_rounded,
+                                          color: Color(0xFFF9F2D7),
+                                          size: 26,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 45,
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              'Tap here to upload your COR',
+                                              style: TextStyle(
+                                                color: const Color(0xFFECECEC),
+                                                fontSize: 14,
+                                                fontFamily: 'Geist',
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              'Max file size 5mb.',
+                                              style: TextStyle(
+                                                color: const Color(0xFFECECEC),
+                                                fontSize: 12,
+                                                fontFamily: 'Geist',
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
-
                             // Upload status container
-                            if (_isUploading || _uploadComplete || _uploadErrorMessage != null)
+                            if (_isUploading ||
+                                _uploadComplete ||
+                                _uploadErrorMessage != null)
                               AnimatedOpacity(
-                                opacity: (_selectedFilePath != null || _uploadErrorMessage != null) ? 1.0 : 0.0,
+                                opacity:
+                                    (_selectedFilePath != null ||
+                                        _uploadErrorMessage != null)
+                                    ? 1.0
+                                    : 0.0,
                                 duration: const Duration(milliseconds: 200),
                                 child: Container(
                                   padding: const EdgeInsets.all(12),
-                                  margin: const EdgeInsets.symmetric(vertical: 12),
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF44558F),
                                     borderRadius: BorderRadius.circular(24),
                                   ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
                                     children: [
                                       const Icon(
                                         Icons.insert_drive_file,
@@ -537,8 +571,10 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                           alignment: Alignment.centerLeft,
                                           child: _uploadErrorMessage != null
                                               ? Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.center,
                                                   children: [
                                                     Flexible(
                                                       child: Text(
@@ -549,7 +585,8 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                                           fontSize: 14,
                                                           height: 1.2,
                                                         ),
-                                                        overflow: TextOverflow.ellipsis,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
                                                         maxLines: 2,
                                                         softWrap: true,
                                                       ),
@@ -563,43 +600,66 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                                   ],
                                                 )
                                               : Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     Row(
-                                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .center,
                                                       children: [
                                                         Expanded(
                                                           child: Text(
                                                             _selectedFileName,
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontFamily: 'Geist',
-                                                              fontSize: 12,
-                                                            ),
-                                                            overflow: TextOverflow.ellipsis,
+                                                            style:
+                                                                const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontFamily:
+                                                                      'Geist',
+                                                                  fontSize: 12,
+                                                                ),
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
                                                           ),
                                                         ),
-                                                        const SizedBox(width: 6),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
                                                         Text(
                                                           '${(_uploadProgress * 100).toInt()}%',
-                                                          style: const TextStyle(
-                                                            color: Colors.white,
-                                                            fontSize: 12,
-                                                            fontWeight: FontWeight.w600,
-                                                            fontFamily: 'Geist',
-                                                          ),
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                fontFamily:
+                                                                    'Geist',
+                                                              ),
                                                         ),
                                                       ],
                                                     ),
                                                     const SizedBox(height: 6),
                                                     ClipRRect(
-                                                      borderRadius: BorderRadius.circular(6),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
                                                       child: LinearProgressIndicator(
                                                         value: _uploadProgress,
                                                         minHeight: 6,
-                                                        backgroundColor: Colors.white24,
-                                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                                        backgroundColor:
+                                                            Colors.white24,
+                                                        valueColor:
+                                                            const AlwaysStoppedAnimation<
+                                                              Color
+                                                            >(Colors.white),
                                                       ),
                                                     ),
                                                   ],
@@ -660,7 +720,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                       child: Text(
                                         'Proceed',
                                         style: TextStyle(
-                                          color: _uploadComplete ? Colors.white : Colors.white60,
+                                          color: _uploadComplete
+                                              ? Colors.white
+                                              : Colors.white60,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w700,
                                           fontFamily: 'Geist',
@@ -676,7 +738,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                       ),
                     ),
                   ),
-                ]
+                ],
               ),
             ),
           ],
@@ -743,11 +805,11 @@ class StepProgressIndicator extends StatelessWidget {
                     ),
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
-                      width: (index + 1 == currentStep) 
-                             ? 40 / 2
-                             : (index + 1 < currentStep) 
-                               ? 40
-                               : 0,
+                      width: (index + 1 == currentStep)
+                          ? 40 / 2
+                          : (index + 1 < currentStep)
+                          ? 40
+                          : 0,
                       height: 7,
                       decoration: BoxDecoration(
                         color: lineActiveColor,
