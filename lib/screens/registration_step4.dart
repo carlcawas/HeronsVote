@@ -3,6 +3,7 @@ import 'package:heronsvote/screens/registration_step5.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class RegistrationStep4 extends StatefulWidget {
   final String uid;
@@ -19,25 +20,25 @@ class RegistrationStep4 extends StatefulWidget {
     required this.yearLevel,
     required this.semester,
     required this.section,
-    });
+  });
 
   @override
   State<RegistrationStep4> createState() => _RegistrationStep4State();
 }
 
-class _RegistrationStep4State extends State<RegistrationStep4> with TickerProviderStateMixin {
+class _RegistrationStep4State extends State<RegistrationStep4>
+    with TickerProviderStateMixin {
   late final AnimationController _panelController;
-  late final Animation<Offset> _panelSlide;
 
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
   late final Animation<double> _contentFade;
 
-  static const Color textFieldFillColor = Color(0xFFDFE3F0,); //bg TF
-  static const Color labelTextColor = Colors.white; //label
-  static const Color hintTextColor = Color(0xFF797979,); 
+  static const Color textFieldFillColor = Color(0xFFDFE3F0);
+  static const Color labelTextColor = Colors.white;
+  static const Color hintTextColor = Color(0xFF797979);
 
-  // Init TextField === similar to casting TextView
+  // Init TextField controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _collegeController = TextEditingController();
   final TextEditingController _yearLevelController = TextEditingController();
@@ -59,11 +60,12 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       _isSectionEmpty = _sectionController.text.trim().isEmpty;
       _isSemesterEmpty = _semesterController.text.trim().isEmpty;
 
-      _isFormValid = !(_isNameEmpty ||
-          _isCollegeEmpty ||
-          _isYearLevelEmpty ||
-          _isSectionEmpty ||
-          _isSemesterEmpty);
+      _isFormValid =
+          !(_isNameEmpty ||
+              _isCollegeEmpty ||
+              _isYearLevelEmpty ||
+              _isSectionEmpty ||
+              _isSemesterEmpty);
     });
   }
 
@@ -71,7 +73,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
   void initState() {
     super.initState();
 
-    // Auto fill information :)
+    // Auto fill information
     _nameController.text = widget.name;
     _collegeController.text = widget.college;
     _yearLevelController.text = widget.yearLevel ?? '';
@@ -82,11 +84,6 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
-
-    _panelSlide = Tween<Offset>(begin: const Offset(0, 1.0), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
-        );
 
     _contentController = AnimationController(
       vsync: this,
@@ -104,8 +101,6 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
     _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _contentController, curve: Curves.linear),
     );
-
-    _panelController.forward();
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
@@ -197,11 +192,11 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
 
             suffixIcon: isEmpty
                 ? Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: Image.asset(
-                      'assets/error_icon.png',
-                      width: 18,
-                      height: 18,
+                    padding: const EdgeInsets.only(right: 8, top: 12, bottom: 12,),
+                    child: SvgPicture.asset(
+                      'assets/error.svg',
+                      width: 20,
+                      height: 20,
                     ),
                   )
                 : null,
@@ -222,13 +217,20 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
     return Scaffold(
       resizeToAvoidBottomInset: false,
       extendBody: true,
-      backgroundColor: const Color(0xFFF6EFD2),
+      backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF6EFD2),
+        toolbarHeight: 80,
+        backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25),
-          onPressed: () => Navigator.pop(context),
+        leading: Hero(
+          tag: 'appBarBackButton',
+          child: Padding(
+            padding: const EdgeInsets.only(left: 6.0),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
         ),
       ),
       body: SafeArea(
@@ -240,163 +242,183 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
             const Center(child: StepProgressIndicator(currentStep: 2)),
             const SizedBox(height: 10),
             Expanded(
-              child: SlideTransition(
-                position: _panelSlide,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 35),
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF354372),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
-                    ),
-                  ),
-                  padding: const EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 30,
-                    bottom:
-                        50, 
-                  ),
-                  child: FadeTransition(
-                    opacity: _contentFade,
-                    child: SlideTransition(
-                      position: _contentSlide,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 5),
-                          Center(
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: "Verify Student ",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                  const TextSpan(
-                                    text: "details",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
+              child: Stack(
+                children: [
+                  Hero(
+                    tag: 'bluePanel',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 35),
+                        width: double.infinity,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF354372),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(40),
+                            topRight: Radius.circular(40),
                           ),
-                          const SizedBox(height: 40),
-                          _buildStyledTextField(
-                            controller: _nameController,
-                            label: 'Name:',
-                            hintText: 'Last name, First name, M.I.',
-                            isEmpty: _isNameEmpty,
-                          ),
-                          const SizedBox(height: 10),
-
-                          _buildStyledTextField(
-                            controller: _collegeController,
-                            label: 'College:',
-                            hintText: 'e.g. College of Computing and Information Sciences',
-                            isEmpty: _isCollegeEmpty,
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: _buildStyledTextField(
-                                  controller: _yearLevelController,
-                                  label: 'Yr/Level:',
-                                  hintText: 'e.g. Third Year',
-                                  isEmpty: _isYearLevelEmpty,
-                                  showBottomSpacing: false,
-                                  keyboardType: TextInputType.text,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                flex: 3,
-                                child: _buildStyledTextField(
-                                  controller: _sectionController,
-                                  label: 'Section:',
-                                  hintText: 'e.g. III-ACSAD',
-                                  isEmpty: _isSectionEmpty,
-                                  showBottomSpacing: false,
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          _buildStyledTextField(
-                            controller: _semesterController,
-                            label: 'Semester & Academic Year:',
-                            hintText: 'e.g. First Semester A.Y. 2025-2026',
-                            isEmpty: _isSemesterEmpty,
-                          ),
-
-                          const Spacer(),
-                          Center(
-                            child: AbsorbPointer(
-                              absorbing: !_isFormValid,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF5C6AA0),
-                                  borderRadius: BorderRadius.circular(40),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(_isFormValid ? 0.25 : 0.15),
-                                      offset: const Offset(0, 3),
-                                      blurRadius: _isFormValid ? 6 : 3,
-                                    ),
-                                  ],
-                                ),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(40),
-                                  onTap: () async {
-                                    _validateFields();
-                                    if (_isFormValid) {
-                                      await _updateDetails(context);
-                                    }
-                                  },
-                                  child: Center(
-                                    child: AnimatedDefaultTextStyle(
-                                      duration: const Duration(milliseconds: 200),
-                                      style: TextStyle(
-                                        color: _isFormValid
-                                            ? Colors.white
-                                            : Colors.white60,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        fontFamily: 'Geist',
-                                      ),
-                                      child: const Text('Confirm'),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 30,
+                      bottom: 50,
+                    ),
+                    child: FadeTransition(
+                      opacity: _contentFade,
+                      child: SlideTransition(
+                        position: _contentSlide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 43),
+                            Center(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    const TextSpan(
+                                      text: "Verify Student ",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
+                                      ),
+                                    ),
+                                    const TextSpan(
+                                      text: "details",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildStyledTextField(
+                              controller: _nameController,
+                              label: 'Name:',
+                              hintText: 'Last name, First name, M.I.',
+                              isEmpty: _isNameEmpty,
+                            ),
+                            const SizedBox(height: 0),
+
+                            _buildStyledTextField(
+                              controller: _collegeController,
+                              label: 'College:',
+                              hintText:
+                                  'e.g. College of Computing and Information Sciences',
+                              isEmpty: _isCollegeEmpty,
+                            ),
+
+                            const SizedBox(height: 0),
+
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildStyledTextField(
+                                    controller: _yearLevelController,
+                                    label: 'Yr/Level:',
+                                    hintText: 'e.g. Third Year',
+                                    isEmpty: _isYearLevelEmpty,
+                                    showBottomSpacing: false,
+                                    keyboardType: TextInputType.text,
+                                  ),
+                                ),
+                                const SizedBox(width: 18),
+                                Expanded(
+                                  flex: 3,
+                                  child: _buildStyledTextField(
+                                    controller: _sectionController,
+                                    label: 'Section:',
+                                    hintText: 'e.g. III-ACSAD',
+                                    isEmpty: _isSectionEmpty,
+                                    showBottomSpacing: false,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            _buildStyledTextField(
+                              controller: _semesterController,
+                              label: 'Semester & Academic Year:',
+                              hintText: 'e.g. First Semester A.Y. 2025-2026',
+                              isEmpty: _isSemesterEmpty,
+                            ),
+
+                            const Spacer(),
+                            Center(
+                              child: AbsorbPointer(
+                                absorbing: !_isFormValid,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF5C6AA0),
+                                    borderRadius: BorderRadius.circular(40),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(
+                                          _isFormValid ? 0.25 : 0.15,
+                                        ),
+                                        offset: const Offset(0, 3),
+                                        blurRadius: _isFormValid ? 6 : 3,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(40),
+                                      onTap: () async {
+                                        _validateFields();
+                                        if (_isFormValid) {
+                                          await _updateDetails(context);
+                                        }
+                                      },
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: Center(
+                                          child: AnimatedDefaultTextStyle(
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
+                                            style: TextStyle(
+                                              color: _isFormValid
+                                                  ? Colors.white
+                                                  : Colors.white60,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              fontFamily: 'Geist',
+                                            ),
+                                            child: const Text('Confirm'),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -405,7 +427,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
     );
   }
 
-  Future<void> _updateDetails(BuildContext context)  async {
+  Future<void> _updateDetails(BuildContext context) async {
     // Checks passed uid if still authenticated by firebase
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -416,7 +438,7 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       );
       return;
     }
-    
+
     // Get new information input by user
     String nName = _nameController.text;
     String nCollege = _collegeController.text;
@@ -435,6 +457,17 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
         nSection.isNotEmpty &&
         nSemester.isNotEmpty;
 
+    if (!hasCompletedInput) {
+      Fluttertoast.showToast(
+        msg:
+            "All fields must not be empty. Please re-enter your details or re-upload your COR.",
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+      );
+      debugPrint('Invalid Inputs.');
+      return;
+    }
+
     // Update fields in firestore firebase
     await userRef.set({
       'name': nName,
@@ -445,7 +478,6 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       'lastUpdateCOR': DateTime.now(),
     }, SetOptions(merge: true));
 
-    // TODO: Replace Toast with UI update
     Fluttertoast.showToast(
       msg: "Student information updated successfully.",
       toastLength: Toast.LENGTH_LONG,
@@ -457,14 +489,16 @@ class _RegistrationStep4State extends State<RegistrationStep4> with TickerProvid
       context,
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 0),
-        pageBuilder: (context, animation, secondaryAnimation) => RegistrationStep5(uid: widget.uid,),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {return child;},
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            RegistrationStep5(uid: widget.uid),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            child,
       ),
     );
   }
 }
 
-//steps
+// Steps
 class StepProgressIndicator extends StatelessWidget {
   final int currentStep;
   const StepProgressIndicator({super.key, required this.currentStep});
@@ -497,7 +531,7 @@ class StepProgressIndicator extends StatelessWidget {
                   '${index + 1}',
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                     fontFamily: 'Geist',
                   ),
@@ -505,15 +539,34 @@ class StepProgressIndicator extends StatelessWidget {
               ),
             ),
             if (!isLast)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
+              SizedBox(
                 width: 40,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: index + 1 <= currentStep
-                      ? lineActiveColor
-                      : Colors.grey[300],
-                  border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                height: 7 + (2 * 2),
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: (index + 1 == currentStep)
+                          ? 40 / 2
+                          : (index + 1 < currentStep)
+                          ? 40
+                          : 0,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: lineActiveColor,
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],

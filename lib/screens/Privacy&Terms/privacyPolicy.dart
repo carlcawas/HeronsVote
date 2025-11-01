@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class PrivacyPolicy extends StatelessWidget {
   const PrivacyPolicy({super.key});
@@ -12,7 +13,7 @@ class PrivacyPolicy extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.only(left: 25, bottom: 9, top: 25, right: 16),
               child: Row(
                 children: [
                   GestureDetector(
@@ -21,28 +22,27 @@ class PrivacyPolicy extends StatelessWidget {
                     },
 
                     child: Container(
-                      height: 45,
-                      width: 45,
+                      height: 40,
+                      width: 40,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Color.fromARGB(255, 92, 106, 160),
+                        color: Color(0xFF5C6AA0),
                       ),
-
-                      padding: const EdgeInsets.all(12),
-                      child: Image.asset(
-                        'assets/BackButton.png',
+                      child: SvgPicture.asset(
+                        'assets/back.svg',
                         fit: BoxFit.contain,
                       )
                     ),
                   ),
 
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 20),
                   const Text(
                     'Privacy Policy',
                     style: TextStyle(
-                      color: Color.fromARGB(255, 64, 64, 64),
+                      color: Color(0xFF404040),
+                      fontFamily: 'Geist',
                       fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],

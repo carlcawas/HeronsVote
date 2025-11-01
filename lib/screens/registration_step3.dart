@@ -19,7 +19,6 @@ class RegistrationStep3 extends StatefulWidget {
 class _RegistrationStep3State extends State<RegistrationStep3>
     with TickerProviderStateMixin {
   late final AnimationController _panelController;
-  late final Animation<Offset> _panelSlide;
 
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
@@ -49,11 +48,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       duration: const Duration(milliseconds: 700),
     );
 
-    _panelSlide = Tween<Offset>(begin: const Offset(0, 1.0), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _panelController, curve: Curves.easeOutCubic),
-        );
-
     _contentController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -70,8 +64,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _contentController, curve: Curves.linear),
     );
-
-    _panelController.forward();
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
@@ -118,6 +110,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       _uploadComplete = false;
       _selectedFileName = "";
       _selectedFilePath = null;
+      _uploadErrorMessage = null;
     });
   }
 
@@ -390,21 +383,24 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
   @override
   Widget build(BuildContext context) {
-    //is active colors
     final isButtonActive = !_isUploading && !_uploadComplete;
-    final buttonColor = isButtonActive
-        ? const Color(0xFF5C6AA0)
-        : const Color(0xFF5C6AA0);
 
     return Scaffold(
       extendBody: true,
-      backgroundColor: const Color(0xFFF6EFD2),
+      backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF6EFD2),
+        toolbarHeight: 80,
+        backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 25),
-          onPressed: () => Navigator.pop(context),
+        leading: Hero(
+          tag: 'appBarBackButton',
+          child: Padding(
+            padding: const EdgeInsets.only(left: 6.0),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
         ),
       ),
       body: SafeArea(
@@ -415,321 +411,334 @@ class _RegistrationStep3State extends State<RegistrationStep3>
             const SizedBox(height: 20),
             const Center(child: StepProgressIndicator(currentStep: 1)),
             const SizedBox(height: 10),
-
             Expanded(
-              child: SlideTransition(
-                position: _panelSlide,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 35),
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF354372),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
+              child: Stack(
+                children: [
+                  Hero(
+                    tag: 'bluePanel',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 35),
+                        width: double.infinity,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF354372),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(40),
+                            topRight: Radius.circular(40),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                  padding: const EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 30,
-                    bottom: 50,
-                  ),
 
-                  child: FadeTransition(
-                    opacity: _contentFade,
-                    child: SlideTransition(
-                      position: _contentSlide,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 5),
-                          Center(
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: "Upload your ",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: "COR",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 24,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(height: 40),
-
-                          // File selection box
-                          GestureDetector(
-                            onTap: isButtonActive
-                                ? () => _handleCORUpload(context)
-                                : null,
-                            child: Container(
-                              height: 250,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF5C6AA0),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: Colors.yellowAccent,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(
-                                      Icons.file_present_rounded,
-                                      color: Colors.white,
-                                      size: 40,
-                                    ),
-                                    SizedBox(height: 20),
-                                    Text(
-                                      'Tap here to upload your COR',
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 30,
+                      bottom: 50,
+                    ),
+                    child: FadeTransition(
+                      opacity: _contentFade,
+                      child: SlideTransition(
+                        position: _contentSlide,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 43),
+                            Center(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    const TextSpan(
+                                      text: "Upload your ",
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
                                       ),
                                     ),
-                                    SizedBox(height: 5),
-                                    Text(
-                                      'Max file size 5mb.',
+                                    TextSpan(
+                                      text: "COR",
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
                                       ),
                                     ),
                                   ],
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                          ),
-                          if (_isUploading ||
-                              _uploadComplete ||
-                              _uploadErrorMessage != null)
-                            AnimatedOpacity(
-                              opacity:
-                                  (_selectedFilePath != null ||
-                                      _uploadErrorMessage != null)
-                                  ? 1.0
-                                  : 0.0,
-                              duration: const Duration(milliseconds: 200),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 24,
-                                ),
-                                margin: const EdgeInsets.symmetric(
-                                  vertical: 25,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF44558F),
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // left: file icon
-                                    const Icon(
-                                      Icons.insert_drive_file,
-                                      color: Colors.white,
-                                      size: 32,
+                            const SizedBox(height: 40),
+
+                            // File selection box
+                            Material(
+                              color: const Color(0xFF5C6AA0),
+                              borderRadius: BorderRadius.circular(30),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(30),
+                                onTap: isButtonActive
+                                    ? () => _handleCORUpload(context)
+                                    : null,
+                                child: Container(
+                                  height: 238,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(
+                                      color: const Color(0xFFFFEB66),
+                                      width: 2,
                                     ),
-                                    const SizedBox(width: 12),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      const Center(
+                                        child: Icon(
+                                          Icons.file_present_rounded,
+                                          color: Color(0xFFF9F2D7),
+                                          size: 26,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 45,
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              'Tap here to upload your COR',
+                                              style: TextStyle(
+                                                color: const Color(0xFFF8F8F8),
+                                                fontSize: 14,
+                                                fontFamily: 'Geist',
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              'Max file size 5mb.',
+                                              style: TextStyle(
+                                                color: const Color(0xFFF8F8F8),
+                                                fontSize: 12,
+                                                fontFamily: 'Geist',
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // Upload status container
+                            if (_isUploading ||
+                                _uploadComplete ||
+                                _uploadErrorMessage != null)
+                              AnimatedOpacity(
+                                opacity:
+                                    (_selectedFilePath != null ||
+                                        _uploadErrorMessage != null)
+                                    ? 1.0
+                                    : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF44558F),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.insert_drive_file,
+                                        color: Colors.white,
+                                        size: 32,
+                                      ),
+                                      const SizedBox(width: 12),
 
-                                    // center: message + error icon grouped tightly
-                                    Expanded(
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: _uploadErrorMessage != null
-                                            ? Row(
-                                                mainAxisSize: MainAxisSize
-                                                    .min, // <-- group only as wide as needed
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.center,
-                                                children: [
-                                                  // message (flexible, will ellipsize/wrap)
-                                                  Flexible(
-                                                    child: Text(
-                                                      _uploadErrorMessage!,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontFamily: 'Geist',
-                                                        fontSize: 14,
-                                                        height: 1.2,
+                                      Expanded(
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _uploadErrorMessage != null
+                                              ? Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.center,
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        _uploadErrorMessage!,
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontFamily: 'Geist',
+                                                          fontSize: 14,
+                                                          height: 1.2,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        maxLines: 2,
+                                                        softWrap: true,
                                                       ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      maxLines: 2,
-                                                      softWrap: true,
                                                     ),
-                                                  ),
-
-                                                  // tiny gap, icon directly beside message
-                                                  const SizedBox(width: 4),
-
-                                                  Image.asset(
-                                                    'assets/error_icon.png',
-                                                    width: 18,
-                                                    height: 18,
-                                                  ),
-                                                ],
-                                              )
-                                            : Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Row(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .center,
-                                                    children: [
-                                                      Expanded(
-                                                        child: Text(
-                                                          _selectedFileName,
+                                                    const SizedBox(width: 4),
+                                                    Image.asset(
+                                                      'assets/error_icon.png',
+                                                      width: 18,
+                                                      height: 18,
+                                                    ),
+                                                  ],
+                                                )
+                                              : Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Row(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .center,
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            _selectedFileName,
+                                                            style:
+                                                                const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontFamily:
+                                                                      'Geist',
+                                                                  fontSize: 12,
+                                                                ),
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                        Text(
+                                                          '${(_uploadProgress * 100).toInt()}%',
                                                           style:
                                                               const TextStyle(
                                                                 color: Colors
                                                                     .white,
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
                                                                 fontFamily:
                                                                     'Geist',
-                                                                fontSize: 12,
                                                               ),
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
                                                         ),
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      Text(
-                                                        '${(_uploadProgress * 100).toInt()}%',
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          fontFamily: 'Geist',
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  const SizedBox(height: 6),
-                                                  ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          6,
-                                                        ),
-                                                    child: LinearProgressIndicator(
-                                                      value: _uploadProgress,
-                                                      minHeight: 6,
-                                                      backgroundColor:
-                                                          Colors.white24,
-                                                      valueColor:
-                                                          const AlwaysStoppedAnimation<
-                                                            Color
-                                                          >(Colors.white),
+                                                      ],
                                                     ),
-                                                  ),
-                                                ],
+                                                    const SizedBox(height: 6),
+                                                    ClipRRect(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            6,
+                                                          ),
+                                                      child: LinearProgressIndicator(
+                                                        value: _uploadProgress,
+                                                        minHeight: 6,
+                                                        backgroundColor:
+                                                            Colors.white24,
+                                                        valueColor:
+                                                            const AlwaysStoppedAnimation<
+                                                              Color
+                                                            >(Colors.white),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                        ),
+                                      ),
+
+                                      const SizedBox(width: 12),
+                                      GestureDetector(
+                                        onTap: _cancelUpload,
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Color(0xFFF3C8C8),
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                            const Spacer(),
+                            Center(
+                              child: GestureDetector(
+                                onTap: _uploadComplete
+                                    ? () {
+                                        if (_nameCap != null &&
+                                            _collegeCap != null &&
+                                            _yearLevel != null &&
+                                            _semester != null &&
+                                            _sectionCap != null) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RegistrationStep4(
+                                                uid: widget.uid,
+                                                name: _nameCap!,
+                                                college: _collegeCap!,
+                                                yearLevel: _yearLevel!,
+                                                semester: _semester!,
+                                                section: _sectionCap!,
                                               ),
-                                      ),
-                                    ),
-
-                                    const SizedBox(
-                                      width: 12,
-                                    ),
-                                    GestureDetector(
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedFilePath = null;
-                                          _uploadErrorMessage = null;
-                                          _isUploading = false;
-                                          _uploadProgress = 0;
-                                          _uploadComplete = false;
-                                        });
-                                      },
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Color(0xFFF3C8C8),
-                                        size: 24,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          const Spacer(),
-                          Center(
-                            child: GestureDetector(
-                              onTap: _uploadComplete
-                                  ? () {
-                                      if (_nameCap != null &&
-                                          _collegeCap != null &&
-                                          _yearLevel != null &&
-                                          _semester != null &&
-                                          _sectionCap != null) {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => RegistrationStep4(
-                                              uid: widget.uid,
-                                              name: _nameCap!,
-                                              college: _collegeCap!,
-                                              yearLevel: _yearLevel!,
-                                              semester: _semester!,
-                                              section: _sectionCap!,
                                             ),
-                                          ),
-                                        );
+                                          );
+                                        }
                                       }
-                                    }
-                                  : null,
-                              child: Container(
-                                height: 60,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF5C6AA0,
-                                  ),
-                                  borderRadius: BorderRadius.circular(40),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'Proceed',
-                                    style: TextStyle(
-                                      color: _uploadComplete
-                                          ? Colors.white
-                                          : Colors.white60,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      fontFamily: 'Geist',
+                                    : null,
+                                child: Opacity(
+                                  opacity: _uploadComplete ? 1.0 : 0.5,
+                                  child: Container(
+                                    height: 60,
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF5C6AA0),
+                                      borderRadius: BorderRadius.circular(40),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        'Proceed',
+                                        style: TextStyle(
+                                          color: _uploadComplete
+                                              ? Colors.white
+                                              : Colors.white60,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Geist',
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -772,7 +781,7 @@ class StepProgressIndicator extends StatelessWidget {
                   '${index + 1}',
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                     fontSize: 12,
                     fontFamily: 'Geist',
                   ),
@@ -780,15 +789,34 @@ class StepProgressIndicator extends StatelessWidget {
               ),
             ),
             if (!isLast)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
+              SizedBox(
                 width: 40,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: index + 1 <= currentStep
-                      ? lineActiveColor
-                      : Colors.grey[300],
-                  border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                height: 7 + (2 * 2),
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: (index + 1 == currentStep)
+                          ? 40 / 2
+                          : (index + 1 < currentStep)
+                          ? 40
+                          : 0,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: lineActiveColor,
+                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
