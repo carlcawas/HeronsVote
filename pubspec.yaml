@@ -58,6 +58,9 @@ flutter:
     - assets/verified.svg
     - assets/verify.svg
     - assets/back.svg
+    - assets/account.svg
+    - assets/announcement.svg
+    - assets/bottom_nav/
   fonts:  
     - family: Geist
       fonts:
