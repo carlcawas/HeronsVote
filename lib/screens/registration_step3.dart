@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:heronsvote/screens/registration_step4.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -592,10 +593,10 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                                       ),
                                                     ),
                                                     const SizedBox(width: 4),
-                                                    Image.asset(
-                                                      'assets/error_icon.png',
-                                                      width: 18,
-                                                      height: 18,
+                                                    SvgPicture.asset(
+                                                      'assets/error.svg',
+                                                      width: 20,
+                                                      height: 20,
                                                     ),
                                                   ],
                                                 )
