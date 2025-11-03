@@ -192,7 +192,11 @@ class _RegistrationStep4State extends State<RegistrationStep4>
 
             suffixIcon: isEmpty
                 ? Padding(
-                    padding: const EdgeInsets.only(right: 8, top: 12, bottom: 12,),
+                    padding: const EdgeInsets.only(
+                      right: 8,
+                      top: 12,
+                      bottom: 12,
+                    ),
                     child: SvgPicture.asset(
                       'assets/error.svg',
                       width: 20,
@@ -215,13 +219,14 @@ class _RegistrationStep4State extends State<RegistrationStep4>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       extendBody: true,
       backgroundColor: const Color(0xFFF9F2D7),
       appBar: AppBar(
         toolbarHeight: 80,
         backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: Hero(
           tag: 'appBarBackButton',
           child: Padding(
@@ -267,7 +272,6 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                       left: 24,
                       right: 24,
                       top: 30,
-                      bottom: 50,
                     ),
                     child: FadeTransition(
                       opacity: _contentFade,
@@ -304,111 +308,162 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                               ),
                             ),
                             const SizedBox(height: 24),
-                            _buildStyledTextField(
-                              controller: _nameController,
-                              label: 'Name:',
-                              hintText: 'Last name, First name, M.I.',
-                              isEmpty: _isNameEmpty,
-                            ),
-                            const SizedBox(height: 0),
 
-                            _buildStyledTextField(
-                              controller: _collegeController,
-                              label: 'College:',
-                              hintText:
-                                  'e.g. College of Computing and Information Sciences',
-                              isEmpty: _isCollegeEmpty,
-                            ),
-
-                            const SizedBox(height: 0),
-
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: _buildStyledTextField(
-                                    controller: _yearLevelController,
-                                    label: 'Yr/Level:',
-                                    hintText: 'e.g. Third Year',
-                                    isEmpty: _isYearLevelEmpty,
-                                    showBottomSpacing: false,
-                                    keyboardType: TextInputType.text,
-                                  ),
-                                ),
-                                const SizedBox(width: 18),
-                                Expanded(
-                                  flex: 3,
-                                  child: _buildStyledTextField(
-                                    controller: _sectionController,
-                                    label: 'Section:',
-                                    hintText: 'e.g. III-ACSAD',
-                                    isEmpty: _isSectionEmpty,
-                                    showBottomSpacing: false,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            _buildStyledTextField(
-                              controller: _semesterController,
-                              label: 'Semester & Academic Year:',
-                              hintText: 'e.g. First Semester A.Y. 2025-2026',
-                              isEmpty: _isSemesterEmpty,
-                            ),
-
-                            const Spacer(),
-                            Center(
-                              child: AbsorbPointer(
-                                absorbing: !_isFormValid,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF5C6AA0),
-                                    borderRadius: BorderRadius.circular(40),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(
-                                          _isFormValid ? 0.25 : 0.15,
-                                        ),
-                                        offset: const Offset(0, 3),
-                                        blurRadius: _isFormValid ? 6 : 3,
-                                      ),
+                            Expanded(
+                              child: ShaderMask(
+                                shaderCallback: (Rect bounds) {
+                                  return LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: const <Color>[
+                                      Colors
+                                          .transparent,
+                                      Colors.white,
                                     ],
+                                    stops: const <double>[
+                                      0.0, 
+                                      0.05,
+                                    ],
+                                  ).createShader(bounds);
+                                },
+                                blendMode: BlendMode.dstIn,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.only(
+                                    top:
+                                        20,                                    bottom:
+                                        50,
                                   ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(40),
-                                      onTap: () async {
-                                        _validateFields();
-                                        if (_isFormValid) {
-                                          await _updateDetails(context);
-                                        }
-                                      },
-                                      child: SizedBox(
-                                        width: double.infinity,
-                                        child: Center(
-                                          child: AnimatedDefaultTextStyle(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildStyledTextField(
+                                        controller: _nameController,
+                                        label: 'Name:',
+                                        hintText: 'Last name, First name, M.I.',
+                                        isEmpty: _isNameEmpty,
+                                      ),
+                                      const SizedBox(height: 0),
+                                      _buildStyledTextField(
+                                        controller: _collegeController,
+                                        label: 'College:',
+                                        hintText:
+                                            'e.g. College of Computing and Information Sciences',
+                                        isEmpty: _isCollegeEmpty,
+                                      ),
+                                      const SizedBox(height: 0),
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            flex: 2,
+                                            child: _buildStyledTextField(
+                                              controller: _yearLevelController,
+                                              label: 'Yr/Level:',
+                                              hintText: 'e.g. Third Year',
+                                              isEmpty: _isYearLevelEmpty,
+                                              showBottomSpacing: false,
+                                              keyboardType: TextInputType.text,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 18),
+                                          Expanded(
+                                            flex: 3,
+                                            child: _buildStyledTextField(
+                                              controller: _sectionController,
+                                              label: 'Section:',
+                                              hintText: 'e.g. III-ACSAD',
+                                              isEmpty: _isSectionEmpty,
+                                              showBottomSpacing: false,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildStyledTextField(
+                                        controller: _semesterController,
+                                        label: 'Semester & Academic Year:',
+                                        hintText:
+                                            'e.g. First Semester A.Y. 2025-2026',
+                                        isEmpty: _isSemesterEmpty,
+                                      ),
+
+                                      const SizedBox(
+                                        height: 40,
+                                      ),
+                                      Center(
+                                        child: AbsorbPointer(
+                                          absorbing: !_isFormValid,
+                                          child: AnimatedContainer(
                                             duration: const Duration(
                                               milliseconds: 200,
                                             ),
-                                            style: TextStyle(
-                                              color: _isFormValid
-                                                  ? Colors.white
-                                                  : Colors.white60,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              fontFamily: 'Geist',
+                                            height: 56,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF5C6AA0),
+                                              borderRadius:
+                                                  BorderRadius.circular(40),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(
+                                                        _isFormValid
+                                                            ? 0.25
+                                                            : 0.15,
+                                                      ),
+                                                  offset: const Offset(0, 3),
+                                                  blurRadius: _isFormValid
+                                                      ? 6
+                                                      : 3,
+                                                ),
+                                              ],
                                             ),
-                                            child: const Text('Confirm'),
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(40),
+                                                onTap: () async {
+                                                  _validateFields();
+                                                  if (_isFormValid) {
+                                                    await _updateDetails(
+                                                      context,
+                                                    );
+                                                  }
+                                                },
+                                                child: SizedBox(
+                                                  width: double.infinity,
+                                                  child: Center(
+                                                    child:
+                                                        AnimatedDefaultTextStyle(
+                                                          duration:
+                                                              const Duration(
+                                                                milliseconds:
+                                                                    200,
+                                                              ),
+                                                          style: TextStyle(
+                                                            color: _isFormValid
+                                                                ? Colors.white
+                                                                : Colors
+                                                                      .white60,
+                                                            fontSize: 14,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontFamily: 'Geist',
+                                                          ),
+                                                          child: const Text(
+                                                            'Confirm',
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 ),
                               ),
