@@ -1,101 +1,66 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_svg/flutter_svg.dart';
-
-enum HomeState {
-  noElection, // No ongoing election
-  electionOngoing, // Election is active
-  electionEnded, // Election has ended
-}
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firebase_service.dart';
+// TODO: import screens for different redirection
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String? uid;
+  const HomeScreen({super.key, required this.uid});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-  DateTime electionEnd = DateTime.now().add(
-    const Duration(minutes: 3, seconds: 50),
-  );
-  DateTime electionStart = DateTime.now().subtract(const Duration(days: 1));
+  final FirebaseService _firebaseService = FirebaseService();
+  late final String? _userId;
 
+  int _selectedIndex = 0;
   Timer? _timer;
-  Duration timeLeft = Duration.zero;
   DateTime? currentBackPressTime;
 
-  // State variables checker if verified voted or may election
-  HomeState _currentHomeState = HomeState.electionOngoing;
-  bool _isVerified = true;
-  bool _electionExists = true;
+  // Page controllers for sliders
+  final PageController _activeItemsPageController = PageController();
+  int _currentActiveItemPage = 0;
 
-  // For officials slider
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-
-  // Variable to for changes in department and election type sa card (dito siguro save or use ung variable galing sa db )
-  String _userDepartment = "CCIS";
-  String _electionType = "CSC Election";
-
-  // FOr slates slider
   final PageController _slatesPageController = PageController();
   int _currentSlatesPage = 0;
+
+  // hold all active elections, proposals for the top slider/box
+  List<Map<String, dynamic>> _activeItems = [];
+  // hold the single most recent ended election (if within a week)
+  List<Map<String, dynamic>> _recentlyEndedItems = [];
+  // Combined list for the top slider
+  List<Map<String, dynamic>> _sliderItems = [];
+  
+  // fetched from db user collection
+  String _userName = "User";
+  String _userCollegeId = "";
+  String _userCollegeAbbreviation = "";
+  bool _isVerified = false;
 
   @override
   void initState() {
     super.initState();
-    _updateTimeLeft();
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _updateTimeLeft(),
-    );
-    _determineHomeState();
-  }
-
-  //to nagdedetermine ng state ng home
-  void _determineHomeState() {
-    if (!_electionExists) {
-      _currentHomeState = HomeState.noElection;
-    } else if (electionEnded) {
-      _currentHomeState = HomeState.electionEnded;
-    } else {
-      _currentHomeState = HomeState.electionOngoing;
-    }
-  }
-
-  //time for the timer sa elections
-  void _updateTimeLeft() {
-    final now = DateTime.now();
-    setState(() {
-      if (now.isBefore(electionStart)) {
-        timeLeft = electionStart.difference(now);
-      } else {
-        timeLeft = electionEnd.difference(now);
+    _userId = widget.uid;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {});
       }
-
-      if (timeLeft.isNegative) {
-        timeLeft = Duration.zero;
-        _timer?.cancel();
-      }
-
-      _determineHomeState();
     });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _pageController.dispose();
+    _activeItemsPageController.dispose();
+    _slatesPageController.dispose();
     super.dispose();
   }
 
-  bool get electionEnded =>
-      timeLeft.inSeconds ==
-      0; //this will check if election ended not working yet
-
-  //2 back swipe to exit app function
+  // 2 backs swipe to exit app function
   Future<bool> _onWillPop() async {
     DateTime now = DateTime.now();
     if (currentBackPressTime == null ||
@@ -113,157 +78,323 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  // Method to simulate state changes for debug lng
-  void _changeState(HomeState newState) {
-    setState(() {
-      _currentHomeState = newState;
-      // Update variable based on state
-      switch (newState) {
-        case HomeState.noElection:
-          _electionExists = false;
-          _isVerified = true;
-          _userDepartment = "CCIS";
-          _electionType = "CSC Election";
-          break;
-        case HomeState.electionEnded:
-          _electionExists = true;
-          _isVerified = true;
-          _userDepartment = "CCIS";
-          _electionType = "CSC Election";
-          electionEnd = DateTime.now().subtract(const Duration(hours: 1));
-          break;
-        case HomeState.electionOngoing:
-          _electionExists = true;
-          _isVerified = true;
-          _userDepartment = "CCIS";
-          _electionType = "CSC Election";
-          electionEnd = DateTime.now().add(
-            const Duration(minutes: 3, seconds: 50),
-          );
-          electionStart = DateTime.now().subtract(const Duration(days: 1));
-          break;
-      }
-      _updateTimeLeft();
-    });
+  // checks if an ended election is recent. checks if it ended in the past and is within 7 days
+  bool _isRecentlyEnded(Timestamp endTimestamp) {
+    final int days = 7;
+    final endDate = endTimestamp.toDate();
+    final now = DateTime.now();
+    return now.isAfter(endDate) && now.difference(endDate).inDays <= days;
+  }
+
+  // formats the data/information fetched from a db fetch/snapshot
+  Map<String, dynamic> _docToMap(DocumentSnapshot doc) {
+    return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+  }
+
+  // format election types to string
+  String _formatType(String type) {
+    switch (type) {
+      case 'college':
+        return 'College Election';
+      case 'university':
+        return 'University Election';
+      case 'proposal':
+        return 'University Proposal Election';
+      default:
+        return 'Event';
+    }
+  }
+
+  // prioritizes election cards
+  int _getPriority(String type) {
+    switch (type) {
+      case 'university':
+        return 1; // 1st priority
+      case 'college':
+        return 2; // 2nd priority
+      case 'proposal':
+        return 3; // 3rd priority
+      default:
+        return 4;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_userId == null) {
+      return const Center(child: Text('Error: User ID not found.'));
+    }
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Hello, Name",
-                      style: TextStyle(
-                        color: Color(0xFF414141),
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'Geist',
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        // State switcher dropdown for testing
-                        DropdownButton<HomeState>(
-                          value: _currentHomeState,
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Color(0xFF414141),
-                          ),
-                          onChanged: (HomeState? newValue) {
-                            if (newValue != null) {
-                              _changeState(newValue);
-                            }
-                          },
-                          items: HomeState.values.map((HomeState state) {
-                            return DropdownMenuItem<HomeState>(
-                              value: state,
-                              child: Text(
-                                state.toString().split('.').last,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            //TODO: NOTIF
-                          },
-                          icon: SvgPicture.asset(
-                            'assets/announcement.svg',
-                            color: Color(0xFF404040),
-                            width: 20,
-                            height: 25,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            //TODO : ACCOUNT
-                          },
-                          icon: SvgPicture.asset(
-                            'assets/account.svg',
-                            color: const Color(0xFF404040),
-                            width: 21,
-                            height: 23,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 30),
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: _firebaseService.getUserStream(_userId),
+            builder: (context, userSnapshot) {
+              if (!userSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              // Process backend part
+              // Fetch user data from db
+              final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+              // takes only the 1st name to avoid overflow
+              final String fullName = userData['name'] ?? 'User';
+              if (fullName.trim().isEmpty) {
+                _userName = 'User';
+              } else {
+                _userName = fullName.split(' ').first;
+              }
+              _userCollegeId = userData['college_id'] ?? '';
+              _userCollegeAbbreviation = userData['college_id'] ?? '';
+              _isVerified = userData['isVerified'] ?? false;
+              // Combine Streams for all active/ended items
+              return StreamBuilder<QuerySnapshot>(
+                stream: _firebaseService
+                    .getActiveCollegeElectionStream(_userCollegeId),
+                builder: (context, collegeElecSnap) {
+                  return StreamBuilder<QuerySnapshot>(
+                    stream:
+                        _firebaseService.getActiveUniversityElectionStream(),
+                    builder: (context, uniElecSnap) {
+                      return StreamBuilder<QuerySnapshot>(
+                        stream: _firebaseService
+                            .getActiveUniversityProposalStream(),
+                        builder: (context, proposalSnap) {
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: _firebaseService
+                                .getRecentlyEndedCollegeElection(_userCollegeId),
+                            builder: (context, endedCollegeSnap) {
+                              return StreamBuilder<QuerySnapshot>(
+                                stream: _firebaseService
+                                    .getRecentlyEndedUniversityElection(),
+                                builder: (context, endedUniSnap) {
+                                  return StreamBuilder<QuerySnapshot>(
+                                    stream: _firebaseService
+                                        .getRecentlyEndedUniversityProposal(),
+                                    builder: (context, endedProposalSnap) {
+                                      if (!collegeElecSnap.hasData ||
+                                          !uniElecSnap.hasData ||
+                                          !proposalSnap.hasData ||
+                                          !endedCollegeSnap.hasData ||
+                                          !endedUniSnap.hasData ||
+                                          !endedProposalSnap.hasData) {
+                                        return const Center(
+                                            child: CircularProgressIndicator());
+                                      }
 
-                // NOT VERIFIED WARNING
-                if (!_isVerified) ...[
-                  _buildNotVerifiedWarningCard(),
-                  const SizedBox(height: 30),
-                ],
+                                      // Clear previous active items
+                                      _activeItems = [];
+                                      _recentlyEndedItems = [];
 
-                // Reg election shows for all election state)
-                _buildElectionCardByState(),
-                const SizedBox(height: 30),
+                                      // Check for active items
+                                      if (collegeElecSnap
+                                          .data!.docs.isNotEmpty) {
+                                        _activeItems.add({
+                                          'type': 'college',
+                                          'ongoing': true, 
+                                          ..._docToMap(
+                                              collegeElecSnap.data!.docs.first)
+                                        });
+                                      }
+                                      if (uniElecSnap.data!.docs.isNotEmpty) {
+                                        _activeItems.add({
+                                          'type': 'university',
+                                          'ongoing': true,
+                                          ..._docToMap(
+                                              uniElecSnap.data!.docs.first)
+                                        });
+                                      }
+                                      if (proposalSnap.data!.docs.isNotEmpty) {
+                                        _activeItems.add({
+                                          'type': 'proposal',
+                                          'ongoing': true,
+                                          ..._docToMap(
+                                              proposalSnap.data!.docs.first)
+                                        });
+                                      }
 
-                // Conditional Officials/Slates area based on election
-                if (_currentHomeState != HomeState.noElection &&
-                    _currentHomeState != HomeState.electionEnded) ...[
-                  _buildSlatesSection(), // Show slates for ongoing
-                ] else ...[
-                  _buildCurrentOfficialsSection(), // Show officials (current or newly elected)
-                ],
-                // Before vote area
-                const Text(
-                  "Before you vote",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF404040),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _buildInfoCard("Voting rules"),
-                    const SizedBox(width: 22.7),
-                    _buildInfoCard("Voting process"),
-                  ],
-                ),
-                const SizedBox(height: 40),
-              ],
-            ),
+                                      // Always check for recently ended items
+                                      if (endedCollegeSnap
+                                          .data!.docs.isNotEmpty) {
+                                        final doc =
+                                            endedCollegeSnap.data!.docs.first;
+                                        if (_isRecentlyEnded(
+                                            doc['end'] as Timestamp)) {
+                                          _recentlyEndedItems.add({
+                                            'type': 'college',
+                                            'ongoing': false,
+                                            ..._docToMap(doc)
+                                          });
+                                        }
+                                      }
+                                      if (endedUniSnap
+                                          .data!.docs.isNotEmpty) {
+                                        final doc =
+                                            endedUniSnap.data!.docs.first;
+                                        if (_isRecentlyEnded(
+                                            doc['end'] as Timestamp)) {
+                                          _recentlyEndedItems.add({
+                                            'type': 'university',
+                                            'ongoing': false,
+                                            ..._docToMap(doc)
+                                          });
+                                        }
+                                      }
+                                      if (endedProposalSnap
+                                          .data!.docs.isNotEmpty) {
+                                        final doc =
+                                            endedProposalSnap.data!.docs.first;
+                                        if (_isRecentlyEnded(
+                                            doc['end'] as Timestamp)) {
+                                          _recentlyEndedItems.add({
+                                            'type': 'proposal',
+                                            'ongoing': false,
+                                            ..._docToMap(doc)
+                                          });
+                                        }
+                                      }
+                                      
+                                      // Sort recently ended items
+                                      _recentlyEndedItems.sort((a, b) =>
+                                          (b['end'] as Timestamp)
+                                              .compareTo(a['end'] as Timestamp));
+
+                                      // Create the combined list
+                                      _sliderItems = [
+                                        ..._activeItems,
+                                        ..._recentlyEndedItems
+                                      ];
+
+                                      // Sort election cards based on priority
+                                      _sliderItems.sort((a, b) =>
+                                          _getPriority(a['type'])
+                                              .compareTo(_getPriority(b['type'])));
+
+                                      // Update bounds check for new list
+                                      if (_currentActiveItemPage >=
+                                          _sliderItems.length) {
+                                        _currentActiveItemPage = 0;
+                                        if (_activeItemsPageController
+                                            .hasClients) {
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                            if (_activeItemsPageController
+                                                .hasClients) {
+                                              _activeItemsPageController
+                                                  .jumpToPage(0);
+                                            }
+                                          });
+                                        }
+                                      }
+                                      
+                                      // For UI update and building
+                                      return SingleChildScrollView(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 25, vertical: 20),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                // Header: Hello, name
+                                                Text(
+                                                  "Hello, $_userName",
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF414141),
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontFamily: 'Geist',
+                                                  ),
+                                                ),
+                                                // Header: Notification & Account btn
+                                                Row(
+                                                  children: [
+                                                    IconButton(
+                                                      onPressed: () {
+                                                        //TODO: ANNOUNCEMENT REDIRECTION
+                                                      },
+                                                      icon: SvgPicture.asset(
+                                                        'assets/announcement.svg',
+                                                        color:
+                                                            Color(0xFF404040),
+                                                        width: 20,
+                                                        height: 25,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      onPressed: () {
+                                                        //TODO: ACCOUNT REDIRECTION
+                                                      },
+                                                      icon: SvgPicture.asset(
+                                                        'assets/account.svg',
+                                                        color: const Color(
+                                                            0xFF404040),
+                                                        width: 21,
+                                                        height: 23,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 30),
+
+                                            // 'Not Verified' message shows if user not verified
+                                            if (!_isVerified) ...[
+                                              _buildNotVerifiedWarningCard(),
+                                              const SizedBox(height: 30),
+                                            ],
+
+                                            // call election cards
+                                            _buildSliderOrNoElectionCard(),
+                                            const SizedBox(height: 30),
+
+                                            // Officials/Slates card
+                                            _buildConditionalSecondSection(),
+
+                                            // 'Before you vote' card
+                                            const Text(
+                                              "Before you vote",
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF404040),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              children: [
+                                                // TODO: ADD REDIRECT FUNCTIONS 
+                                                _buildInfoCard("Voting rules"),
+                                                const SizedBox(width: 22.7),
+                                                _buildInfoCard("Voting process"),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 40),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              );
+            },
           ),
         ),
 
-        // Bottom nav
+        // Bottom navigation
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             boxShadow: [
@@ -315,9 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
   //nav area builder
   Widget _buildNavIcon(String iconName, int index) {
     final bool isActive = _selectedIndex == index;
-    final String assetPath =
-        'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
-
+    final String assetPath = 'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
     return SvgPicture.asset(
       assetPath,
       width: 21,
@@ -325,18 +454,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildElectionCardByState() {
-    switch (_currentHomeState) {
-      case HomeState.noElection:
-        return _buildNoElectionCard();
-      case HomeState.electionEnded:
-        return _buildElectionEndedCard();
-      case HomeState.electionOngoing:
-      default:
-        return _buildElectionOngoingCard();
+  // Decides to show slider or "No Election" card
+  Widget _buildSliderOrNoElectionCard() {
+    if (_sliderItems.isEmpty) {
+      return _buildNoElectionCard();
+    } else {
+      // Pass the combined list to the slider
+      return _buildActiveItemsSliderCard(_sliderItems);
     }
   }
 
+  // No Election state card
   Widget _buildNoElectionCard() {
     return Container(
       width: double.infinity,
@@ -351,7 +479,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               Text(
-                _userDepartment,
+                // fetch from user data
+                _userCollegeAbbreviation,
                 style: const TextStyle(
                   color: Color(0xFFF8F8F8),
                   fontSize: 32,
@@ -363,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            "No active election. Check Announcements \nfor updates.",
+            "No active election. Check Announcements\nfor updates.",
             style: TextStyle(
               color: Color(0xFFD9D9D9),
               fontSize: 12,
@@ -383,7 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               onPressed: () {
-                // TODO: Navigate to election info or announcements
+                //TODO: Navigate to election info or announcements
               },
               child: const Text(
                 "Announcements",
@@ -401,11 +530,205 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCurrentOfficialsSection() {
-    final String sectionTitle = _currentHomeState == HomeState.electionEnded
-        ? "Newly Elected Officials"
-        : "Current Officials";
+  // builds the slider shell
+  Widget _buildActiveItemsSliderCard(List<Map<String, dynamic>> items) {
+    if (items.isEmpty) return const SizedBox.shrink();
 
+    return Container(
+      height: 220,
+      width: double.infinity,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _activeItemsPageController,
+            itemCount: items.length,
+            onPageChanged: (page) {
+              setState(() {
+                _currentActiveItemPage = page;
+              });
+            },
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return _buildSliderItemCard(item);
+            },
+          ),
+          if (items.length > 1)
+            Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  items.length,
+                  (index) => Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: index == _currentActiveItemPage
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.5),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Unified card for both Ongoing and Ended elections
+  Widget _buildSliderItemCard(Map<String, dynamic> item) {
+    final String type = item['type'] ?? '';
+    final bool isOngoing = item['ongoing'] ?? false;
+
+    // sets the text to "UMak" for university election OR proposal on the card
+    final String title;
+    if (type == 'university' || type == 'proposal') {
+      title = 'UMak';
+    } else {
+      title = _userCollegeAbbreviation;
+    }
+
+    // Formatted type
+    final String subtitle = _formatType(type);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.only(top: 30, left: 28, bottom: 30, right: 28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF354372),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Geist',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Color(0xFFF8F8F8),
+                    fontSize: 12,
+                    fontFamily: 'Geist',
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+
+          // Timer or Ended Button
+          if (isOngoing) ...[
+            // Show timer
+            Builder(builder: (context) {
+              final Timestamp endTimestamp = item['end'];
+              final DateTime endTime = endTimestamp.toDate();
+              final Duration timeLeft = endTime.difference(DateTime.now());
+              return _buildTimerSection(
+                  timeLeft.isNegative ? Duration.zero : timeLeft);
+            }),
+          ] else ...[
+            // Show "Ended" text and "View Result" button
+            const Text(
+              "Election ended:",
+              style: TextStyle(color: Color(0xFFD9D9D9), fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 47,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF5C6AA0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                // Redirect function
+                onPressed: () {
+                  final String id = item['id'];
+                  final String itemType = item['type'];
+                  // TODO: Navigate to Results Screen
+                  // Example:
+                  // Navigator.push(context, MaterialPageRoute(
+                  //   builder: (context) => ResultsScreen(id: id, type: itemType),
+                  // ));
+                  print("Navigate to results for ID: $id, Type: $itemType");
+                },
+                child: const Text(
+                  "View Result",
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFF8F8F8),
+                  ),
+                ),
+              ),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConditionalSecondSection() {
+    // If no elections in the slider (idle mode), show current college officials as a default.
+    if (_sliderItems.isEmpty) {
+      return _buildCurrentOfficialsSection("Current $_userCollegeId Officials",
+          _firebaseService.getCurrentOfficialsStream(_userCollegeId));
+    }
+
+    // Get the item currently visible in the slider
+    final currentItem = _sliderItems[_currentActiveItemPage];
+    final String type = currentItem['type'];
+    final String id = currentItem['id'];
+    final bool isOngoing = currentItem['ongoing'];
+
+    // If it's a proposal (ongoing or ended), show uni officials
+    if (type == 'proposal') {
+      return _buildCurrentOfficialsSection(
+        "University Officials", 
+        _firebaseService.getUniversityOfficialsStream()
+      );
+    }
+
+    // Item is an ELECTION (College or University)
+    if (isOngoing) {
+      // Show Slates for ongoing elections
+      return _buildSlatesSection(id);
+    } else {
+      // Show Results for ended elections
+      return _buildCurrentOfficialsSection(
+          "Newly Elected Officials",
+          _firebaseService.getElectionResultsStream(id),
+          isResults: true);
+    }
+  }
+
+  // builds the "Current Officials" or "Newly Elected" slider
+  Widget _buildCurrentOfficialsSection(
+    String title,
+    Stream<QuerySnapshot> stream, {
+    bool isResults = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -413,7 +736,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              sectionTitle, // title
+              title,
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -436,242 +759,42 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        _currentHomeState == HomeState.electionEnded
-            ? _buildNewlyElectedOfficialsSlider()
-            : _buildOfficialsSlider(),
+        StreamBuilder<QuerySnapshot>(
+          stream: stream,
+          builder: (context, snapshot) {
+            // Error handling
+            if (snapshot.hasError) {
+              print("Error loading officials: ${snapshot.error}");
+              return Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  child: Text("Error: Could not load officials."));
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.data!.docs.isEmpty) {
+              return Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  child:
+                      Text("No ${isResults ? 'results' : 'officials'} found."));
+            }
+
+            final officials = snapshot.data!.docs;
+
+            return _OfficialsPageView(
+              officials: officials,
+              isResults: isResults,
+            );
+          },
+        ),
         const SizedBox(height: 30),
       ],
     );
   }
 
-  Widget _buildNewlyElectedOfficialsSlider() {
-    // sample data change based on db itech
-    final List<Map<String, String>> electedOfficials = [
-      {'name': 'Tokyo Athena', 'position': 'President'},
-      {'name': 'Vonh Earl', 'position': 'Vice President'},
-      {'name': 'Alice Gou', 'position': 'Secretary'},
-      {'name': 'Princess Sarah', 'position': 'Treasurer'},
-    ];
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 200,
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: _pageController,
-                itemCount: electedOfficials.length,
-                onPageChanged: (int page) {
-                  setState(() {
-                    _currentPage = page;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final official = electedOfficials[index];
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Winner pede tanggalin if panget napagtripan lng
-                        Stack(
-                          children: [
-                            Container(
-                              width: 70,
-                              height: 70,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: const Color(0xFF5C6AA0).withOpacity(0.1),
-                                border: Border.all(
-                                  color: const Color(0xFF5C6AA0),
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.person,
-                                size: 35,
-                                color: Color(0xFF5C6AA0),
-                              ),
-                            ),
-                            Positioned(
-                              top: -2,
-                              right: -2,
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color.fromARGB(255, 0, 47, 90),
-                                ),
-                                child: const Icon(
-                                  Icons.emoji_events,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          official['name']!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF414141),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          official['position']!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              // Dots overlay
-              Positioned(
-                bottom: 12,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    electedOfficials.length,
-                    (index) => Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: index == _currentPage
-                            ? const Color(0xFF354372) // Active dot
-                            : const Color(0xFFD9D9D9), // Inactive dot
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  //Officials widget
-  Widget _buildOfficialsSlider() {
-    // Example officials data
-    final List<Map<String, String>> officials = [
-      {'name': 'Tokyo Athena', 'position': 'President'},
-      {'name': 'Vonh Earl', 'position': 'Vice President'},
-      {'name': 'Alice Gou', 'position': 'Secretary'},
-      {'name': 'Princess Sarah', 'position': 'Treasurer'},
-    ];
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 200,
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: _pageController,
-                itemCount: officials.length,
-                onPageChanged: (int page) {
-                  setState(() {
-                    _currentPage = page;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final official = officials[index];
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Profile placeholder
-                        Container(
-                          width: 70,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.grey.shade300,
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            size: 35,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          official['name']!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF414141),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          official['position']!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              // Dots overlay on top of PageView
-              Positioned(
-                bottom: 12,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    officials.length,
-                    (index) => Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: index == _currentPage
-                            ? const Color(0xFF354372) // Active dot
-                            : const Color(0xFFD9D9D9), // Inactive dot
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSlatesSection() {
+  Widget _buildSlatesSection(String electionId) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -702,226 +825,150 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 19),
-        _buildSlatesSlider(),
+        // StreamBuilder for Slates
+        StreamBuilder<QuerySnapshot>(
+          stream: _firebaseService.getSlatesStream(electionId),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              print("Error loading slates: ${snapshot.error}");
+              return Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  child: Text("Error: Could not load slates."));
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.data!.docs.isEmpty) {
+              // Hide section if no slates
+              return const SizedBox.shrink(); 
+            }
+
+            final slates = snapshot.data!.docs;
+
+            return Column(
+              children: [
+                SizedBox(
+                  height: 200,
+                  child: Stack(
+                    children: [
+                      PageView.builder(
+                        controller: _slatesPageController,
+                        itemCount: slates.length,
+                        onPageChanged: (int page) {
+                          setState(() {
+                            _currentSlatesPage = page;
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          final slate = slates[index].data() as Map<String, dynamic>;
+                          final String name = slate['name'] ?? 'Unnamed Slate';
+                          final String description =
+                              slate['slogan'] ?? 'No description.';
+                          
+                          // TODO: Replace with field from Firestore
+                          // e.g., final String imageUrl = slate['imageUrl'];
+                          final String imageUrl = slate['imageUrl'] ?? 
+                              'https://placehold.co/600x400/354372/FFFFFF?text=${name.replaceAll(' ', '+')}';
+
+
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            clipBehavior: Clip.antiAlias, // Clips the image
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              image: DecorationImage(
+                                image: NetworkImage(imageUrl),
+                                fit: BoxFit.cover,
+                                // Handle image loading errors
+                                onError: (exception, stackTrace) {
+                                  print('Error loading image: $exception');
+                                },
+                              ),
+                            ),
+                            child: Container(
+                              // Gradient overlay for text readability
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.8),
+                                    Colors.black.withOpacity(0.0),
+                                  ],
+                                  stops: [0.0, 0.5]
+                                )
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                        shadows: [Shadow(blurRadius: 2, color: Colors.black54)]
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      description,
+                                      style: const TextStyle(
+                                        fontSize: 14, 
+                                        color: Colors.white,
+                                        shadows: [Shadow(blurRadius: 2, color: Colors.black54)]
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      // Dots for sliders
+                      Positioned(
+                        bottom: 12,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            slates.length,
+                            (index) => Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: index == _currentSlatesPage
+                                    ? Colors.white // Active dot
+                                    : Colors.white.withOpacity(0.5), // Inactive dot
+                                boxShadow: [BoxShadow(blurRadius: 2, color: Colors.black54)]
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
         const SizedBox(height: 30),
       ],
     );
   }
 
-  // Slates Area
-  Widget _buildSlatesSlider() {
-    //Sample slates data change based on db
-    final List<Map<String, String>> slates = [
-      {
-        'name': 'Unity Party',
-        'description': 'Leading with innovation and unity',
-      },
-      {'name': 'Progress', 'description': 'Moving forward together'},
-      {'name': 'Vision', 'description': 'Building a better future'},
-      {'name': 'Student First', 'description': 'Putting students first'},
-    ];
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 200,
-          child: Stack(
-            children: [
-              PageView.builder(
-                controller: _slatesPageController,
-                itemCount: slates.length,
-                onPageChanged: (int page) {
-                  setState(() {
-                    _currentSlatesPage = page;
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final slate = slates[index];
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFEEEEEE),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Color(0xFFD9D9D9)),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Slate or picture
-                        Container(
-                          width: 70,
-                          height: 70,
-                          child: const Icon(
-                            Icons.people,
-                            size: 35,
-                            color: Color(0xFF5C6AA0),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          slate['name']!, //change name
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF414141),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          slate['description']!, //desc or pede kahit ano
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF666666),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              //Dots for sliders
-              Positioned(
-                bottom: 12,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    slates.length,
-                    (index) => Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: index == _currentSlatesPage
-                            ? const Color(0xFF354372) // Active dot
-                            : const Color(0xFFD9D9D9), // Inactive dot
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  //Ongoing election
-  Widget _buildElectionOngoingCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 30, left: 28, bottom: 30, right: 28),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF354372),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                _userDepartment,
-                style: const TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 32,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Geist',
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                _electionType,
-                style: const TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 12,
-                  fontFamily: 'Geist',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 41),
-          _buildTimerSection(timeLeft), //timer build
-        ],
-      ),
-    );
-  }
-
-  //Ended election area
-  Widget _buildElectionEndedCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 30, left: 28, bottom: 30, right: 28),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF354372),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Department and Election Type next to each other
-          Row(
-            children: [
-              Text(
-                _userDepartment, // Dynamic department based on user to
-                style: const TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 32,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Geist',
-                ),
-              ),
-              const SizedBox(width: 14),
-              Text(
-                _electionType, //election type
-                style: const TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 12,
-                  fontFamily: 'Geist',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 50),
-          const Text(
-            "Election ended:",
-            style: TextStyle(color: Color(0xFFD9D9D9), fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            height: 47,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5C6AA0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () {
-                //TODO: VIEW Result
-              },
-              child: const Text(
-                "View result",
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFF8F8F8),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  //to ung timer build lng tho or UI lng
+  // Timer Build
   Widget _buildTimerSection(Duration timeLeft) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -965,7 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  //same here build ng time box dito naman ung text sa inner like 05 then days
+  // Each box inside the timer box
   Widget _buildTimeBox(String value, String label) {
     return Container(
       padding: const EdgeInsets.only(top: 7, bottom: 1),
@@ -1000,7 +1047,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  //Info card Before you vate box are voting rules and stuff
+  // Info card
   Widget _buildInfoCard(String title) {
     return Expanded(
       child: Container(
@@ -1041,7 +1088,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  //not working not sure if working  not verified area
+  // Not verified card, only shows if not field 'isVerified' == false
   Widget _buildNotVerifiedWarningCard() {
     return Container(
       width: double.infinity,
@@ -1084,7 +1131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               onPressed: () {
-                // TODO: Navigate to profile settings
+                //TODO: Navigate to profile settings
               },
               child: const Text(
                 "Go to Profile settings",
@@ -1099,6 +1146,161 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// used for "Current Officials" and "Newly Elected"
+class _OfficialsPageView extends StatefulWidget {
+  final List<DocumentSnapshot> officials;
+  final bool isResults;
+
+  const _OfficialsPageView({
+    required this.officials,
+    this.isResults = false,
+  });
+
+  @override
+  State<_OfficialsPageView> createState() => _OfficialsPageViewState();
+}
+
+class _OfficialsPageViewState extends State<_OfficialsPageView> {
+  // Each instance of this widget manages its own controller and page
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 200,
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _pageController, // Use local controller
+                itemCount: widget.officials.length,
+                onPageChanged: (int page) {
+                  setState(() { // Use local setState
+                    _currentPage = page;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
+                  // Fields will be different for results vs officials
+                  final String name = officialDoc['name'] ?? 'Unknown';
+                  final String position = officialDoc['position'] ?? 'Unknown';
+
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (widget.isResults)
+                          // Winner badge
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color:
+                                      const Color(0xFF5C6AA0).withOpacity(0.1),
+                                  border: Border.all(
+                                    color: const Color(0xFF5C6AA0),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(Icons.person,
+                                    size: 35, color: Color(0xFF5C6AA0)),
+                              ),
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color.fromARGB(255, 0, 47, 90),
+                                  ),
+                                  child: const Icon(Icons.emoji_events,
+                                      size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          // Profile placeholder
+                          Container(
+                            width: 70,
+                            height: 70,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.grey.shade300,
+                            ),
+                            child: const Icon(Icons.person,
+                                size: 35, color: Colors.grey),
+                          ),
+                        const SizedBox(height: 16),
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF414141),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          position,
+                          style: const TextStyle(
+                              fontSize: 14, color: Color(0xFF666666)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              // Dots overlay
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    widget.officials.length,
+                    (index) => Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: index == _currentPage
+                            ? const Color(0xFF354372) // Active dot
+                            : const Color(0xFFD9D9D9), // Inactive dot
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

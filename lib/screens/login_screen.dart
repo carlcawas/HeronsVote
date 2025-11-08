@@ -417,7 +417,7 @@ class _LoginScreenState extends State<LoginScreen>
       if (registerComplete) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => HomeScreen()),
+          MaterialPageRoute(builder: (_) => HomeScreen(uid: uid)),
         );
       } else {
         Navigator.push(

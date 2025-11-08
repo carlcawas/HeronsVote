@@ -31,6 +31,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   bool _uploadComplete = false;
   String? _nameCap;
   String? _collegeCap;
+  String? _collegeId; 
   String? _yearLevel;
   String? _semester;
   String? _sectionCap;
@@ -260,10 +261,14 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final gender = RegExp(
         r'gender\s*:? ([a-z]+)',
       ).firstMatch(pdfText)?.group(1)?.trim();
-      final section = RegExp(
-        r'\b([ivx]{1,4}-[a-z]+)\b',
+      final rawSection = RegExp(
+        r'\b([ivx]{1,4})\s*-\s*([a-z]+)\b',
         caseSensitive: false,
-      ).firstMatch(pdfText)?.group(1)?.toUpperCase().trim();
+      ).firstMatch(pdfText);
+      String? section;
+      if (rawSection != null) {
+        section = rawSection.group(2)?.toUpperCase().trim();
+      }
 
       // --- Formatting helpers ---
       String capitalizeWords(String? input) {
@@ -279,13 +284,15 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       String cleanSection(String? input) {
         if (input == null || input.isEmpty) return '';
-        return input.replaceAll(RegExp(r'\s*-\s*'), '-').toUpperCase().trim();
+        final match = RegExp(r'\b[IVX]{1,4}\s*-\s*([A-Z]+)\b', caseSensitive: false).firstMatch(input);
+        return match != null ? match.group(1)!.toUpperCase().trim() : input.toUpperCase().trim();
       }
 
       final nameCap = capitalizeWords(name);
       final studentNoCap = studentNo?.toUpperCase() ?? '';
       final programCap = capitalizeWords(program);
       final collegeCap = capitalizeWords(college);
+      final collegeId = findCollegeIdFromOCR(collegeCap);
       final genderCap = capitalizeWords(gender);
       final sectionCap = cleanSection(section);
 
@@ -350,6 +357,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         'email': email,
         'program': programCap,
         'college': collegeCap,
+        'college_id': collegeId,
         'year_level': yearLevel,
         'section': sectionCap,
         'semester': semester,
@@ -368,6 +376,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         _uploadComplete = true;
         _nameCap = nameCap;
         _collegeCap = collegeCap;
+        _collegeId = collegeId; 
         _yearLevel = yearLevel;
         _semester = semester;
         _sectionCap = sectionCap;
@@ -380,6 +389,96 @@ class _RegistrationStep3State extends State<RegistrationStep3>
             "An error has occurred while reading your COR. Please try again.";
       });
     }
+  }
+  
+  // College mapping
+  final Map<String, String> collegeMap = {
+    'CBFS': 'College of Business and Financial Science',
+    'CCIS': 'College of Computing and Information Sciences',
+    'CCSE': 'College of Construction Science and Engineering',
+    'CET': 'College of Engineering Technology',
+    'CHK': 'College of Human Kinetics',
+    'CITE': 'College of Innovative Teacher Education',
+    'CGPP': 'College of Governance and Public Policy',
+    'CTHM': 'College of Tourism and Hospitality Management',
+    'IAD': 'Institute of Arts and Design',
+    'IIHS': 'Institute of Imaging Health Sciences',
+    'IOA': 'Institute of Accountancy',
+    'ION': 'Institute of Nursing',
+    'IOP': 'Institute of Pharmacy',
+    'IOPSY': 'Institute of Psychology',
+    'ISW': 'Institute of Social Work',
+    'IDEM': 'Institute of Disaster and Emergency Management',
+  };
+
+  // Abbreviate college as id
+  String? findCollegeIdFromOCR(String? collegeText) {
+    if (collegeText == null || collegeText.isEmpty) return null;
+
+    String normalized = collegeText
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim()
+        .toLowerCase();
+
+    // contains match
+    for (final entry in collegeMap.entries) {
+      final fullName = entry.value.toLowerCase();
+      if (normalized.contains(fullName) || fullName.contains(normalized)) {
+        return entry.key;
+      }
+    }
+
+    // Partial word match (>=60% match)
+    for (final entry in collegeMap.entries) {
+      final parts = entry.value.toLowerCase().split(' ');
+      int matches = parts.where((p) => normalized.contains(p)).length;
+      if (matches >= (parts.length * 0.6)) return entry.key;
+    }
+
+    // Fuzzy match (Levenshtein)
+    String? bestMatchId;
+    double bestScore = double.infinity;
+
+    for (final entry in collegeMap.entries) {
+      final distance = levenshtein(normalized, entry.value.toLowerCase());
+      if (distance < bestScore) {
+        bestScore = distance.toDouble();
+        bestMatchId = entry.key;
+      }
+    }
+
+    // Accept fuzzy match if distance is small enough relative to string length
+    if (bestScore <= (normalized.length * 0.3)) {
+      return bestMatchId;
+    }
+
+    return null;
+  }
+
+  // for easier college to abbreviation matching
+  int levenshtein(String s, String t) {
+    if (s == t) return 0;
+    if (s.isEmpty) return t.length;
+    if (t.isEmpty) return s.length;
+
+    List<int> v0 = List<int>.generate(t.length + 1, (i) => i);
+    List<int> v1 = List<int>.filled(t.length + 1, 0);
+
+    for (int i = 0; i < s.length; i++) {
+      v1[0] = i + 1;
+      for (int j = 0; j < t.length; j++) {
+        int cost = (s[i] == t[j]) ? 0 : 1;
+        v1[j + 1] = [
+          v1[j] + 1,
+          v0[j + 1] + 1,
+          v0[j] + cost,
+        ].reduce((a, b) => a < b ? a : b);
+      }
+      List<int> temp = v0;
+      v0 = v1;
+      v1 = temp;
+    }
+    return v0[t.length];
   }
 
   @override
@@ -689,6 +788,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                     ? () {
                                         if (_nameCap != null &&
                                             _collegeCap != null &&
+                                            _collegeId != null && 
                                             _yearLevel != null &&
                                             _semester != null &&
                                             _sectionCap != null) {
@@ -699,6 +799,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                                 uid: widget.uid,
                                                 name: _nameCap!,
                                                 college: _collegeCap!,
+                                                collegeId: _collegeId!,
                                                 yearLevel: _yearLevel!,
                                                 semester: _semester!,
                                                 section: _sectionCap!,

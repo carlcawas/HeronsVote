@@ -181,7 +181,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                             transitionDuration: const Duration(milliseconds: 0),
                             pageBuilder:
                                 (context, animation, secondaryAnimation) =>
-                                    const HomeScreen(),
+                                    HomeScreen(uid: widget.uid),
                             transitionsBuilder:
                                 (
                                   context,

@@ -4,11 +4,13 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
 class RegistrationStep4 extends StatefulWidget {
   final String uid;
   final String name;
   final String college;
+  final String collegeId;
   final String? yearLevel;
   final String? semester;
   final String section;
@@ -17,6 +19,7 @@ class RegistrationStep4 extends StatefulWidget {
     required this.uid,
     required this.name,
     required this.college,
+    required this.collegeId,
     required this.yearLevel,
     required this.semester,
     required this.section,
@@ -45,6 +48,8 @@ class _RegistrationStep4State extends State<RegistrationStep4>
   final TextEditingController _semesterController = TextEditingController();
   final TextEditingController _sectionController = TextEditingController();
 
+  String? _selectedCollege;
+  
   bool _isNameEmpty = false;
   bool _isCollegeEmpty = false;
   bool _isYearLevelEmpty = false;
@@ -69,16 +74,40 @@ class _RegistrationStep4State extends State<RegistrationStep4>
     });
   }
 
+  // String map for colleges autofill and dropdown
+  final Map<String, String> collegeMap = {
+      'CBFS': 'College of Business and Financial Science',
+      'CCIS': 'College of Computing and Information Sciences',
+      'CCSE': 'College of Construction Science and Engineering',
+      'CET': 'College of Engineering Technology',
+      'CHK': 'College of Human Kinetics',
+      'CITE': 'College of Innovative Teacher Education',
+      'CGPP': 'College of Governance and Public Policy',
+      'CTHM': 'College of Tourism and Hospitality Management',
+      'IAD': 'Institute of Arts and Design',
+      'IIHS': 'Institute of Imaging Health Sciences',
+      'IOA': 'Institute of Accountancy',
+      'ION': 'Institute of Nursing',
+      'IOP': 'Institute of Pharmacy',
+      'IOPSY': 'Institute of Psychology',
+      'ISW': 'Institute of Social Work',
+      'IDEM': 'Institute of Disaster and Emergency Management',
+  };
+
   @override
   void initState() {
     super.initState();
 
     // Auto fill information
     _nameController.text = widget.name;
-    _collegeController.text = widget.college;
     _yearLevelController.text = widget.yearLevel ?? '';
     _semesterController.text = widget.semester ?? '';
     _sectionController.text = widget.section;
+
+    // college dropdown autofill string
+    _selectedCollege = widget.collegeId; // e.g. "CCIS"
+    _collegeController.text = collegeMap[widget.collegeId] ?? widget.college; // show full name
+
 
     _panelController = AnimationController(
       vsync: this,
@@ -344,27 +373,217 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                                         isEmpty: _isNameEmpty,
                                       ),
                                       const SizedBox(height: 0),
-                                      _buildStyledTextField(
-                                        controller: _collegeController,
-                                        label: 'College:',
-                                        hintText:
-                                            'e.g. College of Computing and Information Sciences',
-                                        isEmpty: _isCollegeEmpty,
-                                      ),
-                                      const SizedBox(height: 0),
-                                      Row(
+
+                                      // College dropdown
+                                      Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
+                                          Row(
+                                            children: [
+                                              const Text(
+                                                'College:',
+                                                style: TextStyle(
+                                                  color: Color(0xFFFFFFFF),
+                                                  fontSize: 12,
+                                                  fontFamily: 'Geist',
+                                                ),
+                                              ),
+                                              if (_isCollegeEmpty)
+                                                const Text(
+                                                  ' *Required',
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                    fontSize: 12,
+                                                    fontFamily: 'Geist',
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFDFE3F0),
+                                              borderRadius:
+                                                  BorderRadius.circular(10.0),
+                                              border: Border.all(
+                                                color: _isCollegeEmpty
+                                                    ? Colors.red
+                                                    : Colors.transparent,
+                                                width: _isCollegeEmpty
+                                                    ? 1.5
+                                                    : 0,
+                                              ),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8.0,
+                                            ),
+
+                                            // Dropdown for college
+                                            child: DropdownButtonHideUnderline(
+                                              child: DropdownButton2<String>(
+                                                value: _selectedCollege,
+                                                isExpanded: true,
+                                                dropdownStyleData: DropdownStyleData(
+                                                  maxHeight: 200, // limit dropdown height
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  offset: const Offset(0, 0), // starts below the college box field
+                                                ),
+                                                buttonStyleData: const ButtonStyleData(
+                                                  padding: EdgeInsets.symmetric(horizontal: 8),
+                                                  height: 49,
+                                                  decoration: BoxDecoration(
+                                                    color: Color(0xFFDFE3F0),
+                                                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                                                  ),
+                                                ),
+                                                menuItemStyleData: const MenuItemStyleData(
+                                                  height: 49,
+                                                  padding: EdgeInsets.symmetric(horizontal: 8),
+                                                ),
+                                                iconStyleData: const IconStyleData(
+                                                  icon: Icon(Icons.arrow_drop_down, color: Colors.black54),
+                                                ),
+                                                hint: const Text(
+                                                  'e.g. College of Computing and Information Sciences',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF797979),
+                                                    fontSize: 12,
+                                                    fontFamily: 'Geist',
+                                                  ),
+                                                ),
+                                                items: collegeMap.entries.map((entry) {
+                                                  return DropdownMenuItem<String>(
+                                                    value: entry.key,
+                                                    child: Text(
+                                                      entry.value,
+                                                      style: const TextStyle(
+                                                        color: Colors.black,
+                                                        fontSize: 12,
+                                                        fontFamily: 'Geist',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }).toList(),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    _selectedCollege = value;
+                                                    _collegeController.text = collegeMap[value] ?? '';
+                                                    _validateFields();
+                                                  });
+                                                },
+                                              ),
+                                            ),
+
+                                          ),
+                                          const SizedBox(height: 10),
+                                        ],
+                                      ),
+
+                                      const SizedBox(height: 0),
+
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
                                           Expanded(
                                             flex: 2,
-                                            child: _buildStyledTextField(
-                                              controller: _yearLevelController,
-                                              label: 'Yr/Level:',
-                                              hintText: 'e.g. Third Year',
-                                              isEmpty: _isYearLevelEmpty,
-                                              showBottomSpacing: false,
-                                              keyboardType: TextInputType.text,
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    const Text(
+                                                      'Yr/Level:',
+                                                      style: TextStyle(
+                                                        color: Color(0xFFFFFFFF),
+                                                        fontSize: 12,
+                                                        fontFamily: 'Geist',
+                                                      ),
+                                                    ),
+                                                    if (_isYearLevelEmpty)
+                                                      const Text(
+                                                        ' *Required',
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                          fontSize: 12,
+                                                          fontFamily: 'Geist',
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFDFE3F0),
+                                                    borderRadius: BorderRadius.circular(10.0),
+                                                    border: Border.all(
+                                                      color: _isYearLevelEmpty ? Colors.red : Colors.transparent,
+                                                      width: _isYearLevelEmpty ? 1.5 : 0,
+                                                    ),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                                  child: DropdownButtonHideUnderline(
+                                                    child: DropdownButton2<String>(
+                                                      value: _yearLevelController.text.isNotEmpty
+                                                          ? _yearLevelController.text
+                                                          : null,
+                                                      isExpanded: true,
+                                                      dropdownStyleData: DropdownStyleData(
+                                                        maxHeight: 200,
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.white,
+                                                          borderRadius: BorderRadius.circular(10),
+                                                        ),
+                                                      ),
+                                                      buttonStyleData: const ButtonStyleData(
+                                                        height: 49,
+                                                        decoration: BoxDecoration(
+                                                          color: Color(0xFFDFE3F0),
+                                                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                                                        ),
+                                                      ),
+                                                      iconStyleData: const IconStyleData(
+                                                        icon: Icon(Icons.arrow_drop_down, color: Colors.black54),
+                                                      ),
+                                                      hint: const Text(
+                                                        'e.g. Third Year',
+                                                        style: TextStyle(
+                                                          color: Color(0xFF797979),
+                                                          fontSize: 12,
+                                                          fontFamily: 'Geist',
+                                                        ),
+                                                      ),
+                                                      items: const [
+                                                        'First Year',
+                                                        'Second Year',
+                                                        'Third Year',
+                                                        'Fourth Year',
+                                                      ].map((year) {
+                                                        return DropdownMenuItem<String>(
+                                                          value: year,
+                                                          child: Text(
+                                                            year,
+                                                            style: const TextStyle(
+                                                              color: Colors.black,
+                                                              fontSize: 12,
+                                                              fontFamily: 'Geist',
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }).toList(),
+                                                      onChanged: (value) {
+                                                        setState(() {
+                                                          _yearLevelController.text = value ?? '';
+                                                          _validateFields();
+                                                        });
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                           const SizedBox(width: 18),
@@ -373,13 +592,14 @@ class _RegistrationStep4State extends State<RegistrationStep4>
                                             child: _buildStyledTextField(
                                               controller: _sectionController,
                                               label: 'Section:',
-                                              hintText: 'e.g. III-ACSAD',
+                                              hintText: 'e.g. ACSAD',
                                               isEmpty: _isSectionEmpty,
                                               showBottomSpacing: false,
                                             ),
                                           ),
                                         ],
                                       ),
+
                                       const SizedBox(height: 12),
                                       _buildStyledTextField(
                                         controller: _semesterController,
@@ -514,8 +734,7 @@ class _RegistrationStep4State extends State<RegistrationStep4>
 
     if (!hasCompletedInput) {
       Fluttertoast.showToast(
-        msg:
-            "All fields must not be empty. Please re-enter your details or re-upload your COR.",
+        msg: "All fields must not be empty. Please re-enter your details or re-upload your COR.",
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.BOTTOM,
       );
@@ -523,10 +742,15 @@ class _RegistrationStep4State extends State<RegistrationStep4>
       return;
     }
 
-    // Update fields in firestore firebase
+    // get college id to insert in db
+    final collegeId = _selectedCollege ?? "UNKNOWN";
+    final collegeName = collegeMap[collegeId] ?? nCollege;
+
+    // Update fields in db
     await userRef.set({
       'name': nName,
-      'college': nCollege,
+      'college': collegeName,
+      'college_id': collegeId,
       'year_level': nYrLvl,
       'section': nSection,
       'semester': nSemester,
