@@ -22,6 +22,8 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
   @override
   void initState() {
     super.initState();
+    // Save user's registration step 
+    _saveRegisterStep();
 
     //top slide
     _contentController = AnimationController(
@@ -53,6 +55,16 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
     _contentController.dispose();
     _bottomController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveRegisterStep() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    await userRef.set({
+        'registration_step' : 4,
+        'registerComplete': true,
+        'isVerified' : true,
+      }, SetOptions(merge: true));
   }
 
   @override
@@ -169,12 +181,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                     ),
                     const SizedBox(height: 40),
                     GestureDetector(
-                      onTap: () async {
-                        final uid = FirebaseAuth.instance.currentUser?.uid;
-                        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-                        await userRef.set({
-                          'registerComplete': true,
-                        }, SetOptions(merge: true));
+                      onTap: () {
                         Navigator.pushAndRemoveUntil(
                           context,
                           PageRouteBuilder(
@@ -224,7 +231,6 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
     );
   }
 }
-
 
 // Steps
 class StepProgressIndicator extends StatelessWidget {
