@@ -32,6 +32,8 @@ class _RegistrationStep5State extends State<RegistrationStep5>
   @override
   void initState() {
     super.initState();
+    // Save user's registration step 
+    _saveRegisterStep();
 
     _panelController = AnimationController(
       vsync: this,
@@ -71,6 +73,14 @@ class _RegistrationStep5State extends State<RegistrationStep5>
     _cameraController?.dispose();
     _meshDetector.close();
     super.dispose();
+  }
+
+  Future<void> _saveRegisterStep() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    await userRef.set({
+        'registration_step' : 3,
+      }, SetOptions(merge: true));
   }
 
   Future<void> _initCameraAndPermission() async {

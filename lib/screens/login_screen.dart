@@ -4,10 +4,13 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:heronsvote/home/home.dart';
 import 'registration_step1.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:heronsvote/services/firebase_service.dart';
+import '../services/firebase_service.dart';
 import './Privacy&Terms/privacyPolicy.dart';
 import './Privacy&Terms/termsCondition.dart';
 import 'package:flutter/gestures.dart';
+import 'registration_step3.dart';
+import 'registration_step4.dart';
+import 'registration_step5.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -383,12 +386,15 @@ class _LoginScreenState extends State<LoginScreen>
           'student_number': '',
           'program': '',
           'college': '',
+          'college_id' : '',
           'year_level': '',
           'section': '',
           'semester': '',
           'gender': '',
           'lastUpdateCOR': '',
-          'registerComplete': false,
+          'isVerified' : false,
+          'registerComplete' : false,
+          'registration_step' : 0,
         });
 
         debugPrint('User Registered: $email');
@@ -420,10 +426,45 @@ class _LoginScreenState extends State<LoginScreen>
           MaterialPageRoute(builder: (_) => HomeScreen(uid: uid)),
         );
       } else {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
-        );
+        final userData = await _firebaseService.getDocument('users', uid);
+        if (userData != null) {
+          final int registrationStep = userData['registration_step'];
+          switch (registrationStep) {
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => RegistrationStep3(uid: uid)),
+              );
+            case 2:
+              String _nameCap = userData['name'];
+              String? _collegeCap = userData['college'];
+              String? _collegeId = userData['college_id'];
+              String? _yearLevel = userData['year_level'];
+              String? _semester = userData['semester'];
+              String? _sectionCap = userData['section'];
+              Navigator.push(context,
+                MaterialPageRoute(
+                  builder: (_) => 
+                  RegistrationStep4(
+                    uid: uid,
+                    name: _nameCap,
+                    college: _collegeCap!,
+                    collegeId: _collegeId!,
+                    yearLevel: _yearLevel!,
+                    semester: _semester!,
+                    section: _sectionCap!,)),);
+            case 3:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => RegistrationStep5(uid: uid)),
+              );
+            default:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
+              );
+          }
+        }
       }
     } catch (e, st) {
       if (mounted) {

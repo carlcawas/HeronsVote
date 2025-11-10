@@ -40,11 +40,14 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   String? _selectedFilePath;
   String? _uploadErrorMessage;
 
+
   // --- Animation and Progress Methods ---
   @override
-  void initState() {
+  void initState(){
     super.initState();
-
+    // Save user's registration step 
+    _saveRegisterStep();
+    
     _panelController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -79,6 +82,14 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     _panelController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveRegisterStep() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    await userRef.set({
+        'registration_step' : 1,
+      }, SetOptions(merge: true));
   }
 
   Future<void> _simulateProgress() async {

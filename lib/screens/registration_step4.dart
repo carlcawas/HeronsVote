@@ -97,6 +97,8 @@ class _RegistrationStep4State extends State<RegistrationStep4>
   @override
   void initState() {
     super.initState();
+    // Save user's registration step 
+    _saveRegisterStep();
 
     // Auto fill information
     _nameController.text = widget.name;
@@ -700,6 +702,14 @@ class _RegistrationStep4State extends State<RegistrationStep4>
         ),
       ),
     );
+  }
+
+  Future<void> _saveRegisterStep() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    await userRef.set({
+        'registration_step' : 2,
+      }, SetOptions(merge: true));
   }
 
   Future<void> _updateDetails(BuildContext context) async {
