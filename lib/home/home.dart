@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'announcement.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
@@ -34,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _recentlyEndedItems = [];
   // Combined list for the top slider
   List<Map<String, dynamic>> _sliderItems = [];
-  
+
   // fetched from db user collection
   String _userName = "User";
   String _userCollegeId = "";
@@ -137,7 +138,8 @@ class _HomeScreenState extends State<HomeScreen> {
               }
               // Process backend part
               // Fetch user data from db
-              final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+              final userData =
+                  userSnapshot.data!.data() as Map<String, dynamic>;
               // takes only the 1st name to avoid overflow
               final String fullName = userData['name'] ?? 'User';
               if (fullName.trim().isEmpty) {
@@ -150,12 +152,13 @@ class _HomeScreenState extends State<HomeScreen> {
               _isVerified = userData['isVerified'] ?? false;
               // Combine Streams for all active/ended items
               return StreamBuilder<QuerySnapshot>(
-                stream: _firebaseService
-                    .getActiveCollegeElectionStream(_userCollegeId),
+                stream: _firebaseService.getActiveCollegeElectionStream(
+                  _userCollegeId,
+                ),
                 builder: (context, collegeElecSnap) {
                   return StreamBuilder<QuerySnapshot>(
-                    stream:
-                        _firebaseService.getActiveUniversityElectionStream(),
+                    stream: _firebaseService
+                        .getActiveUniversityElectionStream(),
                     builder: (context, uniElecSnap) {
                       return StreamBuilder<QuerySnapshot>(
                         stream: _firebaseService
@@ -163,7 +166,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         builder: (context, proposalSnap) {
                           return StreamBuilder<QuerySnapshot>(
                             stream: _firebaseService
-                                .getRecentlyEndedCollegeElection(_userCollegeId),
+                                .getRecentlyEndedCollegeElection(
+                                  _userCollegeId,
+                                ),
                             builder: (context, endedCollegeSnap) {
                               return StreamBuilder<QuerySnapshot>(
                                 stream: _firebaseService
@@ -180,7 +185,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           !endedUniSnap.hasData ||
                                           !endedProposalSnap.hasData) {
                                         return const Center(
-                                            child: CircularProgressIndicator());
+                                          child: CircularProgressIndicator(),
+                                        );
                                       }
 
                                       // Clear previous active items
@@ -189,12 +195,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
                                       // Check for active items
                                       if (collegeElecSnap
-                                          .data!.docs.isNotEmpty) {
+                                          .data!
+                                          .docs
+                                          .isNotEmpty) {
                                         _activeItems.add({
                                           'type': 'college',
-                                          'ongoing': true, 
+                                          'ongoing': true,
                                           ..._docToMap(
-                                              collegeElecSnap.data!.docs.first)
+                                            collegeElecSnap.data!.docs.first,
+                                          ),
                                         });
                                       }
                                       if (uniElecSnap.data!.docs.isNotEmpty) {
@@ -202,7 +211,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           'type': 'university',
                                           'ongoing': true,
                                           ..._docToMap(
-                                              uniElecSnap.data!.docs.first)
+                                            uniElecSnap.data!.docs.first,
+                                          ),
                                         });
                                       }
                                       if (proposalSnap.data!.docs.isNotEmpty) {
@@ -210,66 +220,76 @@ class _HomeScreenState extends State<HomeScreen> {
                                           'type': 'proposal',
                                           'ongoing': true,
                                           ..._docToMap(
-                                              proposalSnap.data!.docs.first)
+                                            proposalSnap.data!.docs.first,
+                                          ),
                                         });
                                       }
 
                                       // Always check for recently ended items
                                       if (endedCollegeSnap
-                                          .data!.docs.isNotEmpty) {
+                                          .data!
+                                          .docs
+                                          .isNotEmpty) {
                                         final doc =
                                             endedCollegeSnap.data!.docs.first;
                                         if (_isRecentlyEnded(
-                                            doc['end'] as Timestamp)) {
+                                          doc['end'] as Timestamp,
+                                        )) {
                                           _recentlyEndedItems.add({
                                             'type': 'college',
                                             'ongoing': false,
-                                            ..._docToMap(doc)
+                                            ..._docToMap(doc),
                                           });
                                         }
                                       }
-                                      if (endedUniSnap
-                                          .data!.docs.isNotEmpty) {
+                                      if (endedUniSnap.data!.docs.isNotEmpty) {
                                         final doc =
                                             endedUniSnap.data!.docs.first;
                                         if (_isRecentlyEnded(
-                                            doc['end'] as Timestamp)) {
+                                          doc['end'] as Timestamp,
+                                        )) {
                                           _recentlyEndedItems.add({
                                             'type': 'university',
                                             'ongoing': false,
-                                            ..._docToMap(doc)
+                                            ..._docToMap(doc),
                                           });
                                         }
                                       }
                                       if (endedProposalSnap
-                                          .data!.docs.isNotEmpty) {
+                                          .data!
+                                          .docs
+                                          .isNotEmpty) {
                                         final doc =
                                             endedProposalSnap.data!.docs.first;
                                         if (_isRecentlyEnded(
-                                            doc['end'] as Timestamp)) {
+                                          doc['end'] as Timestamp,
+                                        )) {
                                           _recentlyEndedItems.add({
                                             'type': 'proposal',
                                             'ongoing': false,
-                                            ..._docToMap(doc)
+                                            ..._docToMap(doc),
                                           });
                                         }
                                       }
-                                      
+
                                       // Sort recently ended items
-                                      _recentlyEndedItems.sort((a, b) =>
-                                          (b['end'] as Timestamp)
-                                              .compareTo(a['end'] as Timestamp));
+                                      _recentlyEndedItems.sort(
+                                        (a, b) => (b['end'] as Timestamp)
+                                            .compareTo(a['end'] as Timestamp),
+                                      );
 
                                       // Create the combined list
                                       _sliderItems = [
                                         ..._activeItems,
-                                        ..._recentlyEndedItems
+                                        ..._recentlyEndedItems,
                                       ];
 
                                       // Sort election cards based on priority
-                                      _sliderItems.sort((a, b) =>
-                                          _getPriority(a['type'])
-                                              .compareTo(_getPriority(b['type'])));
+                                      _sliderItems.sort(
+                                        (a, b) => _getPriority(
+                                          a['type'],
+                                        ).compareTo(_getPriority(b['type'])),
+                                      );
 
                                       // Update bounds check for new list
                                       if (_currentActiveItemPage >=
@@ -279,26 +299,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                             .hasClients) {
                                           WidgetsBinding.instance
                                               .addPostFrameCallback((_) {
-                                            if (_activeItemsPageController
-                                                .hasClients) {
-                                              _activeItemsPageController
-                                                  .jumpToPage(0);
-                                            }
-                                          });
+                                                if (_activeItemsPageController
+                                                    .hasClients) {
+                                                  _activeItemsPageController
+                                                      .jumpToPage(0);
+                                                }
+                                              });
                                         }
                                       }
-                                      
+
                                       // For UI update and building
                                       return SingleChildScrollView(
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 25, vertical: 20),
+                                          horizontal: 25,
+                                          vertical: 20,
+                                        ),
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
                                             Row(
                                               mainAxisAlignment:
-                                                  MainAxisAlignment.spaceBetween,
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
                                                 // Header: Hello, name
                                                 Text(
@@ -316,11 +339,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     IconButton(
                                                       onPressed: () {
                                                         //TODO: ANNOUNCEMENT REDIRECTION
+                                                        Navigator.push(
+                                                          context,
+                                                          PageRouteBuilder(
+                                                            transitionDuration:
+                                                                const Duration(
+                                                                  milliseconds:
+                                                                      0,
+                                                                ),
+                                                            pageBuilder: (_, __, ___) => AnnouncementsPage(),
+                                                          ),
+                                                        );
                                                       },
                                                       icon: SvgPicture.asset(
                                                         'assets/announcement.svg',
-                                                        color:
-                                                            Color(0xFF404040),
+                                                        color: Color(
+                                                          0xFF404040,
+                                                        ),
                                                         width: 20,
                                                         height: 25,
                                                       ),
@@ -332,7 +367,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                       icon: SvgPicture.asset(
                                                         'assets/account.svg',
                                                         color: const Color(
-                                                            0xFF404040),
+                                                          0xFF404040,
+                                                        ),
                                                         width: 21,
                                                         height: 23,
                                                       ),
@@ -368,10 +404,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                             const SizedBox(height: 16),
                                             Row(
                                               children: [
-                                                // TODO: ADD REDIRECT FUNCTIONS 
+                                                // TODO: ADD REDIRECT FUNCTIONS
                                                 _buildInfoCard("Voting rules"),
                                                 const SizedBox(width: 22.7),
-                                                _buildInfoCard("Voting process"),
+                                                _buildInfoCard(
+                                                  "Voting process",
+                                                ),
                                               ],
                                             ),
                                             const SizedBox(height: 40),
@@ -446,12 +484,9 @@ class _HomeScreenState extends State<HomeScreen> {
   //nav area builder
   Widget _buildNavIcon(String iconName, int index) {
     final bool isActive = _selectedIndex == index;
-    final String assetPath = 'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
-    return SvgPicture.asset(
-      assetPath,
-      width: 21,
-      height: 19,
-    );
+    final String assetPath =
+        'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
+    return SvgPicture.asset(assetPath, width: 21, height: 19);
   }
 
   // Decides to show slider or "No Election" card
@@ -637,13 +672,16 @@ class _HomeScreenState extends State<HomeScreen> {
           // Timer or Ended Button
           if (isOngoing) ...[
             // Show timer
-            Builder(builder: (context) {
-              final Timestamp endTimestamp = item['end'];
-              final DateTime endTime = endTimestamp.toDate();
-              final Duration timeLeft = endTime.difference(DateTime.now());
-              return _buildTimerSection(
-                  timeLeft.isNegative ? Duration.zero : timeLeft);
-            }),
+            Builder(
+              builder: (context) {
+                final Timestamp endTimestamp = item['end'];
+                final DateTime endTime = endTimestamp.toDate();
+                final Duration timeLeft = endTime.difference(DateTime.now());
+                return _buildTimerSection(
+                  timeLeft.isNegative ? Duration.zero : timeLeft,
+                );
+              },
+            ),
           ] else ...[
             // Show "Ended" text and "View Result" button
             const Text(
@@ -683,7 +721,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          ]
+          ],
         ],
       ),
     );
@@ -692,8 +730,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildConditionalSecondSection() {
     // If no elections in the slider (idle mode), show current college officials as a default.
     if (_sliderItems.isEmpty) {
-      return _buildCurrentOfficialsSection("Current $_userCollegeId Officials",
-          _firebaseService.getCurrentOfficialsStream(_userCollegeId));
+      return _buildCurrentOfficialsSection(
+        "Current $_userCollegeId Officials",
+        _firebaseService.getCurrentOfficialsStream(_userCollegeId),
+      );
     }
 
     // Get the item currently visible in the slider
@@ -705,8 +745,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // If it's a proposal (ongoing or ended), show uni officials
     if (type == 'proposal') {
       return _buildCurrentOfficialsSection(
-        "University Officials", 
-        _firebaseService.getUniversityOfficialsStream()
+        "University Officials",
+        _firebaseService.getUniversityOfficialsStream(),
       );
     }
 
@@ -717,9 +757,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       // Show Results for ended elections
       return _buildCurrentOfficialsSection(
-          "Newly Elected Officials",
-          _firebaseService.getElectionResultsStream(id),
-          isResults: true);
+        "Newly Elected Officials",
+        _firebaseService.getElectionResultsStream(id),
+        isResults: true,
+      );
     }
   }
 
@@ -766,19 +807,20 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.hasError) {
               print("Error loading officials: ${snapshot.error}");
               return Container(
-                  height: 200,
-                  alignment: Alignment.center,
-                  child: Text("Error: Could not load officials."));
+                height: 200,
+                alignment: Alignment.center,
+                child: Text("Error: Could not load officials."),
+              );
             }
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.data!.docs.isEmpty) {
               return Container(
-                  height: 200,
-                  alignment: Alignment.center,
-                  child:
-                      Text("No ${isResults ? 'results' : 'officials'} found."));
+                height: 200,
+                alignment: Alignment.center,
+                child: Text("No ${isResults ? 'results' : 'officials'} found."),
+              );
             }
 
             final officials = snapshot.data!.docs;
@@ -832,16 +874,17 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.hasError) {
               print("Error loading slates: ${snapshot.error}");
               return Container(
-                  height: 200,
-                  alignment: Alignment.center,
-                  child: Text("Error: Could not load slates."));
+                height: 200,
+                alignment: Alignment.center,
+                child: Text("Error: Could not load slates."),
+              );
             }
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.data!.docs.isEmpty) {
               // Hide section if no slates
-              return const SizedBox.shrink(); 
+              return const SizedBox.shrink();
             }
 
             final slates = snapshot.data!.docs;
@@ -861,16 +904,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           });
                         },
                         itemBuilder: (context, index) {
-                          final slate = slates[index].data() as Map<String, dynamic>;
+                          final slate =
+                              slates[index].data() as Map<String, dynamic>;
                           final String name = slate['name'] ?? 'Unnamed Slate';
                           final String description =
                               slate['slogan'] ?? 'No description.';
-                          
+
                           // TODO: Replace with field from Firestore
                           // e.g., final String imageUrl = slate['imageUrl'];
-                          final String imageUrl = slate['imageUrl'] ?? 
+                          final String imageUrl =
+                              slate['imageUrl'] ??
                               'https://placehold.co/600x400/354372/FFFFFF?text=${name.replaceAll(' ', '+')}';
-
 
                           return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -896,8 +940,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Colors.black.withOpacity(0.8),
                                     Colors.black.withOpacity(0.0),
                                   ],
-                                  stops: [0.0, 0.5]
-                                )
+                                  stops: [0.0, 0.5],
+                                ),
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(20.0),
@@ -911,16 +955,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                         fontSize: 18,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white,
-                                        shadows: [Shadow(blurRadius: 2, color: Colors.black54)]
+                                        shadows: [
+                                          Shadow(
+                                            blurRadius: 2,
+                                            color: Colors.black54,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       description,
                                       style: const TextStyle(
-                                        fontSize: 14, 
+                                        fontSize: 14,
                                         color: Colors.white,
-                                        shadows: [Shadow(blurRadius: 2, color: Colors.black54)]
+                                        shadows: [
+                                          Shadow(
+                                            blurRadius: 2,
+                                            color: Colors.black54,
+                                          ),
+                                        ],
                                       ),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
@@ -948,9 +1002,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: index == _currentSlatesPage
-                                    ? Colors.white // Active dot
-                                    : Colors.white.withOpacity(0.5), // Inactive dot
-                                boxShadow: [BoxShadow(blurRadius: 2, color: Colors.black54)]
+                                    ? Colors
+                                          .white // Active dot
+                                    : Colors.white.withOpacity(
+                                        0.5,
+                                      ), // Inactive dot
+                                boxShadow: [
+                                  BoxShadow(
+                                    blurRadius: 2,
+                                    color: Colors.black54,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -1155,10 +1217,7 @@ class _OfficialsPageView extends StatefulWidget {
   final List<DocumentSnapshot> officials;
   final bool isResults;
 
-  const _OfficialsPageView({
-    required this.officials,
-    this.isResults = false,
-  });
+  const _OfficialsPageView({required this.officials, this.isResults = false});
 
   @override
   State<_OfficialsPageView> createState() => _OfficialsPageViewState();
@@ -1187,12 +1246,14 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                 controller: _pageController, // Use local controller
                 itemCount: widget.officials.length,
                 onPageChanged: (int page) {
-                  setState(() { // Use local setState
+                  setState(() {
+                    // Use local setState
                     _currentPage = page;
                   });
                 },
                 itemBuilder: (context, index) {
-                  final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
+                  final officialDoc =
+                      widget.officials[index].data() as Map<String, dynamic>;
                   // Fields will be different for results vs officials
                   final String name = officialDoc['name'] ?? 'Unknown';
                   final String position = officialDoc['position'] ?? 'Unknown';
@@ -1217,15 +1278,19 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                                 height: 70,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color:
-                                      const Color(0xFF5C6AA0).withOpacity(0.1),
+                                  color: const Color(
+                                    0xFF5C6AA0,
+                                  ).withOpacity(0.1),
                                   border: Border.all(
                                     color: const Color(0xFF5C6AA0),
                                     width: 2,
                                   ),
                                 ),
-                                child: const Icon(Icons.person,
-                                    size: 35, color: Color(0xFF5C6AA0)),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 35,
+                                  color: Color(0xFF5C6AA0),
+                                ),
                               ),
                               Positioned(
                                 top: -4,
@@ -1236,8 +1301,11 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                                     shape: BoxShape.circle,
                                     color: Color.fromARGB(255, 0, 47, 90),
                                   ),
-                                  child: const Icon(Icons.emoji_events,
-                                      size: 16, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.emoji_events,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1251,8 +1319,11 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                               shape: BoxShape.circle,
                               color: Colors.grey.shade300,
                             ),
-                            child: const Icon(Icons.person,
-                                size: 35, color: Colors.grey),
+                            child: const Icon(
+                              Icons.person,
+                              size: 35,
+                              color: Colors.grey,
+                            ),
                           ),
                         const SizedBox(height: 16),
                         Text(
@@ -1267,7 +1338,9 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                         Text(
                           position,
                           style: const TextStyle(
-                              fontSize: 14, color: Color(0xFF666666)),
+                            fontSize: 14,
+                            color: Color(0xFF666666),
+                          ),
                         ),
                       ],
                     ),
