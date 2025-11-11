@@ -4,6 +4,8 @@ import 'announcement.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
+import 'slates_list.dart';
+import 'elected_official_page.dart';
 // TODO: import screens for different redirection
 
 class HomeScreen extends StatefulWidget {
@@ -787,6 +789,12 @@ class _HomeScreenState extends State<HomeScreen> {
             GestureDetector(
               onTap: () {
                 //TODO: Navigate to officials
+                Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ElectedOfficialsPage(),
+                ),
+              );
               },
               child: const Text(
                 "See all",
@@ -854,6 +862,12 @@ class _HomeScreenState extends State<HomeScreen> {
             GestureDetector(
               onTap: () {
                 //TODO: Slates
+                Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SlateListPage(electionId: electionId), 
+                ),
+              );
               },
               child: const Text(
                 "See all",

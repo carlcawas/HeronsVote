@@ -130,12 +130,11 @@ class AnnouncementsPage extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: Colors.white, // Changed to white background
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Custom AppBar matching Privacy Policy design
             Padding(
               padding: const EdgeInsets.only(left: 25, bottom: 9, top: 25, right: 16),
               child: Row(
