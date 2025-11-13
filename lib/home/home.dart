@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import 'slates_list.dart';
 import 'elected_official_page.dart';
+import 'candidates_view_page.dart';
 // TODO: import screens for different redirection
 
 class HomeScreen extends StatefulWidget {
@@ -453,10 +454,19 @@ class _HomeScreenState extends State<HomeScreen> {
             showUnselectedLabels: false,
             type: BottomNavigationBarType.fixed,
             onTap: (index) {
-              setState(() {
-                _selectedIndex = index;
-                //TODO: index checker para sa nav to lipat lipat
-              });
+               if(index == 0){
+                setState(() {
+                  _selectedIndex = index;
+                });
+               }
+
+               switch(index){
+                case 0:
+                       break;
+                case 1:
+                    Navigator.pushReplacement(context,
+                    MaterialPageRoute(builder: (context) => CandidatesViewPage(uid: widget.uid),),);
+               }
             },
             currentIndex: _selectedIndex,
             items: [

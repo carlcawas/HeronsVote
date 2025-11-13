@@ -253,7 +253,7 @@ class CandidateListItem extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${candidate.details}\n${candidate.party}',
+                    '${candidate.details}\n${candidate.partylist}',
                     style: TextStyle(
                       color: Color(0xFF747474),
                       fontFamily: 'Geist',

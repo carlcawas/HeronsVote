@@ -142,7 +142,7 @@ class SlateListItem extends StatelessWidget {
                 width: 40,
                 height: 93,
                 decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0), // Button background color
+                  color: Color(0xFF5C6AA0), 
                   borderRadius: BorderRadius.all(Radius.circular(16)),
                 ),
                 child: const Center(
