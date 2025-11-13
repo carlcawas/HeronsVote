@@ -114,7 +114,81 @@ final List<Slate> placeholderSlates = [
     name: 'The Third Partylist', 
     advocacy: 'Third partylist advocacy description...',
     platform: 'Third partylist platform description...',
-    candidates: [],
+    candidates: [
+       Candidate(
+        name: 'Rhic Ruzel H. Reyes',
+        role: 'Chairperson',
+        details: 'CCIS - 3rd year',
+        age: '21',
+        year: '3rd',
+        college: 'College of Computing and Information Sciences',
+        partylist: 'The Loremlpsum Partylist',
+        advocacy: 'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+        platform: 'Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.',
+
+      ),
+       Candidate(
+        name: 'Rhic Ruzel H. Reyes',
+        role: 'Chairperson',
+        details: 'CCIS - 3rd year',
+        age: '21',
+        year: '3rd',
+        college: 'College of Computing and Information Sciences',
+        partylist: 'The Loremlpsum Partylist',
+        advocacy: 'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+        platform: 'Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.',
+
+      ),
+       Candidate(
+        name: 'Rhic Ruzel H. Reyes',
+        role: 'Chairperson',
+        details: 'CCIS - 3rd year',
+        age: '21',
+        year: '3rd',
+        college: 'College of Computing and Information Sciences',
+        partylist: 'The Loremlpsum Partylist',
+        advocacy: 'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+        platform: 'Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.',
+
+      ),
+       Candidate(
+        name: 'Rhic Ruzel H. Reyes',
+        role: 'Chairperson',
+        details: 'CCIS - 3rd year',
+        age: '21',
+        year: '3rd',
+        college: 'College of Computing and Information Sciences',
+        partylist: 'The Loremlpsum Partylist',
+        advocacy: 'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+        platform: 'Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.',
+
+      ),
+       Candidate(
+        name: 'Rhic Ruzel H. Reyes',
+        role: 'Chairperson',
+        details: 'CCIS - 3rd year',
+        age: '21',
+        year: '3rd',
+        college: 'College of Computing and Information Sciences',
+        partylist: 'The Loremlpsum Partylist',
+        advocacy: 'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+        platform: 'Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.',
+
+      ),
+       Candidate(
+        name: 'Rhic Ruzel H. Reyes',
+        role: 'Chairperson',
+        details: 'CCIS - 3rd year',
+        age: '21',
+        year: '3rd',
+        college: 'College of Computing and Information Sciences',
+        partylist: 'The Loremlpsum Partylist',
+        advocacy: 'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+        platform: 'Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.',
+
+      ),
+      
+    ],
   ),
 ];
 
@@ -187,7 +261,7 @@ class Position {
   Position({required this.title, required this.path});
 }
 
-// CORRECTED Proposal class (only one definition)
+// CORRECTED Proposal class
 class Proposal {
   final String title;
   final String? summary;

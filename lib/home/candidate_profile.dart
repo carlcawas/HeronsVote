@@ -61,7 +61,7 @@ class _ExpandableSectionState extends State<ExpandableSection> {
             overflow: _isExpanded ? TextOverflow.clip : TextOverflow.ellipsis,
           ),
           //see more if many text
-          if (widget.content.length > 150) 
+          if (widget.content.length > 160) 
             Align(
               alignment: Alignment.bottomRight,
               child: GestureDetector(
@@ -96,267 +96,323 @@ class _ExpandableSectionState extends State<ExpandableSection> {
 }
 
 //Main page
-class CandidateProfilePage extends StatelessWidget {
+class CandidateProfilePage extends StatefulWidget {
   final Candidate candidate;
 
   const CandidateProfilePage({super.key, required this.candidate});
 
   @override
+  State<CandidateProfilePage> createState() => _CandidateProfilePageState();
+}
+
+class _CandidateProfilePageState extends State<CandidateProfilePage> {
+  double _scrollOffset = 0.0;
+  final double scrollThreshold = 0.5;
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      final newOffset = notification.metrics.pixels.clamp(0.0, scrollThreshold);
+      if (newOffset != _scrollOffset) {
+        setState(() {
+          _scrollOffset = newOffset;
+        });
+      }
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    String truncatedName = candidate.name.split(' ').take(2).join(' ') + '...';
+    final double topPadding = MediaQuery.of(context).padding.top;
+    String truncatedName = widget.candidate.name.split(' ').take(2).join(' ') + '...';
 
     final screenWidth = MediaQuery.of(context).size.width;
     final availableWidth = screenWidth - (25 * 2);
 
-    final nameWidth = (availableWidth * 0.80) - 12;
-    final ageWidth = availableWidth * 0.20;
-    final yearWidth = availableWidth * 0.30;
-    final collegeWidth = (availableWidth * 0.70) - 12;
+    final nameWidth = (availableWidth * 0.80) - 16;
+    final ageWidth = (availableWidth * 0.20) + 4;
+    final yearWidth = availableWidth * 0.25;
+    final collegeWidth = (availableWidth * 0.75) - 12;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            CustomHeader(
-              title: truncatedName,
-              onBack: () => Navigator.pop(context),
-            ),
-            //contents
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(horizontal: 25, vertical: 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 344,
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD9D9D9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+      body: Stack(
+        children: [
+          NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                top: topPadding + 102,
+                left: 25,
+                right: 25,
+                bottom: 22,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 344,
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD9D9D9),
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                  ),
 
-                    Row(
-                      children: [
-                        //name
-                        Container(
-                          width: nameWidth,
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F7F7),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Name: ',
-                                style: TextStyle(
-                                  color: const Color(0xFF747474),
-                                  fontSize: 12,
-                                  fontFamily: 'Geist',
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  candidate.name,
-                                  style: const TextStyle(
-                                    color: Color(0xFF404040),
-                                    fontSize: 14,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
+                  Row(
+                    children: [
+                      //name
+                      Container(
+                        width: nameWidth,
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F7F7),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(width: 12),
-                        //age
-                        Container(
-                          width: ageWidth,
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F7F7),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Age: ',
-                                style: TextStyle(
-                                  color: const Color(0xFF747474),
-                                  fontSize: 12,
-                                  fontFamily: 'Geist',
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  candidate.age,
-                                  style: const TextStyle(
-                                    color: Color(0xFF404040),
-                                    fontSize: 14,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  textAlign: TextAlign.left,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    //year
-                    Row(
-                      children: [
-                        Container(
-                          width: yearWidth,
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F7F7),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Year: ',
-                                style: TextStyle(
-                                  color: const Color(0xFF747474),
-                                  fontSize: 12,
-                                  fontFamily: 'Geist',
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  candidate.year,
-                                  style: const TextStyle(
-                                    color: Color(0xFF404040),
-                                    fontSize: 14,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  textAlign: TextAlign.left,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        //college
-                        Container(
-                          width: collegeWidth,
-                          height: 50,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F7F7),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(
-                                'College: ',
-                                style: TextStyle(
-                                  color: const Color(0xFF747474),
-                                  fontSize: 12,
-                                  fontFamily: 'Geist',
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  candidate.college,
-                                  style: const TextStyle(
-                                    color: Color(0xFF404040),
-                                    fontSize: 14,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    //slate
-                    Container(
-                      width: availableWidth,
-                      height: 50,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      margin: const EdgeInsets.only(bottom: 25),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF7F7F7),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Slate affiliation: ',
-                            style: TextStyle(
-                              color: const Color(0xFF747474),
-                              fontSize: 12,
-                              fontFamily: 'Geist',
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              candidate.partylist,
-                              style: const TextStyle(
-                                color: Color(0xFF404040),
-                                fontSize: 14,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Name: ',
+                              style: TextStyle(
+                                color: const Color(0xFF747474),
+                                fontSize: 12,
                                 fontFamily: 'Geist',
                                 fontWeight: FontWeight.w500,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                widget.candidate.name,
+                                style: const TextStyle(
+                                  color: Color(0xFF404040),
+                                  fontSize: 14,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 12),
+                      //age
+                      Container(
+                        width: ageWidth,
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F7F7),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Age: ',
+                              style: TextStyle(
+                                color: const Color(0xFF747474),
+                                fontSize: 12,
+                                fontFamily: 'Geist',
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                widget.candidate.age,
+                                style: const TextStyle(
+                                  color: Color(0xFF404040),
+                                  fontSize: 14,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.left,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  //year
+                  Row(
+                    children: [
+                      Container(
+                        width: yearWidth,
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F7F7),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Year: ',
+                              style: TextStyle(
+                                color: const Color(0xFF747474),
+                                fontSize: 12,
+                                fontFamily: 'Geist',
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                widget.candidate.year,
+                                style: const TextStyle(
+                                  color: Color(0xFF404040),
+                                  fontSize: 14,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.left,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      //college
+                      Container(
+                        width: collegeWidth,
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F7F7),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'College: ',
+                              style: TextStyle(
+                                color: const Color(0xFF747474),
+                                fontSize: 12,
+                                fontFamily: 'Geist',
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                widget.candidate.college,
+                                style: const TextStyle(
+                                  color: Color(0xFF404040),
+                                  fontSize: 14,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  //slate
+                  Container(
+                    width: availableWidth,
+                    height: 50,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    margin: const EdgeInsets.only(bottom: 25),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F7F7),
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Slate affiliation: ',
+                          style: TextStyle(
+                            color: const Color(0xFF747474),
+                            fontSize: 12,
+                            fontFamily: 'Geist',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            widget.candidate.partylist,
+                            style: const TextStyle(
+                              color: Color(0xFF404040),
+                              fontSize: 14,
+                              fontFamily: 'Geist',
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
-                    // Advocacy Section
-                    ExpandableSection(
-                      title: 'Advocacy',
-                      content: candidate.advocacy,
-                    ),
+                  // Advocacy Section
+                  ExpandableSection(
+                    title: 'Advocacy',
+                    content: widget.candidate.advocacy,
+                  ),
 
-                    // Platform Section
-                    ExpandableSection(
-                      title: 'Platform',
-                      content: candidate.platform,
-                    ),
-                  ],
-                ),
+                  // Platform Section
+                  ExpandableSection(
+                    title: 'Platform',
+                    content: widget.candidate.platform,
+                  ),
+
+                  const SizedBox(height: 50),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+
+          // Header 
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                Container(
+                  height: MediaQuery.of(context).padding.top,
+                  color: Colors.white,
+                ),
+
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withOpacity(1.0), 
+                        Colors.white.withOpacity(0.8),
+                        Colors.white.withOpacity(0.0,), 
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                  child: CustomHeader(
+                    title: truncatedName,
+                    onBack: () => Navigator.pop(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
