@@ -259,8 +259,8 @@ class Official {
       id: doc.id,
       name: data['name'] ?? 'Unknown',
       position: data['position'] ?? 'Unknown',
-      party: data['party'] ?? '',
-      details: data['details'] ?? '',
+      party: data['party'] ?? 'No Party [Elected Officials]',
+      details: data['details'] ?? 'No Details [Elected Officials]',
       imgPath: data['img'],
       affiliation: affiliation,
     );

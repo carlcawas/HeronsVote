@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// UPDATE THIS:
 ///  - Used in login_screen.dart
@@ -254,6 +253,4 @@ class FirebaseService {
       .doc('read_announcements')
       .snapshots();
   }
-
-
 }

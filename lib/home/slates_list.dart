@@ -243,8 +243,8 @@ class Candidate {
     return Candidate(
       name: map['name'] ?? '',
       role: map['position'] ?? map['role'] ?? '',
-      party: map['party'] ?? '',
-      details: map['details'] ?? '',
+      party: map['party'] ?? 'No Party',
+      details: map['details'] ?? 'No Details',
       imgPath: map['img'],
     );
   }

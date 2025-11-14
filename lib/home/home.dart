@@ -126,9 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_userId == null) {
-      return const Center(child: Text('Error: User ID not found.'));
-    }
+    
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(

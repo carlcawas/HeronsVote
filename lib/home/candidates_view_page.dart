@@ -8,8 +8,8 @@ import 'propoasl_view.dart';
 enum ContentView { candidates, proposals }
 
 class CandidatesViewPage extends StatefulWidget {
-  final String? uid;
-  const CandidatesViewPage({super.key, this.uid});
+  final String uid;
+  const CandidatesViewPage({super.key, required this.uid});
 
   @override
   State<CandidatesViewPage> createState() => _CandidatesViewPageState();
@@ -18,7 +18,7 @@ class CandidatesViewPage extends StatefulWidget {
 class _CandidatesViewPageState extends State<CandidatesViewPage> {
   ContentView _selectedView = ContentView.candidates;
   int _selectedIndex = 1;
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,16 +47,15 @@ class _CandidatesViewPageState extends State<CandidatesViewPage> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
-                          /*
                           Navigator.push(
                             context,
                             PageRouteBuilder(
                               transitionDuration: const Duration(
                                 milliseconds: 0,
                               ),
-                              pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
+                              pageBuilder: (_, __, ___) => AnnouncementsPage(userId: widget.uid),
                             ),
-                          );*/ //GOTO : ANNOUNCMENT WITH UID DI KO ALAM PANO
+                          ); //GOTO : ANNOUNCMENT WITH UID
                         },
                         icon: Container(
                           width: 45,
@@ -81,15 +80,15 @@ class _CandidatesViewPageState extends State<CandidatesViewPage> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
-                          /*Navigator.push(
+                          Navigator.push(
                             context,
                             PageRouteBuilder(
                               transitionDuration: const Duration(
                                 milliseconds: 0,
                               ),
-                              pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
+                              pageBuilder: (_, __, ___) => AnnouncementsPage(userId: widget.uid),
                             ),
-                          );*/ //GOTO ACCOUNT 
+                          ); //GOTO ACCOUNT 
                         },
                         icon: Container(
                           width: 45,
@@ -149,14 +148,14 @@ class _CandidatesViewPageState extends State<CandidatesViewPage> {
           onTap: (index) {
             setState(() {
               _selectedIndex = index;
-              /*if (index == 0) {
+              if (index == 0) {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => HomeScreen(uid: _userId.uid),
+                    builder: (context) => HomeScreen(uid: widget.uid),
                   ),
                 );
-              }*/
+              }
             });
           },
           currentIndex: _selectedIndex,
