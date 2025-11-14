@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'header.dart';
-import 'sample_data.dart';
+import 'slates_list.dart' show Slate, Candidate;
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;
@@ -253,7 +253,7 @@ class CandidateListItem extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${candidate.details}\n${candidate.partylist}',
+                    '${candidate.details}\n',//${candidate.partylist},  //ADD CANDIDATE
                     style: TextStyle(
                       color: Color(0xFF747474),
                       fontFamily: 'Geist',

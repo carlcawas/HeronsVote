@@ -6,11 +6,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import 'slates_list.dart';
 import 'elected_official_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'candidates_view_page.dart';
 // TODO: import screens for different redirection
 
 class HomeScreen extends StatefulWidget {
-  final String? uid;
+  final String uid;
   const HomeScreen({super.key, required this.uid});
 
   @override
@@ -19,7 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseService _firebaseService = FirebaseService();
-  late final String? _userId;
+  late final String _userId;
 
   int _selectedIndex = 0;
   Timer? _timer;
@@ -745,7 +746,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // If no elections in the slider (idle mode), show current college officials as a default.
     if (_sliderItems.isEmpty) {
       return _buildCurrentOfficialsSection(
-        "Current $_userCollegeId Officials",
+        "$_userCollegeId Officials",
         _firebaseService.getCurrentOfficialsStream(_userCollegeId),
       );
     }
@@ -756,26 +757,35 @@ class _HomeScreenState extends State<HomeScreen> {
     final String id = currentItem['id'];
     final bool isOngoing = currentItem['ongoing'];
 
-    // If it's a proposal (ongoing or ended), show uni officials
+    // Item is an ELECTION (College or University)
+    if (isOngoing) {
+      // Show Slates for ongoing elections
+      return _buildSlatesSection(id);
+    }
+
+    // If proposal is ongoing or ended, show uni officials
     if (type == 'proposal') {
       return _buildCurrentOfficialsSection(
         "University Officials",
         _firebaseService.getUniversityOfficialsStream(),
       );
-    }
+    } 
 
-    // Item is an ELECTION (College or University)
-    if (isOngoing) {
-      // Show Slates for ongoing elections
-      return _buildSlatesSection(id);
-    } else {
-      // Show Results for ended elections
+    // If csc election recently ended, display the label below
+    else if (type == 'college') {
       return _buildCurrentOfficialsSection(
-        "Newly Elected Officials",
+        "Newly Elected $_userCollegeId Officials",
         _firebaseService.getElectionResultsStream(id),
         isResults: true,
       );
     }
+
+    // If usc election recently ended, display the label below
+    return _buildCurrentOfficialsSection(
+      "Newly Elected University Officials",
+      _firebaseService.getElectionResultsStream(id),
+      isResults: true,
+    );
   }
 
   // builds the "Current Officials" or "Newly Elected" slider
@@ -804,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ElectedOfficialsPage(),
+                  builder: (context) => ElectedOfficialsPage(uid: _userId),
                 ),
               );
               },
@@ -873,7 +883,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             GestureDetector(
               onTap: () {
-                //TODO: Slates
                 Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -930,17 +939,33 @@ class _HomeScreenState extends State<HomeScreen> {
                           });
                         },
                         itemBuilder: (context, index) {
-                          final slate =
-                              slates[index].data() as Map<String, dynamic>;
+                          final slate = slates[index].data() as Map<String, dynamic>;
                           final String name = slate['name'] ?? 'Unnamed Slate';
-                          final String description =
-                              slate['slogan'] ?? 'No description.';
+                          final String description = slate['slogan'] ?? 'No description.';
 
-                          // TODO: Replace with field from Firestore
-                          // e.g., final String imageUrl = slate['imageUrl'];
-                          final String imageUrl =
-                              slate['imageUrl'] ??
-                              'https://placehold.co/600x400/354372/FFFFFF?text=${name.replaceAll(' ', '+')}';
+                          // Set image for each slates
+                          final String? filePath = slate['img'] as String?;
+
+                          String? publicUrl;
+                          if (filePath != null && filePath.isNotEmpty) {
+                            try {
+                              publicUrl = Supabase.instance.client.storage
+                                  .from('images') // supabase bucket name
+                                  .getPublicUrl(filePath);
+                            } catch (e) {
+                              print('Error getting public URL: $e');
+                              publicUrl = null;
+                            }
+                          }
+                          
+                          // banner fallback
+                          final String placeholderUrl = 'assets/account.svg';
+
+                          final ImageProvider<Object> imageProvider =
+                              (publicUrl != null)
+                                  ? NetworkImage(publicUrl)
+                                  : NetworkImage(placeholderUrl)
+                                      as ImageProvider<Object>;
 
                           return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -948,7 +973,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
                               image: DecorationImage(
-                                image: NetworkImage(imageUrl),
+                                image: imageProvider,
                                 fit: BoxFit.cover,
                                 // Handle image loading errors
                                 onError: (exception, stackTrace) {
@@ -1249,8 +1274,8 @@ class _OfficialsPageView extends StatefulWidget {
   State<_OfficialsPageView> createState() => _OfficialsPageViewState();
 }
 
+// For each official's displayed item
 class _OfficialsPageViewState extends State<_OfficialsPageView> {
-  // Each instance of this widget manages its own controller and page
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -1269,7 +1294,7 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
           child: Stack(
             children: [
               PageView.builder(
-                controller: _pageController, // Use local controller
+                controller: _pageController,
                 itemCount: widget.officials.length,
                 onPageChanged: (int page) {
                   setState(() {
@@ -1278,11 +1303,24 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   });
                 },
                 itemBuilder: (context, index) {
-                  final officialDoc =
-                      widget.officials[index].data() as Map<String, dynamic>;
-                  // Fields will be different for results vs officials
+                  final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
                   final String name = officialDoc['name'] ?? 'Unknown';
                   final String position = officialDoc['position'] ?? 'Unknown';
+
+                  // Get the image URL from the document's 'img' field
+                  final String? filePath = officialDoc['img'] as String?;
+
+                  String? publicUrl;
+                  if (filePath != null && filePath.isNotEmpty) {
+                    try {
+                      publicUrl = Supabase.instance.client.storage
+                          .from('images') // Supabase bucket name
+                          .getPublicUrl(filePath); // path from firestore 'img' field
+                    } catch (e) {
+                      print('Error getting public URL: $e');
+                      publicUrl = null; // null if there's an error
+                    }
+                  }
 
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -1337,20 +1375,24 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                             ],
                           )
                         else
-                          // Profile placeholder
-                          Container(
-                            width: 70,
-                            height: 70,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.grey.shade300,
-                            ),
-                            child: const Icon(
-                              Icons.person,
-                              size: 35,
-                              color: Colors.grey,
-                            ),
+                          // Display candidate image or placeholder
+                          CircleAvatar(
+                            radius: 35,
+                            backgroundColor: Colors.grey.shade300,
+                            // Use NetworkImage if imageUrl is valid
+                            backgroundImage: (publicUrl != null)
+                                ? NetworkImage(publicUrl)
+                                : null,
+                            // Show placeholder icon if image is null or fails to load
+                            child: (publicUrl == null)
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 35,
+                                    color: Colors.grey,
+                                  )
+                                : null,
                           ),
+
                         const SizedBox(height: 16),
                         Text(
                           name,

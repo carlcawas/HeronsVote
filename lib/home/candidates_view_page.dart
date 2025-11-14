@@ -149,14 +149,14 @@ class _CandidatesViewPageState extends State<CandidatesViewPage> {
           onTap: (index) {
             setState(() {
               _selectedIndex = index;
-              if (index == 0) {
+              /*if (index == 0) {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => HomeScreen(uid: widget.uid),
+                    builder: (context) => HomeScreen(uid: _userId.uid),
                   ),
                 );
-              }
+              }*/
             });
           },
           currentIndex: _selectedIndex,

@@ -1,3 +1,5 @@
+
+// INALIS KO SA IMPORT SA IBANG DART FILES --- SAME CLASS NAME KASI GINAMIT KO PARA DI NAKAKALITO
 // In sample_data.dart
 class Candidate {
   final String name;
@@ -23,6 +25,7 @@ class Candidate {
   });
 }
 
+// INALIS KO RIN SA IMPORT SA IBA
 class Slate {
   final String name;
   final String advocacy;
