@@ -11,6 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
 
+  rxdart: ^0.27.7
+
   step_progress: ^2.7.0
   
   # For Firebase
