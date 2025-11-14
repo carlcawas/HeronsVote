@@ -47,15 +47,16 @@ class _CandidatesViewPageState extends State<CandidatesViewPage> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
+                          /*
                           Navigator.push(
                             context,
                             PageRouteBuilder(
                               transitionDuration: const Duration(
                                 milliseconds: 0,
                               ),
-                              pageBuilder: (_, __, ___) => AnnouncementsPage(),
+                              pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
                             ),
-                          );
+                          );*/ //GOTO : ANNOUNCMENT WITH UID DI KO ALAM PANO
                         },
                         icon: Container(
                           width: 45,
@@ -80,15 +81,15 @@ class _CandidatesViewPageState extends State<CandidatesViewPage> {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
-                          Navigator.push(
+                          /*Navigator.push(
                             context,
                             PageRouteBuilder(
                               transitionDuration: const Duration(
                                 milliseconds: 0,
                               ),
-                              pageBuilder: (_, __, ___) => AnnouncementsPage(),
+                              pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
                             ),
-                          );
+                          );*/ //GOTO ACCOUNT 
                         },
                         icon: Container(
                           width: 45,
