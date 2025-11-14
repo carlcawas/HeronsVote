@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// UPDATE THIS:
 ///  - Used in login_screen.dart
@@ -185,5 +186,49 @@ class FirebaseService {
         .collection('university_officials')
         .orderBy('rank', descending: false) 
         .snapshots();
+  }
+
+  /// Get img of an official from college
+  Future<String?> getOfficialImage(String collegeId, String officialId) async {
+    try {
+      DocumentSnapshot doc = await _firestore
+          .collection('colleges')
+          .doc(collegeId)
+          .collection('officials')
+          .doc(officialId)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        return (doc.data() as Map<String, dynamic>)['img'] as String?;
+      } else {
+        print('Official document not found: $collegeId/officials/$officialId');
+        return null; // Document not found
+      }
+    } catch (e) {
+      print('Error getting official image field: $e');
+      return null; // Error occurred
+    }
+  }
+
+  /// Get img of an slate from election
+  Future<String?> getSlateImage(String electionId, String slatesId) async {
+    try {
+      DocumentSnapshot doc = await _firestore
+          .collection('elections')
+          .doc(electionId)
+          .collection('slates')
+          .doc(slatesId)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        return (doc.data() as Map<String, dynamic>)['img'] as String?;
+      } else {
+        print('Official document not found: $electionId/slates/$slatesId');
+        return null; // Document not found
+      }
+    } catch (e) {
+      print('Error getting slates img field: $e');
+      return null; // Error occurred
+    }
   }
 }

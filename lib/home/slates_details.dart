@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'header.dart';
-import 'sample_data.dart';
+import 'slates_list.dart' show Slate, Candidate;
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;

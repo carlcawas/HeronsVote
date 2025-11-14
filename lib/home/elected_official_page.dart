@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'header.dart';
-import 'sample_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firebase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ElectedOfficialsPage extends StatefulWidget {
-  const ElectedOfficialsPage({super.key});
+  final String uid;
+  const ElectedOfficialsPage({super.key, required this.uid});
 
   @override
   State<ElectedOfficialsPage> createState() => _ElectedOfficialsPageState();
@@ -12,10 +15,24 @@ class ElectedOfficialsPage extends StatefulWidget {
 class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   String _selectedAffiliation = 'USC';
 
-  List<Official> get _filteredOfficials {
-    return placeholderOfficials
-        .where((o) => o.affiliation == _selectedAffiliation)
-        .toList();
+  late final FirebaseService _service = FirebaseService();
+  late final Stream<QuerySnapshot> _uscStream;
+  late final Stream<QuerySnapshot> _collegeStream;
+  late String _collegeId;
+  late final String _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _userId = widget.uid;
+    FirebaseService().getUserStream(_userId).listen((userSnap) {
+      final data = userSnap.data() as Map<String, dynamic>;
+      setState(() {
+        _collegeId = data['college_id'] ?? 'CCIS';
+        _collegeStream = _service.getCurrentOfficialsStream(_collegeId);
+      });
+    });
+    _uscStream = _service.getUniversityOfficialsStream();
   }
 
   @override
@@ -30,21 +47,8 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
               title: 'Elected Officials',
               onBack: () => Navigator.pop(context),
             ),
-
             _buildAffiliationFilter(),
-
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 25,
-                  vertical: 22,
-                ),
-                itemCount: _filteredOfficials.length,
-                itemBuilder: (context, index) {
-                  return OfficialListItem(official: _filteredOfficials[index]);
-                },
-              ),
-            ),
+            Expanded(child: _buildOfficialsList()),
           ],
         ),
       ),
@@ -54,30 +58,21 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   //filter ng usc or ccis
   Widget _buildAffiliationFilter() {
     const affiliations = ['USC', 'CCIS'];
-    const double outerRadius = 15.0;
-
     return Padding(
       padding: const EdgeInsets.only(top: 22, left: 25, right: 25),
       child: Container(
         height: 36,
-
-        padding: const EdgeInsets.all(4),
-
         decoration: BoxDecoration(
           color: const Color(0xFFF7F7F7),
-          borderRadius: BorderRadius.circular(outerRadius),
+          borderRadius: BorderRadius.circular(15),
         ),
+        padding: const EdgeInsets.all(4),
         child: Row(
           children: affiliations.map((aff) {
             final isSelected = aff == _selectedAffiliation;
-           
             return Expanded(
               child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedAffiliation = aff;
-                  });
-                },
+                onTap: () => setState(() => _selectedAffiliation = aff),
                 child: Container(
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
@@ -92,7 +87,8 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
                       color: isSelected
                           ? const Color(0xFFECECEC)
                           : const Color(0xFF404040),
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
                       fontFamily: 'Geist',
                       fontSize: 14,
                     ),
@@ -105,38 +101,78 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
       ),
     );
   }
+
+  Widget _buildOfficialsList() {
+    final stream = _selectedAffiliation == 'USC' ? _uscStream : _collegeStream;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Center(child: Text('Error loading officials'));
+        }
+        if (!snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final officials = snap.data!.docs
+            .map((doc) =>
+                Official.fromFirestore(doc, _selectedAffiliation))
+            .toList();
+
+        if (officials.isEmpty) {
+          return const Center(child: Text('No officials found'));
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 22),
+          itemCount: officials.length,
+          itemBuilder: (_, i) => OfficialListItem(official: officials[i]),
+        );
+      },
+    );
+  }
 }
 
 // OfficialListItem
 class OfficialListItem extends StatelessWidget {
   final Official official;
-
-  const OfficialListItem({Key? key, required this.official}) : super(key: key);
+  const OfficialListItem({Key? key, required this.official}): super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         height: 114,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
           color: const Color(0xFFF7F7F7),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
-            // Left placeholder image area
+            // Official's image
             Container(
               width: 100,
-              decoration: const BoxDecoration(
-                color: Color(0xFFD9D9D9),
-                borderRadius: BorderRadius.all(Radius.circular(16)),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD9D9D9),
+                borderRadius: const BorderRadius.all(Radius.circular(16)),
+                image: official.imgPath != null
+                    ? DecorationImage(
+                        image: NetworkImage(
+                          Supabase.instance.client.storage
+                              .from('images')
+                              .getPublicUrl(official.imgPath!),
+                        ),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
             ),
             const SizedBox(width: 15),
 
-            // Official Details
+            // Official's details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,7 +189,7 @@ class OfficialListItem extends StatelessWidget {
                   ),
                   Text(
                     official.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xFF747474),
                       fontSize: 12,
                       fontFamily: 'Geist',
@@ -163,7 +199,7 @@ class OfficialListItem extends StatelessWidget {
                   ),
                   Text(
                     '${official.details}\n${official.party}',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xFF747474),
                       fontSize: 12,
                       fontFamily: 'Geist',
@@ -175,12 +211,12 @@ class OfficialListItem extends StatelessWidget {
               ),
             ),
 
-            // Right arrow button
+            // Right Arrow
             Container(
               width: 40,
               decoration: const BoxDecoration(
-                color: Color(0xFF5C6AA0), // Blue button background
-                borderRadius: BorderRadius.all(Radius.circular(16)),
+                color: Color(0xFF5C6AA0),
+                borderRadius: const BorderRadius.all(Radius.circular(16)),
               ),
               child: const Center(
                 child: Icon(
@@ -193,6 +229,40 @@ class OfficialListItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class Official {
+  final String id;
+  final String name;
+  final String position;
+  final String party;
+  final String details; // course + year
+  final String? imgPath; // Supabase path
+  final String affiliation; // 'USC' or college abbreviation
+
+  Official({
+    required this.id,
+    required this.name,
+    required this.position,
+    required this.party,
+    required this.details,
+    this.imgPath,
+    required this.affiliation,
+  });
+
+  factory Official.fromFirestore(
+      DocumentSnapshot doc, String affiliation) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Official(
+      id: doc.id,
+      name: data['name'] ?? 'Unknown',
+      position: data['position'] ?? 'Unknown',
+      party: data['party'] ?? '',
+      details: data['details'] ?? '',
+      imgPath: data['img'],
+      affiliation: affiliation,
     );
   }
 }
