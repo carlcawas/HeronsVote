@@ -186,4 +186,29 @@ class FirebaseService {
         .orderBy('rank', descending: false) 
         .snapshots();
   }
+
+  /// Gets announcements less than 6 months old
+  Stream<QuerySnapshot> getAnnouncementStream() {
+
+    final retentionDate = DateTime.now().subtract(Duration(days: 6 * 30)); //6 months
+    final cutoffTimestamp = Timestamp.fromDate(retentionDate);
+
+    return _firestore
+        .collection('announcements')
+        .where('posted_at', isGreaterThan: cutoffTimestamp)
+        .orderBy('posted_at', descending: true)
+        .snapshots();
+  }
+
+  ///Gets a live stream of read announcements of a user
+  Stream<DocumentSnapshot> getReadAnnouncementsStream(String userId) {
+  return _firestore
+      .collection('users')
+      .doc(userId)
+      .collection('read_status')
+      .doc('read_announcements')
+      .snapshots();
+  }
+
+
 }

@@ -342,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                     IconButton(
                                                       onPressed: () {
                                                         //TODO: ANNOUNCEMENT REDIRECTION
+                                                        print("Going to AnnouncementsPage with userId: $_userId"); //debugging
                                                         Navigator.push(
                                                           context,
                                                           PageRouteBuilder(
@@ -350,7 +351,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                                   milliseconds:
                                                                       0,
                                                                 ),
-                                                            pageBuilder: (_, __, ___) => AnnouncementsPage(),
+                                                            
+                                                            pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
                                                           ),
                                                         );
                                                       },

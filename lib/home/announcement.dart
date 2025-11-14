@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:rxdart/rxdart.dart';
+
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import 'package:heronsvote/services/firebase_service.dart';
 
 //model for announcement item.
 class Announcement {
+  final String id;
   final String title;
   final String dateDay;
   final String dateMonth;
@@ -10,72 +17,144 @@ class Announcement {
   final bool isNew;
 
   Announcement({
+    required this.id,
     required this.title,
     required this.dateDay,
     required this.dateMonth,
     required this.description,
-    this.isNew = false,
+    this.isNew = true,
   });
+
+  @override
+  String toString() {
+    return 'Announcement(title: $title, date: $dateMonth $dateDay, isNew: $isNew)';
+  }
 }
 
-//debug dihhhta
-final List<Announcement> announcements = [
-  Announcement(
-    title: 'Upcoming election on Nov',
-    dateDay: '17',
-    dateMonth: 'Oct',
-    description:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-    isNew: true,
-  ),
-  Announcement(
-    title: 'System Maintenance Notice',
-    dateDay: '17',
-    dateMonth: 'Oct',
-    description:
-        'The system will undergo maintenance tonight from 12 AM to 4 AM. Please save all work and log out before 11:30 PM.',
-    isNew: true,
-  ),
-  Announcement(
-    title: 'Campus Event Update',
-    dateDay: '17',
-    dateMonth: 'Oct',
-    description:
-        'The campus event scheduled for this weekend has been moved to the main auditorium.',
-    isNew: true,
-  ),
-  Announcement(
-    title: 'Upcoming election on Nov',
-    dateDay: '17',
-    dateMonth: 'Oct',
-    description:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
-    isNew: false,
-  ),
-  Announcement(
-    title: 'Library Hours Change',
-    dateDay: '16',
-    dateMonth: 'Oct',
-    description:
-        'Library hours have been extended for finals week. New closing time is 11 PM.',
-    isNew: false,
-  ),
-  Announcement(
-    title: 'Upcoming election on Nov',
-    dateDay: '16',
-    dateMonth: 'Oct',
-    description:
-        'Lorem Ipsum is simply dummy text of the printing and typesetting industry.',
-    isNew: false,
-  ),
-];
+class AnnouncementProvider {
+  static const String collectionName = 'announcements';
 
-void main() {
-  runApp(const AnnouncementApp());
+  Stream<List<Announcement>> getAnnouncements(String userId) {
+  final firestoreStream = FirebaseService().getAnnouncementStream();
+  final readStream = FirebaseService().getReadAnnouncementsStream(userId);
+
+  return Rx.combineLatest2<QuerySnapshot, DocumentSnapshot, List<Announcement>>(
+    firestoreStream,
+    readStream,
+    (querySnapshot, readDoc) {
+      final readIds = readDoc.exists
+          ? List<String>.from(readDoc.get('announcement_ids') ?? [])
+          : <String>[];
+
+      print('Data Test - Read announcement_ids: $readIds');
+
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final timestamp = data['posted_at'] as Timestamp?;
+        final dateTime = timestamp?.toDate() ?? DateTime.now();
+
+        final day = dateTime.day.toString().padLeft(2, '0');
+        final month = _getMonthAbbreviate(dateTime.month);
+        final isNew = !readIds.contains(doc.id);
+
+        print('Data Test - Announcement ID: ${doc.id}, isNew: $isNew');
+
+        return Announcement(
+          id: doc.id,
+          title: data['title'] ?? 'No Title',
+          dateDay: day,
+          dateMonth: month,
+          description: data['message'] ?? 'No Description',
+          isNew: isNew,
+        );
+      }).toList();
+    },
+  );
 }
+
+}
+
+String _getMonthAbbreviate(int month) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return months[month - 1];
+}
+
+/*
+  //debug dihhhta
+  final List<Announcement> announcements = [
+    Announcement(
+      id: "0101010",
+      title: 'Upcoming election on Nov',
+      dateDay: '17',
+      dateMonth: 'Oct',
+      description:
+          'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+      isNew: true,
+    ),
+    Announcement(
+      id: "010101000",
+      title: 'System Maintenance Notice',
+      dateDay: '17',
+      dateMonth: 'Oct',
+      description:
+          'The system will undergo maintenance tonight from 12 AM to 4 AM. Please save all work and log out before 11:30 PM.',
+      isNew: true,
+    ),
+    Announcement(
+      id: "0101010000",
+      title: 'Campus Event Update',
+      dateDay: '17',
+      dateMonth: 'Oct',
+      description:
+          'The campus event scheduled for this weekend has been moved to the main auditorium.',
+      isNew: true,
+    ),
+    Announcement(
+      id: "335142",
+      title: 'Upcoming election on Nov',
+      dateDay: '17',
+      dateMonth: 'Oct',
+      description:
+          'Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry\'s standard dummy text ever since the 1500s.',
+      isNew: false,
+    ),
+    Announcement(
+      id: "01010103747347",
+      title: 'Library Hours Change',
+      dateDay: '16',
+      dateMonth: 'Oct',
+      description:
+          'Library hours have been extended for finals week. New closing time is 11 PM.',
+      isNew: false,
+    ),
+    Announcement(
+      id: "01010ggng10",
+      title: 'Upcoming election on Nov',
+      dateDay: '16',
+      dateMonth: 'Oct',
+      description:
+          'Lorem Ipsum is simply dummy text of the printing and typesetting industry.',
+      isNew: false,
+    ),
+  ];
+  */
 
 class AnnouncementApp extends StatelessWidget {
-  const AnnouncementApp({super.key});
+  final String userId;
+  const AnnouncementApp({super.key, required this.userId});
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +168,7 @@ class AnnouncementApp extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      home: const AnnouncementsPage(),
+      home: AnnouncementsPage(userId: userId),
     );
   }
 }
@@ -111,101 +190,131 @@ class DateGroup {
 
 // Main Screen
 class AnnouncementsPage extends StatelessWidget {
-  const AnnouncementsPage({super.key});
+  final String userId;
+  const AnnouncementsPage({super.key, required this.userId});
 
   @override
   Widget build(BuildContext context) {
-    // Separate lists for New and Read announcements
-    final newAnnouncements = announcements.where((a) => a.isNew).toList();
-    final readAnnouncements = announcements.where((a) => !a.isNew).toList();
 
-    // Group announcements by date
-    final newDateGroups = _groupAnnouncementsByDate(
-      newAnnouncements,
-      const Color(0xFFF09062),
-    );
-    final readDateGroups = _groupAnnouncementsByDate(
-      readAnnouncements,
-      const Color(0xFF74B6F9),
-    );
+    print('AnnouncementsPage built, received userId: $userId'); //debugging
+    final AnnouncementProvider provider = AnnouncementProvider();
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 25, bottom: 9, top: 25, right: 16),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      height: 40,
-                      width: 40,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF5C6AA0),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SvgPicture.asset(
-                          'assets/back.svg',
-                          fit: BoxFit.contain,
+        child: StreamBuilder<List<Announcement>>(
+          stream: provider.getAnnouncements(userId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No announcements available.'));
+            }
+
+            debugPrint('Fetched announcements: ${snapshot.data}'); //bebugging
+
+            final announcements = snapshot.data!;
+
+            // Separate lists for New and Read announcements
+            final newAnnouncements = announcements
+                .where((a) => a.isNew)
+                .toList();
+            final readAnnouncements = announcements
+                .where((a) => !a.isNew)
+                .toList();
+
+            // Group announcements by date
+            final newDateGroups = _groupAnnouncementsByDate(
+              newAnnouncements,
+              const Color(0xFFF09062),
+            );
+            final readDateGroups = _groupAnnouncementsByDate(
+              readAnnouncements,
+              const Color(0xFF74B6F9),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 25,
+                    bottom: 9,
+                    top: 25,
+                    right: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          height: 40,
+                          width: 40,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF5C6AA0),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: SvgPicture.asset(
+                              'assets/back.svg',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  const Text(
-                    'Announcements',
-                    style: TextStyle(
-                      color: Color(0xFF404040),
-                      fontFamily: 'Geist',
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Body content
-            Expanded(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 16),
-                      // New Announcements Section
-                      _AnnouncementSection(
-                        title: 'New',
-                        color: const Color(0xFFF2A464),
-                        dateGroups: newDateGroups,
-                        totalCount: newAnnouncements.length,
-                        initiallyExpanded: false,
+                      const SizedBox(width: 20),
+                      const Text(
+                        'Announcements',
+                        style: TextStyle(
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      // Read Announcements Section
-                      _AnnouncementSection(
-                        title: 'Read',
-                        color: const Color(0xFF74B6F9),
-                        dateGroups: readDateGroups,
-                        totalCount: readAnnouncements.length,
-                        initiallyExpanded: false,
-                      ),
-                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
-              ),
-            ),
-          ],
+
+                // Body content
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 16),
+                          // New Announcements Section
+                          _AnnouncementSection(
+                            title: 'New',
+                            color: const Color(0xFFF2A464),
+                            dateGroups: newDateGroups,
+                            totalCount: newAnnouncements.length,
+                            userId: userId,
+                            initiallyExpanded: false,
+                          ),
+                          const SizedBox(height: 16),
+                          // Read Announcements Section
+                          _AnnouncementSection(
+                            title: 'Read',
+                            color: const Color(0xFF74B6F9),
+                            dateGroups: readDateGroups,
+                            totalCount: readAnnouncements.length,
+                            userId: userId,
+                            initiallyExpanded: false,
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -227,25 +336,25 @@ class AnnouncementsPage extends StatelessWidget {
     }
 
     return groupedMap.entries.map((entry) {
-      final dateParts = entry.key.split('-');
-      return DateGroup(
-        dateDay: dateParts[1],
-        dateMonth: dateParts[0],
-        announcements: entry.value,
-        timelineColor: color,
-      );
-    }).toList()..sort((a, b) {
-      // Sort by date
-      return b.dateDay.compareTo(a.dateDay);
-    });
+        final dateParts = entry.key.split('-');
+        return DateGroup(
+          dateDay: dateParts[1],
+          dateMonth: dateParts[0],
+          announcements: entry.value,
+          timelineColor: color,
+        );
+      }).toList()
+      ..sort((a, b) => b.dateDay.compareTo(a.dateDay)); // sort descending
   }
 }
+
 // Header section
 class _AnnouncementSection extends StatefulWidget {
   final String title;
   final Color color;
   final List<DateGroup> dateGroups;
   final int totalCount;
+  final String userId;
   final bool initiallyExpanded;
 
   const _AnnouncementSection({
@@ -253,6 +362,7 @@ class _AnnouncementSection extends StatefulWidget {
     required this.color,
     required this.dateGroups,
     required this.totalCount,
+    required this.userId,
     this.initiallyExpanded = true,
   });
 
@@ -340,11 +450,45 @@ class _AnnouncementSectionState extends State<_AnnouncementSection> {
             isLast: isLast,
             initiallyExpanded: _isExpanded,
             showOnlyFirstAnnouncement: !_isExpanded,
+            userId: widget.userId,
           );
         }).toList(),
       ],
     );
   }
+}
+
+Future<void> markAsRead({
+  required String userId,
+  required String announcementId,
+}) async {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final readDocRef = firestore
+      .collection('users')
+      .doc(userId)
+      .collection('read_status')
+      .doc('read_announcements');
+
+  await firestore.runTransaction((transaction) async {
+    final snapshot = await transaction.get(readDocRef);
+
+    if (!snapshot.exists) {
+      // Create the document with the initial list
+      transaction.set(readDocRef, {
+        'announcement_ids': [announcementId],
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    } else {
+      final List<dynamic> currentIds = snapshot.get('announcement_ids') ?? [];
+
+      if (!currentIds.contains(announcementId)) {
+        transaction.update(readDocRef, {
+          'announcement_ids': FieldValue.arrayUnion([announcementId]),
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  });
 }
 
 //check dates of announcements and collect them based on dates
@@ -354,12 +498,14 @@ class _DateGroupWidget extends StatefulWidget {
   final bool isLast;
   final bool initiallyExpanded;
   final bool showOnlyFirstAnnouncement;
+  final String userId;
 
   const _DateGroupWidget({
     required this.dateGroup,
     required this.isLast,
     this.initiallyExpanded = true,
     this.showOnlyFirstAnnouncement = false,
+    required this.userId,
   });
 
   @override
@@ -457,6 +603,7 @@ class _DateGroupWidgetState extends State<_DateGroupWidget> {
                       padding: const EdgeInsets.only(bottom: 12.0),
                       child: _AnnouncementCard(
                         announcement: announcement,
+                        userId: widget.userId,
                         showDropdown:
                             widget.dateGroup.announcements.length > 1 &&
                             !widget.showOnlyFirstAnnouncement,
@@ -564,17 +711,18 @@ class _TimelineIndicator extends StatelessWidget {
 
 class _AnnouncementCard extends StatefulWidget {
   final Announcement announcement;
+  final String userId;
   final bool showDropdown;
   final bool isExpanded;
   final VoidCallback? onToggle;
 
   const _AnnouncementCard({
-    Key? key,
     required this.announcement,
+    required this.userId,
     this.showDropdown = false,
     this.isExpanded = true,
     this.onToggle,
-  }) : super(key: key);
+  });
 
   @override
   State<_AnnouncementCard> createState() => _AnnouncementCardState();
@@ -624,19 +772,28 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                     ),
                   ),
                 ),
-                Container(
-                  width: 36,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Color(0xFFECECEC),
-                    shape: BoxShape.rectangle,
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                  ),
-                  child: const Icon(
-                    Icons.check,
-                    size: 24,
-                    color: Color(0xFF404040),
-                  ),
+                GestureDetector(
+                  onTap: () async {
+                    // Handle marking as read
+                    await markAsRead(
+                      userId: widget.userId, // Replace with actual user ID
+                      announcementId: widget.announcement.id,
+                    );
+                  },
+                  child: Container(
+                    width: 36,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Color(0xFFECECEC),
+                      shape: BoxShape.rectangle,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 24,
+                      color: Color(0xFF404040),
+                    ),
+                  )
                 ),
               ],
             ),
