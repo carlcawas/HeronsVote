@@ -93,18 +93,26 @@ class CandidateListItem extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 12),
         child: Container(
           height: 105,
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(6), //ayusin ko sa figma
           decoration: BoxDecoration(
             color: const Color(0xFFF7F7F7),
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(20),
+
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withOpacity(0.05),
                 spreadRadius: 2,
-                blurRadius: 5,
-                offset: const Offset(0, 3),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
+              
             ],
+
+            border: Border.all( //adjust kona rin sa figma
+              color: const Color(0xFFEEEEEE),
+              width: 0.5,
+            ),
+
           ),
           child: Row(
             children: [

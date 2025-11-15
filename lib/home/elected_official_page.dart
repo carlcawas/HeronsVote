@@ -6,7 +6,7 @@ import '../services/firebase_service.dart';
 
 class ElectedOfficialsPage extends StatefulWidget {
   final String uid;
-  final String? defaultAffiliation; 
+  final String? defaultAffiliation; // Accepts the default tab to show
 
   const ElectedOfficialsPage({
     super.key,
@@ -19,12 +19,13 @@ class ElectedOfficialsPage extends StatefulWidget {
 }
 
 class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
-  late String _selectedAffiliation; // <-- 3. REMOVE '= 'USC''
+  late String _selectedAffiliation;
   late final FirebaseService _service = FirebaseService();
   String? _collegeId;
   String _collegeAbbreviation = '...';
   late final String _userId;
 
+  // State variables for pre-loading data
   Stream<QuerySnapshot>? _uscDisplayStream;
   Stream<QuerySnapshot>? _cscDisplayStream;
 
@@ -38,29 +39,37 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     super.initState();
     _userId = widget.uid;
 
-
+    // Set the initial tab based on the navigation parameter
     _selectedAffiliation = widget.defaultAffiliation ?? 'USC';
-
+    
+    // Pre-fill button text if coming from home page
     if (_selectedAffiliation != 'USC') {
       _collegeAbbreviation = _selectedAffiliation;
     }
+
+    // 1. Kick off the USC stream logic immediately
     _determineUscStream();
 
+    // 2. Listen for the user's college_id to load
     FirebaseService().getUserStream(_userId).listen((userSnap) {
       final data = userSnap.data() as Map<String, dynamic>;
       final newCollegeId = data['college_id'];
 
       if (mounted) {
+        // Update the button label
         setState(() {
           _collegeAbbreviation = newCollegeId ?? 'CSC';
         });
 
+        // Check if the college_id is new
         if (newCollegeId != _collegeId) {
           _collegeId = newCollegeId;
 
           if (_collegeId != null) {
+            // 3. Kick off the CSC stream logic now
             _determineCscStream(_collegeId!);
           } else {
+            // Handle case where user has no college_id
             setState(() {
               _isCscLoading = false;
               _cscHasNoResults = true;
@@ -68,8 +77,11 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
           }
         }
         
+        // Sync selection in case the abbreviation loaded
         if (_selectedAffiliation != 'USC') {
-          _selectedAffiliation = _collegeAbbreviation;
+          setState(() {
+            _selectedAffiliation = _collegeAbbreviation;
+          });
         }
       }
     });
@@ -103,7 +115,8 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
       _cscHasNoResults = false;
     });
 
-    final electionQuery = await _service.getRecentlyEndedCollegeElection(collegeId).first;
+    final electionQuery =
+        await _service.getRecentlyEndedCollegeElection(collegeId).first;
     if (!mounted) return;
 
     if (electionQuery.docs.isNotEmpty) {
@@ -113,6 +126,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
         _isCscLoading = false;
       });
     } else {
+      // Fallback to current officials
       setState(() {
         _cscDisplayStream = _service.getCurrentOfficialsStream(collegeId);
         _isCscLoading = false;
@@ -135,7 +149,11 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
             _buildAffiliationFilter(),
             Expanded(
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 300), // Fade duration
+                // Add the fade transition
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
                 child: _buildOfficialsList(),
               ),
             ),
@@ -145,12 +163,27 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     );
   }
 
-  //filter ng usc or ccis
+  /// This is the filter from Version 1, but updated with
+  /// the dynamic affiliation logic from Version 2.
   Widget _buildAffiliationFilter() {
     final affiliations = ['USC', _collegeAbbreviation];
 
+    // Define text styles for clarity
+    const selectedStyle = TextStyle(
+      color: Color(0xFFECECEC),
+      fontWeight: FontWeight.w700,
+      fontFamily: 'Geist',
+      fontSize: 14,
+    );
+    const unselectedStyle = TextStyle(
+      color: Color(0xFF404040),
+      fontWeight: FontWeight.w500,
+      fontFamily: 'Geist',
+      fontSize: 14,
+    );
+
     return Padding(
-      padding: const EdgeInsets.only(top: 22, left: 25, right: 25),
+      padding: const EdgeInsets.only(top: 12, left: 24, right: 24),
       child: Container(
         height: 36,
         decoration: BoxDecoration(
@@ -158,50 +191,66 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
           borderRadius: BorderRadius.circular(15),
         ),
         padding: const EdgeInsets.all(4),
-        child: Row(
-          children: affiliations.map((aff) {
-            final isSelected = aff == _selectedAffiliation;
-            final bool isDisabled = aff == '...';
-
-            return Expanded(
-              child: GestureDetector(
-                onTap: isDisabled
-                    ? null
-                    : () => setState(() => _selectedAffiliation = aff),
+        child: Stack(
+          children: [
+            // Layer 1: The sliding background
+            AnimatedAlign(
+              alignment: _selectedAffiliation == 'USC'
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: FractionallySizedBox(
+                widthFactor: 0.5, // 2 items, so 50% width
                 child: Container(
-                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? (isDisabled ? Colors.grey : const Color(0xFF5C6AA0))
-                        : Colors.transparent,
+                    color: const Color(0xFF5C6AA0),
                     borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Text(
-                    aff,
-                    style: TextStyle(
-                      color: isSelected
-                          ? const Color(0xFFECECEC)
-                          : (isDisabled
-                              ? Colors.grey[400]
-                              : const Color(0xFF404040)),
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
-                      fontFamily: 'Geist',
-                      fontSize: 14,
-                    ),
                   ),
                 ),
               ),
-            );
-          }).toList(),
+            ),
+
+            // Layer 2: The text and tap handlers
+            Row(
+              children: affiliations.map((aff) {
+                final isSelected = aff == _selectedAffiliation;
+                final bool isDisabled = aff == '...';
+
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: isDisabled
+                        ? null
+                        : () => setState(() => _selectedAffiliation = aff),
+                    child: Container(
+                      color: Colors.transparent,
+                      alignment: Alignment.center,
+                      child: Text(
+                        aff,
+                        style: isSelected
+                            ? selectedStyle
+                            : (isDisabled
+                                ? unselectedStyle.copyWith(
+                                    color: Colors.grey[400])
+                                : unselectedStyle),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  /// This is the list-switching logic from Version 2.
+  /// It selects the pre-loaded stream to display.
   Widget _buildOfficialsList() {
+    // Use a key to help the AnimatedSwitcher differentiate the two lists
     if (_selectedAffiliation == 'USC') {
-      // Show USC List
+      // --- Show USC List ---
       if (_isUscLoading) {
         return const Center(
             key: ValueKey('usc_loading'), child: CircularProgressIndicator());
@@ -217,7 +266,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
         affiliation: 'USC',
       );
     } else {
-      // Show CSC List
+      // --- Show CSC List ---
       if (_isCscLoading) {
         return const Center(
             key: ValueKey('csc_loading'), child: CircularProgressIndicator());
@@ -236,7 +285,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   }
 }
 
-/// displays the list of current officials
+/// This widget just builds the ListView from a given stream.
 class _OfficialsListBuilder extends StatelessWidget {
   final Stream<QuerySnapshot> stream;
   final String affiliation;
@@ -256,6 +305,8 @@ class _OfficialsListBuilder extends StatelessWidget {
           return Center(child: Text('Error loading officials'));
         }
         if (!snap.hasData) {
+          // This shows a brief spinner as the pre-loaded stream
+          // gets its first batch of data.
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -295,7 +346,6 @@ class OfficialListItem extends StatelessWidget {
         ),
         child: Row(
           children: [
-
             // Official's image
             Container(
               width: 100,
@@ -377,13 +427,13 @@ class OfficialListItem extends StatelessWidget {
   }
 }
 
-// Official class
+// Official class (using the V2 factory)
 class Official {
   final String id;
   final String name;
   final String position;
   final String party;
-  final String details; 
+  final String details;
   final String? imgPath;
   final String affiliation;
 
@@ -405,6 +455,7 @@ class Official {
 
     String fullDetails;
 
+    // This is the improved factory logic from V2
     if (college != null && year != null) {
       fullDetails = '$college - $year Year';
     } else if (college != null) {

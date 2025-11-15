@@ -14,7 +14,7 @@ class CustomHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 25, bottom: 9, top: 25, right: 16),
+      padding: const EdgeInsets.only(left: 24, bottom: 16, top: 26),
       child: Row(
         children: [
           GestureDetector(
@@ -27,7 +27,7 @@ class CustomHeader extends StatelessWidget {
                 color: Color(0xFF5C6AA0),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(1),
                 child: SvgPicture.asset(
                   'assets/back.svg', 
                   fit: BoxFit.contain,
@@ -35,7 +35,7 @@ class CustomHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 16), //ayusin ko rin sa figma gawin kong 16
           Expanded(
             child: Text(
               title,

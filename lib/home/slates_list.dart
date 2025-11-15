@@ -37,9 +37,9 @@ class SlateListPage extends StatelessWidget {
 
               return ListView.builder(
                 padding: EdgeInsets.only(
-                  top: topPadding + 102,
-                  left: 25,
-                  right: 25,
+                  top: topPadding + 94,
+                  left: 24,
+                  right: 24,
                   bottom: 22,
                 ),
                 itemCount: slates.length,
@@ -118,16 +118,26 @@ class SlateListItem extends StatelessWidget {
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: const Color(0xFFF7F7F7),
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(20),
+            
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withOpacity(0.05),
                 spreadRadius: 2,
-                blurRadius: 5,
-                offset: const Offset(0, 3),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
+              
             ],
+
+            border: Border.all( //adjust kona rin sa figma
+              color: const Color(0xFFEEEEEE),
+              width: 0.5,
+            ),
+
+
           ),
+          
           child: Row(
             children: [
               // Left placeholder image area
@@ -149,7 +159,7 @@ class SlateListItem extends StatelessWidget {
                       : null,
                 ),
               ),
-              const SizedBox(width: 15),
+              const SizedBox(width: 12),
               // Slate Name
               Expanded(
                 child: Text(

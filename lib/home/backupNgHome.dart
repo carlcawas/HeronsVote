@@ -1,27 +1,16 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'announcement.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// Import your page "bodies"
-import 'home_body.dart';
-import 'candidates_view_body.dart';
-
-// TODO: Import your Voting and Results pages
-import'';
-import'';
-
-// Import pages for the action buttons
-import 'announcement.dart';
-
-// TODO: Import your Profile page
-import'';
-
-// Import your Firebase service
 import '../services/firebase_service.dart';
-
+import 'slates_list.dart';
+import 'elected_official_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'candidates_view_body.dart';
+// TODO: import screens for different redirection
 
 class HomeScreen extends StatefulWidget {
-
   final String uid;
   const HomeScreen({super.key, required this.uid});
 
@@ -30,60 +19,55 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final FirebaseService _firebaseService = FirebaseService();
+  late final String _userId;
 
-  // This will hold the currently selected tab index (0 = Home)
   int _selectedIndex = 0;
+  Timer? _timer;
   DateTime? currentBackPressTime;
 
-  // This is where we will put your 4 page widgets
-  late final List<Widget> _pages;
+  // Page controllers for sliders
+  final PageController _activeItemsPageController = PageController();
+  int _currentActiveItemPage = 0;
 
-  // This is the Firebase service to get user data
-  final FirebaseService _firebaseService = FirebaseService();
+  final PageController _slatesPageController = PageController();
+  int _currentSlatesPage = 0;
+
+  // hold all active elections, proposals for the top slider/box
+  List<Map<String, dynamic>> _activeItems = [];
+  // hold the single most recent ended election (if within a week)
+  List<Map<String, dynamic>> _recentlyEndedItems = [];
+  // Combined list for the top slider
+  List<Map<String, dynamic>> _sliderItems = [];
+
+  // fetched from db user collection
+  String _userName = "User";
+  String _userCollegeId = "";
+  String _userCollegeAbbreviation = "";
+  bool _isVerified = false;
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-
-      // TODO: Replace with HomePage(uid: uid)
-      HomeBody(uid: widget.uid),
-
-      // TODO: Replace with CandidatePage(uid: uid)
-      CandidatesViewBody(uid: widget.uid),
-
-      // TODO: Replace with VotingPage(uid: uid)
-      Container(color: Colors.red, child: Center(child: Text("Voting Page"))),
-
-      // TODO: Replace with ResultsPage(uid: uid)
-      Container(color: Colors.blue[100], child: Center(child: Text("Results Page"))),
-    ];
-  }
-
-  // This function will be called when a tab is tapped
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
+    _userId = widget.uid;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 
-  //nav area builder
-  Widget _buildNavIcon(String iconName, int index) {
-    final bool isActive = _selectedIndex == index;
-    final String assetPath =
-        'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
-    return SvgPicture.asset(assetPath, width: 21, height: 19);
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _activeItemsPageController.dispose();
+    _slatesPageController.dispose();
+    super.dispose();
   }
-  
+
   // 2 backs swipe to exit app function
   Future<bool> _onWillPop() async {
     DateTime now = DateTime.now();
-    if (_selectedIndex != 0) {
-      setState(() {
-        _selectedIndex = 0;
-      });
-      return false; 
-    }
     if (currentBackPressTime == null ||
         now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
       currentBackPressTime = now;
@@ -98,212 +82,361 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return true;
   }
-  
-  // --- START OF PERSISTENT DYNAMIC APP BAR LOGIC ---
-  // This helper builds the correct title for the current tab
-  Widget _buildAppBarTitle() {
-    // This style is used for all titles
-    const style = TextStyle(
-      color: Color(0xFF414141),
-      fontSize: 24,
-      fontWeight: FontWeight.w600,
-      fontFamily: 'Geist',
-    );
 
-    switch (_selectedIndex) {
-      case 0:
-        // For the Home tab, we fetch the user's name in real-time
-        return _buildHomeTitle(style);
-      case 1:
-        return const Text("Candidates", style: style);
-      case 2:
-        return const Text("Voting", style: style);
-      case 3:
-        return const Text("Results", style: style);
+  // checks if an ended election is recent. checks if it ended in the past and is within 7 days
+  bool _isRecentlyEnded(Timestamp endTimestamp) {
+    final int days = 7;
+    final endDate = endTimestamp.toDate();
+    final now = DateTime.now();
+    return now.isAfter(endDate) && now.difference(endDate).inDays <= days;
+  }
+
+  // formats the data/information fetched from a db fetch/snapshot
+  Map<String, dynamic> _docToMap(DocumentSnapshot doc) {
+    return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+  }
+
+  // format election types to string
+  String _formatType(String type) {
+    switch (type) {
+      case 'college':
+        return 'College Election';
+      case 'university':
+        return 'University Election';
+      case 'proposal':
+        return 'University Proposal Election';
       default:
-        return const SizedBox.shrink();
+        return 'Event';
     }
   }
-  // A small, dedicated StreamBuilder just for the "Hello, [name]" title
-  Widget _buildHomeTitle(TextStyle style) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _firebaseService.getUserStream(widget.uid),
-      builder: (context, snapshot) {
-        String userName = "User";
-        if (snapshot.hasData && snapshot.data!.data() != null) {
-          final userData = snapshot.data!.data() as Map<String, dynamic>;
-          final String fullName = userData['name'] ?? 'User';
-          if (fullName.trim().isNotEmpty) {
-            userName = fullName.split(' ').first;
-          }
-        }
-        return Text("Hello, $userName", style: style);
-      },
-    );
+
+  // prioritizes election cards
+  int _getPriority(String type) {
+    switch (type) {
+      case 'university':
+        return 1; // 1st priority
+      case 'college':
+        return 2; // 2nd priority
+      case 'proposal':
+        return 3; // 3rd priority
+      default:
+        return 4;
+    }
   }
-
-
-  // These are the persistent action buttons for the AppBar - FIXED ripple effect
-  List<Widget> _buildAppBarActions() {
-    return [
-      // First Button - Announcement
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ClipOval( // This clips the ripple effect to a circle
-          child: Material(
-            color: const Color(0xFFEEEEEE), 
-            child: InkWell(
-              onTap: () {
-                // GOTO: ANNOUNCEMENT
-                Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 0),
-                    pageBuilder: (_, __, ___) => AnnouncementsPage(userId: widget.uid),
-                  ),
-                );
-              },
-              child: SizedBox(
-                width: 45,
-                height: 45,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: SvgPicture.asset(
-                    'assets/announcement.svg',
-                    color: const Color(0xFF404040),
-                    width: 21,
-                    height: 23,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-
-      //Second Button - Account
-      Padding(
-        padding: const EdgeInsets.only(right: 25),
-        child: ClipOval( // Clips the ripple
-          child: Material(
-            color: const Color(0xFFEEEEEE),
-            child: InkWell(
-              onTap: () {
-                // TODO: GOTO ACCOUNT
-                // Navigator.push(context, ... ProfilePage(uid: widget.uid));
-              },
-              child: SizedBox(
-                width: 45,
-                height: 45,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: SvgPicture.asset(
-                    'assets/account.svg',
-                    color: const Color(0xFF404040),
-                    width: 21,
-                    height: 23,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ];
-  }
-  // --- END OF APP BAR LOGIC ---
-
 
   @override
   Widget build(BuildContext context) {
-    // WillPopScope handles the "press back again to exit" logic
+    
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
         backgroundColor: Colors.white,
+        body: SafeArea(
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: _firebaseService.getUserStream(_userId),
+            builder: (context, userSnapshot) {
+              if (!userSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              // Process backend part
+              // Fetch user data from db
+              final userData =
+                  userSnapshot.data!.data() as Map<String, dynamic>;
+              // takes only the 1st name to avoid overflow
+              final String fullName = userData['name'] ?? 'User';
+              if (fullName.trim().isEmpty) {
+                _userName = 'User';
+              } else {
+                _userName = fullName.split(' ').first;
+              }
+              _userCollegeId = userData['college_id'] ?? '';
+              _userCollegeAbbreviation = userData['college_id'] ?? '';
+              _isVerified = userData['isVerified'] ?? false;
+              // Combine Streams for all active/ended items
+              return StreamBuilder<QuerySnapshot>(
+                stream: _firebaseService.getActiveCollegeElectionStream(
+                  _userCollegeId,
+                ),
+                builder: (context, collegeElecSnap) {
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: _firebaseService
+                        .getActiveUniversityElectionStream(),
+                    builder: (context, uniElecSnap) {
+                      return StreamBuilder<QuerySnapshot>(
+                        stream: _firebaseService
+                            .getActiveUniversityProposalStream(),
+                        builder: (context, proposalSnap) {
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: _firebaseService
+                                .getRecentlyEndedCollegeElection(
+                                  _userCollegeId,
+                                ),
+                            builder: (context, endedCollegeSnap) {
+                              return StreamBuilder<QuerySnapshot>(
+                                stream: _firebaseService
+                                    .getRecentlyEndedUniversityElection(),
+                                builder: (context, endedUniSnap) {
+                                  return StreamBuilder<QuerySnapshot>(
+                                    stream: _firebaseService
+                                        .getRecentlyEndedUniversityProposal(),
+                                    builder: (context, endedProposalSnap) {
+                                      if (!collegeElecSnap.hasData ||
+                                          !uniElecSnap.hasData ||
+                                          !proposalSnap.hasData ||
+                                          !endedCollegeSnap.hasData ||
+                                          !endedUniSnap.hasData ||
+                                          !endedProposalSnap.hasData) {
+                                        return const Center(
+                                          child: CircularProgressIndicator(),
+                                        );
+                                      }
 
-        // --- 1. THE APP BAR ---
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          scrolledUnderElevation: 0,
+                                      // Clear previous active items
+                                      _activeItems = [];
+                                      _recentlyEndedItems = [];
 
-          //Flutter has built inn back btn sa app bar, this forces it to hide it
-          automaticallyImplyLeading: false, 
+                                      // Check for active items
+                                      if (collegeElecSnap
+                                          .data!
+                                          .docs
+                                          .isNotEmpty) {
+                                        _activeItems.add({
+                                          'type': 'college',
+                                          'ongoing': true,
+                                          ..._docToMap(
+                                            collegeElecSnap.data!.docs.first,
+                                          ),
+                                        });
+                                      }
+                                      if (uniElecSnap.data!.docs.isNotEmpty) {
+                                        _activeItems.add({
+                                          'type': 'university',
+                                          'ongoing': true,
+                                          ..._docToMap(
+                                            uniElecSnap.data!.docs.first,
+                                          ),
+                                        });
+                                      }
+                                      if (proposalSnap.data!.docs.isNotEmpty) {
+                                        _activeItems.add({
+                                          'type': 'proposal',
+                                          'ongoing': true,
+                                          ..._docToMap(
+                                            proposalSnap.data!.docs.first,
+                                          ),
+                                        });
+                                      }
 
-          // This controls the padding for the title
-          titleSpacing: 25.0, 
+                                      // Always check for recently ended items
+                                      if (endedCollegeSnap
+                                          .data!
+                                          .docs
+                                          .isNotEmpty) {
+                                        final doc =
+                                            endedCollegeSnap.data!.docs.first;
+                                        if (_isRecentlyEnded(
+                                          doc['end'] as Timestamp,
+                                        )) {
+                                          _recentlyEndedItems.add({
+                                            'type': 'college',
+                                            'ongoing': false,
+                                            ..._docToMap(doc),
+                                          });
+                                        }
+                                      }
+                                      if (endedUniSnap.data!.docs.isNotEmpty) {
+                                        final doc =
+                                            endedUniSnap.data!.docs.first;
+                                        if (_isRecentlyEnded(
+                                          doc['end'] as Timestamp,
+                                        )) {
+                                          _recentlyEndedItems.add({
+                                            'type': 'university',
+                                            'ongoing': false,
+                                            ..._docToMap(doc),
+                                          });
+                                        }
+                                      }
+                                      if (endedProposalSnap
+                                          .data!
+                                          .docs
+                                          .isNotEmpty) {
+                                        final doc =
+                                            endedProposalSnap.data!.docs.first;
+                                        if (_isRecentlyEnded(
+                                          doc['end'] as Timestamp,
+                                        )) {
+                                          _recentlyEndedItems.add({
+                                            'type': 'proposal',
+                                            'ongoing': false,
+                                            ..._docToMap(doc),
+                                          });
+                                        }
+                                      }
 
-          // ripple feedback color
-          iconTheme: IconThemeData(color: Colors.black),
+                                      // Sort recently ended items
+                                      _recentlyEndedItems.sort(
+                                        (a, b) => (b['end'] as Timestamp)
+                                            .compareTo(a['end'] as Timestamp),
+                                      );
 
-          // This calls our helper to build the correct title
-          //title: _buildAppBarTitle(),
-          //with fade animation here:
-          title: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350), 
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              final fadeInAnimation = CurvedAnimation(
-                parent: animation,
-                curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-              );
-              return FadeTransition(
-                opacity: fadeInAnimation,
-                child: child,
+                                      // Create the combined list
+                                      _sliderItems = [
+                                        ..._activeItems,
+                                        ..._recentlyEndedItems,
+                                      ];
+
+                                      // Sort election cards based on priority
+                                      _sliderItems.sort(
+                                        (a, b) => _getPriority(
+                                          a['type'],
+                                        ).compareTo(_getPriority(b['type'])),
+                                      );
+
+                                      // Update bounds check for new list
+                                      if (_currentActiveItemPage >=
+                                          _sliderItems.length) {
+                                        _currentActiveItemPage = 0;
+                                        if (_activeItemsPageController
+                                            .hasClients) {
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                                if (_activeItemsPageController
+                                                    .hasClients) {
+                                                  _activeItemsPageController
+                                                      .jumpToPage(0);
+                                                }
+                                              });
+                                        }
+                                      }
+
+                                      // For UI update and building
+                                      return SingleChildScrollView(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 25,
+                                          vertical: 20,
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                // Header: Hello, name
+                                                Text(
+                                                  "Hello, $_userName",
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF414141),
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontFamily: 'Geist',
+                                                  ),
+                                                ),
+                                                // Header: Notification & Account btn
+                                                Row(
+                                                  children: [
+                                                    IconButton(
+                                                      onPressed: () {
+                                                        //TODO: ANNOUNCEMENT REDIRECTION
+                                                        print("Going to AnnouncementsPage with userId: $_userId"); //debugging
+                                                        Navigator.push(
+                                                          context,
+                                                          PageRouteBuilder(
+                                                            transitionDuration:
+                                                                const Duration(
+                                                                  milliseconds:
+                                                                      0,
+                                                                ),
+                                                            
+                                                            pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
+                                                          ),
+                                                        );
+                                                      },
+                                                      icon: SvgPicture.asset(
+                                                        'assets/announcement.svg',
+                                                        color: Color(
+                                                          0xFF404040,
+                                                        ),
+                                                        width: 20,
+                                                        height: 25,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      onPressed: () {
+                                                        //TODO: ACCOUNT REDIRECTION
+                                                      },
+                                                      icon: SvgPicture.asset(
+                                                        'assets/account.svg',
+                                                        color: const Color(
+                                                          0xFF404040,
+                                                        ),
+                                                        width: 21,
+                                                        height: 23,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 30),
+
+                                            // 'Not Verified' message shows if user not verified
+                                            if (!_isVerified) ...[
+                                              _buildNotVerifiedWarningCard(),
+                                              const SizedBox(height: 30),
+                                            ],
+
+                                            // call election cards
+                                            _buildSliderOrNoElectionCard(),
+                                            const SizedBox(height: 30),
+
+                                            // Officials/Slates card
+                                            _buildConditionalSecondSection(),
+
+                                            // 'Before you vote' card
+                                            const Text(
+                                              "Before you vote",
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF404040),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Row(
+                                              children: [
+                                                // TODO: ADD REDIRECT FUNCTIONS
+                                                _buildInfoCard("Voting rules"),
+                                                const SizedBox(width: 22.7),
+                                                _buildInfoCard(
+                                                  "Voting process",
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 40),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
               );
             },
-            layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-              return Stack(
-                alignment: AlignmentDirectional.centerStart, 
-                children: <Widget>[
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
-              );
-            },
-            child: _buildAppBarTitle(),
-          ),
-
-          // This builds our action buttons
-          actions: _buildAppBarActions(),
-
-          // This sets the height of the AppBar
-          toolbarHeight: 82, //72 from figma + 10 here
-        ),
-
-        // --- 2. THE BODY ---
-        // This IndexedStack swaps the pages without losing their state
-
-        body: AnimatedSwitcher(
-          /* instant animation to
-          body: IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
-          */
-
-          // with fade animation, contemplating if maganda lagyan o mas maganda if instant
-          duration: const Duration(milliseconds: 350),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            final fadeInAnimation = CurvedAnimation(
-              parent: animation,
-              curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-            );
-            return FadeTransition(
-              opacity: fadeInAnimation,
-              child: child,
-            );
-          },
-          child: IndexedStack(
-            key: ValueKey<int>(_selectedIndex),
-            index: _selectedIndex,
-            children: _pages,
           ),
         ),
 
-
-
-        // --- 3. THE BOTTOM NAVIGATION BAR ---
+        // Bottom navigation
         bottomNavigationBar: Container(
           decoration: BoxDecoration(
             boxShadow: [
@@ -321,26 +454,37 @@ class _HomeScreenState extends State<HomeScreen> {
             showSelectedLabels: false,
             showUnselectedLabels: false,
             type: BottomNavigationBarType.fixed,
-            
-            // This is the CORRECT onTap for the IndexedStack pattern
-            onTap: _onItemTapped, 
-            
+            onTap: (index) {
+               if(index == 0){
+                setState(() {
+                  _selectedIndex = index;
+                });
+               }
+
+               switch(index){
+                case 0:
+                       break;
+                case 1:
+                    Navigator.pushReplacement(context,
+                    MaterialPageRoute(builder: (context) => CandidatesViewBody(uid: widget.uid),),);
+               }
+            },
             currentIndex: _selectedIndex,
             items: [
               BottomNavigationBarItem(
-                icon: _buildNavIcon('home', 0), // <-- This will now work
+                icon: _buildNavIcon('home', 0),
                 label: "Home",
               ),
               BottomNavigationBarItem(
-                icon: _buildNavIcon('slate', 1), // <-- This will now work
+                icon: _buildNavIcon('slate', 1),
                 label: "Slates",
               ),
               BottomNavigationBarItem(
-                icon: _buildNavIcon('voting', 2), // <-- This will now work
+                icon: _buildNavIcon('voting', 2),
                 label: "Vote",
               ),
               BottomNavigationBarItem(
-                icon: _buildNavIcon('analytics', 3), // <-- This will now work
+                icon: _buildNavIcon('analytics', 3),
                 label: "Analytics",
               ),
             ],

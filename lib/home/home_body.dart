@@ -1,378 +1,376 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'announcement.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-// Import your page "bodies"
-import 'home_body.dart';
-import 'candidates_view_body.dart';
-
-// TODO: Import your Voting and Results pages
-import'';
-import'';
-
-// Import pages for the action buttons
-import 'announcement.dart';
-
-// TODO: Import your Profile page
-import'';
-
-// Import your Firebase service
 import '../services/firebase_service.dart';
+import 'slates_list.dart';
+import 'elected_official_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+// TODO: import screens for different redirection
 
-
-class HomeScreen extends StatefulWidget {
-
+class HomeBody extends StatefulWidget {
   final String uid;
-  const HomeScreen({super.key, required this.uid});
+  const HomeBody({super.key, required this.uid});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeBody> createState() => _HomeBodyState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-
-  // This will hold the currently selected tab index (0 = Home)
-  int _selectedIndex = 0;
-  DateTime? currentBackPressTime;
-
-  // This is where we will put your 4 page widgets
-  late final List<Widget> _pages;
-
-  // This is the Firebase service to get user data
+class _HomeBodyState extends State<HomeBody> {
   final FirebaseService _firebaseService = FirebaseService();
+  late final String _userId;
+
+  Timer? _timer;
+
+  // Page controllers for sliders
+  final PageController _activeItemsPageController = PageController();
+  int _currentActiveItemPage = 0;
+
+  final PageController _slatesPageController = PageController();
+  int _currentSlatesPage = 0;
+
+  // hold all active elections, proposals for the top slider/box
+  List<Map<String, dynamic>> _activeItems = [];
+  // hold the single most recent ended election (if within a week)
+  List<Map<String, dynamic>> _recentlyEndedItems = [];
+  // Combined list for the top slider
+  List<Map<String, dynamic>> _sliderItems = [];
+
+  // fetched from db user collection
+  String _userCollegeId = "";
+  String _userCollegeAbbreviation = "";
+  bool _isVerified = false;
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-
-      // TODO: Replace with HomePage(uid: uid)
-      HomeBody(uid: widget.uid),
-
-      // TODO: Replace with CandidatePage(uid: uid)
-      CandidatesViewBody(uid: widget.uid),
-
-      // TODO: Replace with VotingPage(uid: uid)
-      Container(color: Colors.red, child: Center(child: Text("Voting Page"))),
-
-      // TODO: Replace with ResultsPage(uid: uid)
-      Container(color: Colors.blue[100], child: Center(child: Text("Results Page"))),
-    ];
-  }
-
-  // This function will be called when a tab is tapped
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
+    _userId = widget.uid;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 
-  //nav area builder
-  Widget _buildNavIcon(String iconName, int index) {
-    final bool isActive = _selectedIndex == index;
-    final String assetPath =
-        'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
-    return SvgPicture.asset(assetPath, width: 21, height: 19);
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _activeItemsPageController.dispose();
+    _slatesPageController.dispose();
+    super.dispose();
   }
-  
-  // 2 backs swipe to exit app function
-  Future<bool> _onWillPop() async {
-    DateTime now = DateTime.now();
-    if (_selectedIndex != 0) {
-      setState(() {
-        _selectedIndex = 0;
-      });
-      return false; 
-    }
-    if (currentBackPressTime == null ||
-        now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
-      currentBackPressTime = now;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Press back again to exit app'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.black87,
-        ),
-      );
-      return false;
-    }
-    return true;
-  }
-  
-  // --- START OF PERSISTENT DYNAMIC APP BAR LOGIC ---
-  // This helper builds the correct title for the current tab
-  Widget _buildAppBarTitle() {
-    // This style is used for all titles
-    const style = TextStyle(
-      color: Color(0xFF414141),
-      fontSize: 24,
-      fontWeight: FontWeight.w600,
-      fontFamily: 'Geist',
-    );
 
-    switch (_selectedIndex) {
-      case 0:
-        // For the Home tab, we fetch the user's name in real-time
-        return _buildHomeTitle(style);
-      case 1:
-        return const Text("Candidates", style: style);
-      case 2:
-        return const Text("Voting", style: style);
-      case 3:
-        return const Text("Results", style: style);
+  // checks if an ended election is recent. checks if it ended in the past and is within 7 days
+  bool _isRecentlyEnded(Timestamp endTimestamp) {
+    final int days = 7;
+    final endDate = endTimestamp.toDate();
+    final now = DateTime.now();
+    return now.isAfter(endDate) && now.difference(endDate).inDays <= days;
+  }
+
+  Map<String, dynamic> _docToMap(DocumentSnapshot doc) {
+    return {'id': doc.id, ...doc.data() as Map<String, dynamic>};
+  }
+
+  // format election types to string
+  String _formatType(String type) {
+    switch (type) {
+      case 'college':
+        return 'College Election';
+      case 'university':
+        return 'University Election';
+      case 'proposal':
+        return 'University Proposal Election';
       default:
-        return const SizedBox.shrink();
+        return 'Event';
     }
   }
-  // A small, dedicated StreamBuilder just for the "Hello, [name]" title
-  Widget _buildHomeTitle(TextStyle style) {
+
+  // prioritizes election cards
+  int _getPriority(String type) {
+    switch (type) {
+      case 'university':
+        return 1;
+      case 'college':
+        return 2;
+      case 'proposal':
+        return 3;
+      default:
+        return 4;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    
+    // NO Scaffold, NO WillPopScope, NO BottomNavigationBar
+    // Start with the content.
+
     return StreamBuilder<DocumentSnapshot>(
-      stream: _firebaseService.getUserStream(widget.uid),
-      builder: (context, snapshot) {
-        String userName = "User";
-        if (snapshot.hasData && snapshot.data!.data() != null) {
-          final userData = snapshot.data!.data() as Map<String, dynamic>;
-          final String fullName = userData['name'] ?? 'User';
-          if (fullName.trim().isNotEmpty) {
-            userName = fullName.split(' ').first;
-          }
+      stream: _firebaseService.getUserStream(_userId),
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
         }
-        return Text("Hello, $userName", style: style);
+        // Process backend part
+        // Fetch user data from db
+        final userData =
+            userSnapshot.data!.data() as Map<String, dynamic>;
+        // takes only the 1st name to avoid overflow
+
+        //may gantong code sa dati 
+        /*final String fullName = userData['name'] ?? 'User';
+              if (fullName.trim().isEmpty) {
+                _userName = 'User';
+              } else {
+                _userName = fullName.split(' ').first;
+              }*/
+        
+        _userCollegeId = userData['college_id'] ?? '';
+        _userCollegeAbbreviation = userData['college_id'] ?? ''; 
+        _isVerified = userData['isVerified'] ?? false;
+        
+        // Combine Streams for all active/ended items
+        return StreamBuilder<QuerySnapshot>(
+          stream: _firebaseService.getActiveCollegeElectionStream(
+            _userCollegeId,
+          ),
+          builder: (context, collegeElecSnap) {
+            return StreamBuilder<QuerySnapshot>(
+              stream: _firebaseService
+                  .getActiveUniversityElectionStream(),
+              builder: (context, uniElecSnap) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _firebaseService
+                      .getActiveUniversityProposalStream(),
+                  builder: (context, proposalSnap) {
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: _firebaseService
+                          .getRecentlyEndedCollegeElection(
+                        _userCollegeId,
+                      ),
+                      builder: (context, endedCollegeSnap) {
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: _firebaseService
+                              .getRecentlyEndedUniversityElection(),
+                          builder: (context, endedUniSnap) {
+                            return StreamBuilder<QuerySnapshot>(
+                              stream: _firebaseService
+                                  .getRecentlyEndedUniversityProposal(),
+                              builder: (context, endedProposalSnap) {
+                                if (!collegeElecSnap.hasData ||
+                                    !uniElecSnap.hasData ||
+                                    !proposalSnap.hasData ||
+                                    !endedCollegeSnap.hasData ||
+                                    !endedUniSnap.hasData ||
+                                    !endedProposalSnap.hasData) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
+                                }
+
+                                // Clear previous active items
+                                _activeItems = [];
+                                _recentlyEndedItems = [];
+
+                                // Check for active items
+                                if (collegeElecSnap
+                                    .data!
+                                    .docs
+                                    .isNotEmpty) {
+                                  _activeItems.add({
+                                    'type': 'college',
+                                    'ongoing': true,
+                                    ..._docToMap(
+                                      collegeElecSnap.data!.docs.first,
+                                    ),
+                                  });
+                                }
+                                if (uniElecSnap.data!.docs.isNotEmpty) {
+                                  _activeItems.add({
+                                    'type': 'university',
+                                    'ongoing': true,
+                                    ..._docToMap(
+                                      uniElecSnap.data!.docs.first,
+                                    ),
+                                  });
+                                }
+                                if (proposalSnap.data!.docs.isNotEmpty) {
+                                  _activeItems.add({
+                                    'type': 'proposal',
+                                    'ongoing': true,
+                                    ..._docToMap(
+                                      proposalSnap.data!.docs.first,
+                                    ),
+                                  });
+                                }
+
+                                // Always check for recently ended items
+                                if (endedCollegeSnap
+                                    .data!
+                                    .docs
+                                    .isNotEmpty) {
+                                  final doc =
+                                      endedCollegeSnap.data!.docs.first;
+                                  if (_isRecentlyEnded(
+                                    doc['end'] as Timestamp,
+                                  )) {
+                                    _recentlyEndedItems.add({
+                                      'type': 'college',
+                                      'ongoing': false,
+                                      ..._docToMap(doc),
+                                    });
+                                  }
+                                }
+                                if (endedUniSnap.data!.docs.isNotEmpty) {
+                                  final doc =
+                                      endedUniSnap.data!.docs.first;
+                                  if (_isRecentlyEnded(
+                                    doc['end'] as Timestamp,
+                                  )) {
+                                    _recentlyEndedItems.add({
+                                      'type': 'university',
+                                      'ongoing': false,
+                                      ..._docToMap(doc),
+                                    });
+                                  }
+                                }
+                                if (endedProposalSnap
+                                    .data!
+                                    .docs
+                                    .isNotEmpty) {
+                                  final doc =
+                                      endedProposalSnap.data!.docs.first;
+                                  if (_isRecentlyEnded(
+                                    doc['end'] as Timestamp,
+                                  )) {
+                                    _recentlyEndedItems.add({
+                                      'type': 'proposal',
+                                      'ongoing': false,
+                                      ..._docToMap(doc),
+                                    });
+                                  }
+                                }
+
+                                // Sort recently ended items
+                                _recentlyEndedItems.sort(
+                                  (a, b) => (b['end'] as Timestamp)
+                                      .compareTo(a['end'] as Timestamp),
+                                );
+
+                                // Create the combined list
+                                _sliderItems = [
+                                  ..._activeItems,
+                                  ..._recentlyEndedItems,
+                                ];
+
+                                // Sort election cards based on priority
+                                _sliderItems.sort(
+                                  (a, b) => _getPriority(
+                                    a['type'],
+                                  ).compareTo(_getPriority(b['type'])),
+                                );
+
+                                // Update bounds check for new list
+                                if (_currentActiveItemPage >=
+                                    _sliderItems.length) {
+                                  _currentActiveItemPage = 0;
+                                  if (_activeItemsPageController
+                                      .hasClients) {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (_activeItemsPageController
+                                          .hasClients) {
+                                        _activeItemsPageController
+                                            .jumpToPage(0);
+                                      }
+                                    });
+                                  }
+                                }
+
+                                // This is your main page content
+                                // For UI update and building
+                                return SingleChildScrollView(
+                                  physics: const ClampingScrollPhysics(), //scroll only when needed
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, //balik mo to 25 pag wala na margin lahat ng widget keyword:25marginback
+                                    vertical: 0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+
+                                      // The "Hello, name" header Row is GONE
+                                      // It is now in the persistent AppBar in home.dart
+                                      
+                                      // 'Not Verified' message shows if user not verified
+                                      if (!_isVerified) ...[
+                                        _buildNotVerifiedWarningCard(),
+                                        const SizedBox(height: 30),
+                                      ],
+                                      
+                                      // call election cards
+                                      _buildSliderOrNoElectionCard(),
+                                      const SizedBox(height: 22), // gap ni ongoing slates and countdown card
+
+                                      // Officials/Slates card
+                                      _buildConditionalSecondSection(),
+
+                                      // 'Before you vote' card
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 4),
+                                        child: const Text(
+                                          "Before you vote",
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF404040),
+                                          )
+                                        ),
+                                      ),
+                                      
+                                      
+                                      const SizedBox(height: 16),//gap between title and respective btns
+                                      Row(
+                                        children: [
+                                          // TODO: ADD REDIRECT FUNCTIONS
+
+                                          _buildInfoCard("Voting rules"),
+                                          const SizedBox(width: 22),
+                                          _buildInfoCard(
+                                            "Voting process",
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 40),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
       },
     );
   }
 
-
-  // These are the persistent action buttons for the AppBar - FIXED ripple effect
-  List<Widget> _buildAppBarActions() {
-    return [
-      // First Button - Announcement
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: ClipOval( // This clips the ripple effect to a circle
-          child: Material(
-            color: const Color(0xFFEEEEEE), 
-            child: InkWell(
-              onTap: () {
-                // GOTO: ANNOUNCEMENT
-                Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 0),
-                    pageBuilder: (_, __, ___) => AnnouncementsPage(userId: widget.uid),
-                  ),
-                );
-              },
-              child: SizedBox(
-                width: 45,
-                height: 45,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: SvgPicture.asset(
-                    'assets/announcement.svg',
-                    color: const Color(0xFF404040),
-                    width: 21,
-                    height: 23,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-
-      //Second Button - Account
-      Padding(
-        padding: const EdgeInsets.only(right: 25),
-        child: ClipOval( // Clips the ripple
-          child: Material(
-            color: const Color(0xFFEEEEEE),
-            child: InkWell(
-              onTap: () {
-                // TODO: GOTO ACCOUNT
-                // Navigator.push(context, ... ProfilePage(uid: widget.uid));
-              },
-              child: SizedBox(
-                width: 45,
-                height: 45,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: SvgPicture.asset(
-                    'assets/account.svg',
-                    color: const Color(0xFF404040),
-                    width: 21,
-                    height: 23,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ];
-  }
-  // --- END OF APP BAR LOGIC ---
-
-
-  @override
-  Widget build(BuildContext context) {
-    // WillPopScope handles the "press back again to exit" logic
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-
-        // --- 1. THE APP BAR ---
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-
-          //Flutter has built inn back btn sa app bar, this forces it to hide it
-          automaticallyImplyLeading: false, 
-
-          // This controls the padding for the title
-          titleSpacing: 25.0, 
-
-          // ripple feedback color
-          iconTheme: IconThemeData(color: Colors.black),
-
-          // This calls our helper to build the correct title
-          //title: _buildAppBarTitle(),
-          //with fade animation here:
-          title: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350), 
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              final fadeInAnimation = CurvedAnimation(
-                parent: animation,
-                curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-              );
-              return FadeTransition(
-                opacity: fadeInAnimation,
-                child: child,
-              );
-            },
-            layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-              return Stack(
-                alignment: AlignmentDirectional.centerStart, 
-                children: <Widget>[
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
-              );
-            },
-            child: _buildAppBarTitle(),
-          ),
-
-          // This builds our action buttons
-          actions: _buildAppBarActions(),
-
-          // This sets the height of the AppBar
-          toolbarHeight: 82, //72 from figma + 10 here
-        ),
-
-        // --- 2. THE BODY ---
-        // This IndexedStack swaps the pages without losing their state
-
-        body: AnimatedSwitcher(
-          /* instant animation to
-          body: IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
-          */
-
-          // with fade animation, contemplating if maganda lagyan o mas maganda if instant
-          duration: const Duration(milliseconds: 350),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            final fadeInAnimation = CurvedAnimation(
-              parent: animation,
-              curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-            );
-            return FadeTransition(
-              opacity: fadeInAnimation,
-              child: child,
-            );
-          },
-          child: IndexedStack(
-            key: ValueKey<int>(_selectedIndex),
-            index: _selectedIndex,
-            children: _pages,
-          ),
-        ),
-
-
-
-        // --- 3. THE BOTTOM NAVIGATION BAR ---
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: BottomNavigationBar(
-            backgroundColor: Colors.white,
-            selectedItemColor: const Color(0xFF354372),
-            unselectedItemColor: const Color(0xFF888888),
-            showSelectedLabels: false,
-            showUnselectedLabels: false,
-            type: BottomNavigationBarType.fixed,
-            
-            // This is the CORRECT onTap for the IndexedStack pattern
-            onTap: _onItemTapped, 
-            
-            currentIndex: _selectedIndex,
-            items: [
-              BottomNavigationBarItem(
-                icon: _buildNavIcon('home', 0), // <-- This will now work
-                label: "Home",
-              ),
-              BottomNavigationBarItem(
-                icon: _buildNavIcon('slate', 1), // <-- This will now work
-                label: "Slates",
-              ),
-              BottomNavigationBarItem(
-                icon: _buildNavIcon('voting', 2), // <-- This will now work
-                label: "Vote",
-              ),
-              BottomNavigationBarItem(
-                icon: _buildNavIcon('analytics', 3), // <-- This will now work
-                label: "Analytics",
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  //nav area builder
-  Widget _buildNavIcon(String iconName, int index) {
-    final bool isActive = _selectedIndex == index;
-    final String assetPath =
-        'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
-    return SvgPicture.asset(assetPath, width: 21, height: 19);
-  }
-
-  // Decides to show slider or "No Election" card
-  Widget _buildSliderOrNoElectionCard() {
-    if (_sliderItems.isEmpty) {
-      return _buildNoElectionCard();
-    } else {
-      // Pass the combined list to the slider
-      return _buildActiveItemsSliderCard(_sliderItems);
-    }
-  }
-
-  // No Election state card
-  Widget _buildNoElectionCard() {
+  // --- All your helper widgets belong here ---
+  // (Paste ALL your other _build... methods and helper widgets here)
+  
+  Widget _buildNotVerifiedWarningCard() { // not verified card 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 30, left: 28, bottom: 30, right: 28),
+      padding: const EdgeInsets.only(top: 20, left: 28, bottom: 30, right: 28),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: const Color(0xFF354372),
@@ -380,31 +378,26 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                // fetch from user data
-                _userCollegeAbbreviation,
-                style: const TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 32,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Geist',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
           const Text(
-            "No active election. Check Announcements\nfor updates.",
+            "Account not Verified",
             style: TextStyle(
-              color: Color(0xFFD9D9D9),
-              fontSize: 12,
-              height: 20 / 12,
+              color: Color(0xFFF8F8F8),
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
               fontFamily: 'Geist',
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
+          const Text(
+            "It seems like your semester has ended,\nPlease re-verify your account",
+            style: TextStyle(
+              color: Color(0xFFD9D9D9),
+              fontSize: 14,
+              fontFamily: 'Geist',
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             height: 47,
@@ -416,7 +409,103 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               onPressed: () {
-                //TODO: Navigate to election info or announcements
+                //TODO: Navigate to profile settings
+              },
+              child: const Text(
+                "Go to Profile settings",
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  } // not verified card end
+
+  Widget _buildSliderOrNoElectionCard() {
+    if (_sliderItems.isEmpty) {
+      return _buildNoElectionCard();
+    } else {
+      return _buildActiveItemsSliderCard(_sliderItems);
+    }
+  }
+
+
+  Widget _buildNoElectionCard() { //idle election card
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 20, left: 28, bottom: 21, right: 28),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF354372),
+
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+
+        border: Border.all(
+          color: const Color(0xFF404040),
+          width: 0.5,
+        ),
+
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                _userCollegeAbbreviation,
+                style: const TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Geist',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            "No active election. Check Announcements\nfor updates.",
+            style: TextStyle(
+              color: Color(0xFFD9D9D9),
+              fontSize: 12,
+              height: null, //nag set na me ng flutter line height conversion sa figma bali yung sa figma, gamit nun default lineheight ni flutter
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 16), //gap between ng text sa end card and sa button
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5C6AA0),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  
+                ),
+              ),
+              onPressed: () {
+                //TODO: Navigate to announcements
+                 Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      transitionDuration: const Duration(milliseconds: 0),
+                      pageBuilder: (_, __, ___) => AnnouncementsPage(userId: _userId),
+                    ),
+                  );
               },
               child: const Text(
                 "Announcements",
@@ -432,14 +521,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
+  } //idle election card end
 
-  // builds the slider shell
-  Widget _buildActiveItemsSliderCard(List<Map<String, dynamic>> items) {
+  Widget _buildActiveItemsSliderCard(List<Map<String, dynamic>> items) { //
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      height: 220,
+    return SizedBox(
+      height: 180,
       width: double.infinity,
       child: Stack(
         children: [
@@ -484,29 +572,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Unified card for both Ongoing and Ended elections
   Widget _buildSliderItemCard(Map<String, dynamic> item) {
     final String type = item['type'] ?? '';
     final bool isOngoing = item['ongoing'] ?? false;
-
-    // sets the text to "UMak" for university election OR proposal on the card
-    final String title;
-    if (type == 'university' || type == 'proposal') {
-      title = 'UMak';
-    } else {
-      title = _userCollegeAbbreviation;
-    }
-
-    // Formatted type
+    final String title = (type == 'university' || type == 'proposal') ? 'UMak' : _userCollegeAbbreviation;
     final String subtitle = _formatType(type);
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.only(top: 30, left: 28, bottom: 30, right: 28),
+      padding: const EdgeInsets.only(top: 20, left: 28, bottom: 21, right: 28),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         color: const Color(0xFF354372),
+
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,10 +615,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const Spacer(),
-
-          // Timer or Ended Button
           if (isOngoing) ...[
-            // Show timer
             Builder(
               builder: (context) {
                 final Timestamp endTimestamp = item['end'];
@@ -552,12 +627,11 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ] else ...[
-            // Show "Ended" text and "View Result" button
             const Text(
               "Election ended:",
               style: TextStyle(color: Color(0xFFD9D9D9), fontSize: 12),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 47,
@@ -568,15 +642,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                // Redirect function
                 onPressed: () {
                   final String id = item['id'];
                   final String itemType = item['type'];
                   // TODO: Navigate to Results Screen
-                  // Example:
-                  // Navigator.push(context, MaterialPageRoute(
-                  //   builder: (context) => ResultsScreen(id: id, type: itemType),
-                  // ));
                   print("Navigate to results for ID: $id, Type: $itemType");
                 },
                 child: const Text(
@@ -597,35 +666,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildConditionalSecondSection() {
-    // If no elections in the slider (idle mode), show current college officials as a default.
     if (_sliderItems.isEmpty) {
       return _buildCurrentOfficialsSection(
         "$_userCollegeId Officials",
         _firebaseService.getCurrentOfficialsStream(_userCollegeId),
       );
     }
-
-    // Get the item currently visible in the slider
     final currentItem = _sliderItems[_currentActiveItemPage];
     final String type = currentItem['type'];
     final String id = currentItem['id'];
     final bool isOngoing = currentItem['ongoing'];
 
-    // Item is an ELECTION (College or University)
     if (isOngoing) {
-      // Show Slates for ongoing elections
       return _buildSlatesSection(id);
     }
-
-    // If proposal is ongoing or ended, show uni officials
     if (type == 'proposal') {
       return _buildCurrentOfficialsSection(
         "University Officials",
         _firebaseService.getUniversityOfficialsStream(),
       );
     } 
-
-    // If csc election recently ended, display the label below
     else if (type == 'college') {
       return _buildCurrentOfficialsSection(
         "Newly Elected $_userCollegeId Officials",
@@ -633,8 +693,6 @@ class _HomeScreenState extends State<HomeScreen> {
         isResults: true,
       );
     }
-
-    // If usc election recently ended, display the label below
     return _buildCurrentOfficialsSection(
       "Newly Elected University Officials",
       _firebaseService.getElectionResultsStream(id),
@@ -642,7 +700,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // builds the "Current Officials" or "Newly Elected" slider
   Widget _buildCurrentOfficialsSection(
     String title,
     Stream<QuerySnapshot> stream, {
@@ -651,47 +708,62 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF404040),
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                //TODO: Navigate to officials
-                Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ElectedOfficialsPage(uid: _userId),
-                ),
-              );
-              },
-              child: const Text(
-                "See all",
-                style: TextStyle(
-                  fontSize: 12,
+
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                   color: Color(0xFF404040),
-                  fontFamily: 'Geist',
                 ),
               ),
-            ),
-          ],
+              Padding(
+                padding:EdgeInsets.only(right: 4),
+                  child: GestureDetector( //see all na ok na, dalawa pala i2
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ElectedOfficialsPage(uid: _userId),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFEEEEEE),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                      "See all",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                        ),
+                      ),
+                    )
+                  ),
+                )
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
+        
+        
+        const SizedBox(height: 13), // gap between "CCIS Officials" and see all btn - ended election ng title see all btn and img placeholder
         StreamBuilder<QuerySnapshot>(
           stream: stream,
           builder: (context, snapshot) {
-            // Error handling
             if (snapshot.hasError) {
               print("Error loading officials: ${snapshot.error}");
               return Container(
-                height: 200,
+                height: 180,
                 alignment: Alignment.center,
                 child: Text("Error: Could not load officials."),
               );
@@ -701,21 +773,20 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             if (snapshot.data!.docs.isEmpty) {
               return Container(
-                height: 200,
+                height: 180,
                 alignment: Alignment.center,
                 child: Text("No ${isResults ? 'results' : 'officials'} found."),
               );
             }
 
             final officials = snapshot.data!.docs;
-
             return _OfficialsPageView(
               officials: officials,
               isResults: isResults,
             );
           },
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 22), //hap between section 3 and section 2
       ],
     );
   }
@@ -724,46 +795,61 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              "Slates",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF404040),
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SlateListPage(electionId: electionId), 
-                ),
-              );
-              },
-              child: const Text(
-                "See all",
+
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "Slates",
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                   color: Color(0xFF404040),
-                  fontFamily: 'Geist',
                 ),
               ),
-            ),
-          ],
+
+              Padding(
+                padding:EdgeInsets.only(right: 4),
+                  child: GestureDetector( // see all na di okay per ok na, keyword purposes
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SlateListPage(electionId: electionId), 
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Color(0xFFEEEEEE),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "See all",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                        ),
+                    ),
+                  ),
+                ),
+              )
+            ],
+          ),
         ),
-        const SizedBox(height: 19),
-        // StreamBuilder for Slates
+        
+        const SizedBox(height: 13), //ayon gap ne see all and slates title sa image placeholder
         StreamBuilder<QuerySnapshot>(
           stream: _firebaseService.getSlatesStream(electionId),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               print("Error loading slates: ${snapshot.error}");
               return Container(
-                height: 200,
+                height: 180,
                 alignment: Alignment.center,
                 child: Text("Error: Could not load slates."),
               );
@@ -772,16 +858,14 @@ class _HomeScreenState extends State<HomeScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.data!.docs.isEmpty) {
-              // Hide section if no slates
               return const SizedBox.shrink();
             }
 
             final slates = snapshot.data!.docs;
-
             return Column(
               children: [
                 SizedBox(
-                  height: 200,
+                  height: 180,
                   child: Stack(
                     children: [
                       PageView.builder(
@@ -796,15 +880,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           final slate = slates[index].data() as Map<String, dynamic>;
                           final String name = slate['name'] ?? 'Unnamed Slate';
                           final String description = slate['slogan'] ?? 'No description.';
-
-                          // Set image for each slates
                           final String? filePath = slate['img'] as String?;
 
                           String? publicUrl;
                           if (filePath != null && filePath.isNotEmpty) {
                             try {
                               publicUrl = Supabase.instance.client.storage
-                                  .from('images') // supabase bucket name
+                                  .from('images')
                                   .getPublicUrl(filePath);
                             } catch (e) {
                               print('Error getting public URL: $e');
@@ -812,9 +894,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             }
                           }
                           
-                          // banner fallback
                           final String placeholderUrl = 'assets/account.svg';
-
                           final ImageProvider<Object> imageProvider =
                               (publicUrl != null)
                                   ? NetworkImage(publicUrl)
@@ -822,21 +902,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                       as ImageProvider<Object>;
 
                           return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            clipBehavior: Clip.antiAlias, // Clips the image
+                            clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
                               image: DecorationImage(
                                 image: imageProvider,
                                 fit: BoxFit.cover,
-                                // Handle image loading errors
                                 onError: (exception, stackTrace) {
                                   print('Error loading image: $exception');
                                 },
                               ),
                             ),
                             child: Container(
-                              // Gradient overlay for text readability
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   begin: Alignment.bottomCenter,
@@ -891,7 +968,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         },
                       ),
-                      // Dots for sliders
                       Positioned(
                         bottom: 12,
                         left: 0,
@@ -907,11 +983,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: index == _currentSlatesPage
-                                    ? Colors
-                                          .white // Active dot
-                                    : Colors.white.withOpacity(
-                                        0.5,
-                                      ), // Inactive dot
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.5),
                                 boxShadow: [
                                   BoxShadow(
                                     blurRadius: 2,
@@ -935,7 +1008,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Timer Build
   Widget _buildTimerSection(Duration timeLeft) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -979,7 +1051,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Each box inside the timer box
   Widget _buildTimeBox(String value, String label) {
     return Container(
       padding: const EdgeInsets.only(top: 7, bottom: 1),
@@ -1014,32 +1085,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Info card
   Widget _buildInfoCard(String title) {
     return Expanded(
       child: Container(
-        height: 97,
-        margin: const EdgeInsets.symmetric(horizontal: 6),
+        height: 87,
         decoration: BoxDecoration(
           color: Color(0xFF5C6AA0),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Color(0xFF354372)),
-          boxShadow: [
-            // Outer shadow
+          border: Border.all(
+            color: Color(0xFF354372),
+            width: 0.5,
+            ),
+          /*boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.15),
               blurRadius: 8,
               offset: const Offset(0, 4),
               spreadRadius: 0,
             ),
-            // Inner shadow
             BoxShadow(
               color: Colors.black.withOpacity(0.2),
               blurRadius: 4,
               offset: const Offset(0, 2),
               spreadRadius: -2,
             ),
-          ],
+          ],*/
         ),
         child: Center(
           child: Text(
@@ -1051,67 +1121,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // Not verified card, only shows if not field 'isVerified' == false
-  Widget _buildNotVerifiedWarningCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 30, left: 28, bottom: 30, right: 28),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF354372),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Account not Verified",
-            style: TextStyle(
-              color: Color(0xFFF8F8F8),
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Geist',
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            "It seems like your semester has ended,\nPlease re-verify your account",
-            style: TextStyle(
-              color: Color(0xFFD9D9D9),
-              fontSize: 14,
-              fontFamily: 'Geist',
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 47,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5C6AA0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () {
-                //TODO: Navigate to profile settings
-              },
-              child: const Text(
-                "Go to Profile settings",
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1128,7 +1137,6 @@ class _OfficialsPageView extends StatefulWidget {
   State<_OfficialsPageView> createState() => _OfficialsPageViewState();
 }
 
-// For each official's displayed item
 class _OfficialsPageViewState extends State<_OfficialsPageView> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
@@ -1144,7 +1152,7 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
     return Column(
       children: [
         SizedBox(
-          height: 200,
+          height: 180,
           child: Stack(
             children: [
               PageView.builder(
@@ -1152,7 +1160,6 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                 itemCount: widget.officials.length,
                 onPageChanged: (int page) {
                   setState(() {
-                    // Use local setState
                     _currentPage = page;
                   });
                 },
@@ -1160,34 +1167,30 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
                   final String name = officialDoc['name'] ?? 'Unknown';
                   final String position = officialDoc['position'] ?? 'Unknown';
-
-                  // Get the image URL from the document's 'img' field
                   final String? filePath = officialDoc['img'] as String?;
 
                   String? publicUrl;
                   if (filePath != null && filePath.isNotEmpty) {
                     try {
                       publicUrl = Supabase.instance.client.storage
-                          .from('images') // Supabase bucket name
-                          .getPublicUrl(filePath); // path from firestore 'img' field
+                          .from('images')
+                          .getPublicUrl(filePath);
                     } catch (e) {
                       print('Error getting public URL: $e');
-                      publicUrl = null; // null if there's an error
+                      publicUrl = null;
                     }
                   }
 
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                  return Container( // container nun elected and slates 
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (widget.isResults)
-                          // Winner badge
                           Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -1229,15 +1232,12 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                             ],
                           )
                         else
-                          // Display candidate image or placeholder
-                          CircleAvatar(
+                          CircleAvatar( //keyword:electedlayout
                             radius: 35,
                             backgroundColor: Colors.grey.shade300,
-                            // Use NetworkImage if imageUrl is valid
                             backgroundImage: (publicUrl != null)
                                 ? NetworkImage(publicUrl)
                                 : null,
-                            // Show placeholder icon if image is null or fails to load
                             child: (publicUrl == null)
                                 ? const Icon(
                                     Icons.person,
@@ -1247,7 +1247,7 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                                 : null,
                           ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 16), // loob ng layout ng elected official image place holder
                         Text(
                           name,
                           style: const TextStyle(
@@ -1269,7 +1269,6 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   );
                 },
               ),
-              // Dots overlay
               Positioned(
                 bottom: 12,
                 left: 0,
@@ -1279,14 +1278,14 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   children: List.generate(
                     widget.officials.length,
                     (index) => Container(
-                      width: 8,
-                      height: 8,
+                      width: 7,
+                      height: 7,
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: index == _currentPage
-                            ? const Color(0xFF354372) // Active dot
-                            : const Color(0xFFD9D9D9), // Inactive dot
+                            ? const Color(0xFF354372)
+                            : const Color(0xFFD9D9D9),
                       ),
                     ),
                   ),
