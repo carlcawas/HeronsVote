@@ -11,6 +11,7 @@ import 'package:flutter/gestures.dart';
 import 'registration_step3.dart';
 import 'registration_step4.dart';
 import 'registration_step5.dart';
+import 'registration_verified.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -420,6 +421,8 @@ class _LoginScreenState extends State<LoginScreen>
 
       // checks if registration is completed or all fields are filled
       // If true skip to home, else, continue with register
+
+
       if (registerComplete) {
         Navigator.pushReplacement(
           context,
@@ -457,6 +460,11 @@ class _LoginScreenState extends State<LoginScreen>
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => RegistrationStep5(uid: uid)),
+              );
+            case 4:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => RegistrationVerified(uid: uid)),
               );
             default:
               Navigator.push(

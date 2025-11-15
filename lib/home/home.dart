@@ -808,13 +808,22 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             GestureDetector(
               onTap: () {
-                //TODO: Navigate to officials
+                String defaultAffiliation = 'USC';
+                if (_userCollegeAbbreviation.isNotEmpty &&
+                    _userCollegeAbbreviation != '...' &&
+                    title.contains(_userCollegeAbbreviation)) {
+                  defaultAffiliation = _userCollegeAbbreviation;
+                }
+
                 Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ElectedOfficialsPage(uid: _userId),
-                ),
-              );
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ElectedOfficialsPage(
+                      uid: _userId,
+                      defaultAffiliation: defaultAffiliation,
+                    ),
+                  ),
+                );
               },
               child: const Text(
                 "See all",
@@ -1377,11 +1386,10 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                           CircleAvatar(
                             radius: 35,
                             backgroundColor: Colors.grey.shade300,
-                            // Use NetworkImage if imageUrl is valid
                             backgroundImage: (publicUrl != null)
                                 ? NetworkImage(publicUrl)
                                 : null,
-                            // Show placeholder icon if image is null or fails to load
+                            // If the URL is null, it shows the person icon instead
                             child: (publicUrl == null)
                                 ? const Icon(
                                     Icons.person,

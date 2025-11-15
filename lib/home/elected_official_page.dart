@@ -1,38 +1,123 @@
 import 'package:flutter/material.dart';
-import 'header.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/firebase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'header.dart';
+import '../services/firebase_service.dart';
 
 class ElectedOfficialsPage extends StatefulWidget {
   final String uid;
-  const ElectedOfficialsPage({super.key, required this.uid});
+  final String? defaultAffiliation; 
+
+  const ElectedOfficialsPage({
+    super.key,
+    required this.uid,
+    this.defaultAffiliation,
+  });
 
   @override
   State<ElectedOfficialsPage> createState() => _ElectedOfficialsPageState();
 }
 
 class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
-  String _selectedAffiliation = 'USC';
-
+  late String _selectedAffiliation; // <-- 3. REMOVE '= 'USC''
   late final FirebaseService _service = FirebaseService();
-  late final Stream<QuerySnapshot> _uscStream;
-  late final Stream<QuerySnapshot> _collegeStream;
-  late String _collegeId;
+  String? _collegeId;
+  String _collegeAbbreviation = '...';
   late final String _userId;
+
+  Stream<QuerySnapshot>? _uscDisplayStream;
+  Stream<QuerySnapshot>? _cscDisplayStream;
+
+  bool _isUscLoading = true;
+  bool _isCscLoading = true;
+  bool _uscHasNoResults = false;
+  bool _cscHasNoResults = false;
 
   @override
   void initState() {
     super.initState();
     _userId = widget.uid;
+
+
+    _selectedAffiliation = widget.defaultAffiliation ?? 'USC';
+
+    if (_selectedAffiliation != 'USC') {
+      _collegeAbbreviation = _selectedAffiliation;
+    }
+    _determineUscStream();
+
     FirebaseService().getUserStream(_userId).listen((userSnap) {
       final data = userSnap.data() as Map<String, dynamic>;
-      setState(() {
-        _collegeId = data['college_id'] ?? 'CCIS';
-        _collegeStream = _service.getCurrentOfficialsStream(_collegeId);
-      });
+      final newCollegeId = data['college_id'];
+
+      if (mounted) {
+        setState(() {
+          _collegeAbbreviation = newCollegeId ?? 'CSC';
+        });
+
+        if (newCollegeId != _collegeId) {
+          _collegeId = newCollegeId;
+
+          if (_collegeId != null) {
+            _determineCscStream(_collegeId!);
+          } else {
+            setState(() {
+              _isCscLoading = false;
+              _cscHasNoResults = true;
+            });
+          }
+        }
+        
+        if (_selectedAffiliation != 'USC') {
+          _selectedAffiliation = _collegeAbbreviation;
+        }
+      }
     });
-    _uscStream = _service.getUniversityOfficialsStream();
+  }
+
+  /// Finds the latest USC election and sets the stream or no-results flag.
+  void _determineUscStream() async {
+    final electionQuery = await _service.getLatestUniversityElection().first;
+    if (!mounted) return;
+
+    if (electionQuery.docs.isNotEmpty) {
+      final String electionId = electionQuery.docs.first.id;
+      setState(() {
+        _uscDisplayStream = _service.getElectionResultsStream(electionId);
+        _isUscLoading = false;
+        _uscHasNoResults = false;
+      });
+    } else {
+      // No USC election found
+      setState(() {
+        _isUscLoading = false;
+        _uscHasNoResults = true;
+      });
+    }
+  }
+
+  /// Finds the latest CSC election OR its fallback, then sets the stream.
+  void _determineCscStream(String collegeId) async {
+    setState(() {
+      _isCscLoading = true;
+      _cscHasNoResults = false;
+    });
+
+    final electionQuery = await _service.getRecentlyEndedCollegeElection(collegeId).first;
+    if (!mounted) return;
+
+    if (electionQuery.docs.isNotEmpty) {
+      final String electionId = electionQuery.docs.first.id;
+      setState(() {
+        _cscDisplayStream = _service.getElectionResultsStream(electionId);
+        _isCscLoading = false;
+      });
+    } else {
+      setState(() {
+        _cscDisplayStream = _service.getCurrentOfficialsStream(collegeId);
+        _isCscLoading = false;
+      });
+    }
   }
 
   @override
@@ -48,7 +133,12 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
               onBack: () => Navigator.pop(context),
             ),
             _buildAffiliationFilter(),
-            Expanded(child: _buildOfficialsList()),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _buildOfficialsList(),
+              ),
+            ),
           ],
         ),
       ),
@@ -57,7 +147,8 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
 
   //filter ng usc or ccis
   Widget _buildAffiliationFilter() {
-    const affiliations = ['USC', 'CCIS'];
+    final affiliations = ['USC', _collegeAbbreviation];
+
     return Padding(
       padding: const EdgeInsets.only(top: 22, left: 25, right: 25),
       child: Container(
@@ -70,14 +161,18 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
         child: Row(
           children: affiliations.map((aff) {
             final isSelected = aff == _selectedAffiliation;
+            final bool isDisabled = aff == '...';
+
             return Expanded(
               child: GestureDetector(
-                onTap: () => setState(() => _selectedAffiliation = aff),
+                onTap: isDisabled
+                    ? null
+                    : () => setState(() => _selectedAffiliation = aff),
                 child: Container(
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF5C6AA0)
+                        ? (isDisabled ? Colors.grey : const Color(0xFF5C6AA0))
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(11),
                   ),
@@ -86,7 +181,9 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
                     style: TextStyle(
                       color: isSelected
                           ? const Color(0xFFECECEC)
-                          : const Color(0xFF404040),
+                          : (isDisabled
+                              ? Colors.grey[400]
+                              : const Color(0xFF404040)),
                       fontWeight:
                           isSelected ? FontWeight.w700 : FontWeight.w500,
                       fontFamily: 'Geist',
@@ -103,8 +200,55 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   }
 
   Widget _buildOfficialsList() {
-    final stream = _selectedAffiliation == 'USC' ? _uscStream : _collegeStream;
+    if (_selectedAffiliation == 'USC') {
+      // Show USC List
+      if (_isUscLoading) {
+        return const Center(
+            key: ValueKey('usc_loading'), child: CircularProgressIndicator());
+      }
+      if (_uscHasNoResults) {
+        return const Center(
+            key: ValueKey('usc_no_results'),
+            child: Text('No election results found.'));
+      }
+      return _OfficialsListBuilder(
+        key: const ValueKey('usc_list'),
+        stream: _uscDisplayStream!,
+        affiliation: 'USC',
+      );
+    } else {
+      // Show CSC List
+      if (_isCscLoading) {
+        return const Center(
+            key: ValueKey('csc_loading'), child: CircularProgressIndicator());
+      }
+      if (_cscHasNoResults) {
+        return const Center(
+            key: ValueKey('csc_no_results'),
+            child: Text('No officials found for your college.'));
+      }
+      return _OfficialsListBuilder(
+        key: const ValueKey('csc_list'),
+        stream: _cscDisplayStream!,
+        affiliation: _collegeAbbreviation,
+      );
+    }
+  }
+}
 
+/// displays the list of current officials
+class _OfficialsListBuilder extends StatelessWidget {
+  final Stream<QuerySnapshot> stream;
+  final String affiliation;
+
+  const _OfficialsListBuilder({
+    super.key,
+    required this.stream,
+    required this.affiliation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
       builder: (context, snap) {
@@ -116,12 +260,11 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
         }
 
         final officials = snap.data!.docs
-            .map((doc) =>
-                Official.fromFirestore(doc, _selectedAffiliation))
+            .map((doc) => Official.fromFirestore(doc, affiliation))
             .toList();
 
         if (officials.isEmpty) {
-          return const Center(child: Text('No officials found'));
+          return const Center(child: Text('No officials found.'));
         }
 
         return ListView.builder(
@@ -137,7 +280,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
 // OfficialListItem
 class OfficialListItem extends StatelessWidget {
   final Official official;
-  const OfficialListItem({Key? key, required this.official}): super(key: key);
+  const OfficialListItem({Key? key, required this.official}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +295,7 @@ class OfficialListItem extends StatelessWidget {
         ),
         child: Row(
           children: [
+
             // Official's image
             Container(
               width: 100,
@@ -233,14 +377,15 @@ class OfficialListItem extends StatelessWidget {
   }
 }
 
+// Official class
 class Official {
   final String id;
   final String name;
   final String position;
   final String party;
-  final String details; // course + year
-  final String? imgPath; // Supabase path
-  final String affiliation; // 'USC' or college abbreviation
+  final String details; 
+  final String? imgPath;
+  final String affiliation;
 
   Official({
     required this.id,
@@ -252,15 +397,30 @@ class Official {
     required this.affiliation,
   });
 
-  factory Official.fromFirestore(
-      DocumentSnapshot doc, String affiliation) {
+  factory Official.fromFirestore(DocumentSnapshot doc, String affiliation) {
     final data = doc.data() as Map<String, dynamic>;
+
+    final college = data['college'];
+    final year = data['year'];
+
+    String fullDetails;
+
+    if (college != null && year != null) {
+      fullDetails = '$college - $year Year';
+    } else if (college != null) {
+      fullDetails = college.toString();
+    } else if (year != null) {
+      fullDetails = '$year Year';
+    } else {
+      fullDetails = data['details'] ?? 'No Details';
+    }
+
     return Official(
       id: doc.id,
       name: data['name'] ?? 'Unknown',
       position: data['position'] ?? 'Unknown',
-      party: data['party'] ?? 'No Party [Elected Officials]',
-      details: data['details'] ?? 'No Details [Elected Officials]',
+      party: data['party'] ?? 'No Party',
+      details: fullDetails,
       imgPath: data['img'],
       affiliation: affiliation,
     );
