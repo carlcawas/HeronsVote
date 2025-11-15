@@ -27,7 +27,7 @@ class _ExpandableSectionState extends State<ExpandableSection> {
     final screenWidth = MediaQuery.of(context).size.width;
     final availableWidth = screenWidth - (25 * 2);
 
-    return Container(
+    return Container( //collapsible card i2
       width: availableWidth,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       margin: const EdgeInsets.only(bottom: 22),
@@ -143,8 +143,8 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
             child: SingleChildScrollView(
               padding: EdgeInsets.only(
                 top: topPadding + 102,
-                left: 25,
-                right: 25,
+                left: 24,
+                right: 24,
                 bottom: 22,
               ),
               child: Column(
@@ -153,7 +153,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
                   Container(
                     height: 344,
                     width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 20),
+                    margin: const EdgeInsets.only(bottom: 22),
                     decoration: BoxDecoration(
                       color: const Color(0xFFD9D9D9),
                       borderRadius: BorderRadius.circular(20),

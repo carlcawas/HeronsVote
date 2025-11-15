@@ -58,8 +58,23 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   //filter ng usc or ccis
   Widget _buildAffiliationFilter() {
     const affiliations = ['USC', 'CCIS'];
+
+    // Define text styles for clarity
+    const selectedStyle = TextStyle(
+      color: Color(0xFFECECEC),
+      fontWeight: FontWeight.w700,
+      fontFamily: 'Geist',
+      fontSize: 14,
+    );
+    const unselectedStyle = TextStyle(
+      color: Color(0xFF404040),
+      fontWeight: FontWeight.w500,
+      fontFamily: 'Geist',
+      fontSize: 14,
+    );
+
     return Padding(
-      padding: const EdgeInsets.only(top: 22, left: 25, right: 25),
+      padding: const EdgeInsets.only(top: 12, left: 24, right: 24),
       child: Container(
         height: 36,
         decoration: BoxDecoration(
@@ -67,36 +82,48 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
           borderRadius: BorderRadius.circular(15),
         ),
         padding: const EdgeInsets.all(4),
-        child: Row(
-          children: affiliations.map((aff) {
-            final isSelected = aff == _selectedAffiliation;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedAffiliation = aff),
+        child: Stack(
+          children: [
+            // Layer 1: The sliding background
+            AnimatedAlign(
+              alignment: _selectedAffiliation == 'USC'
+                  ? Alignment.centerLeft
+                  : Alignment.centerRight,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: FractionallySizedBox(
+                widthFactor: 0.5, // 2 items, so 50% width
                 child: Container(
-                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF5C6AA0)
-                        : Colors.transparent,
+                    color: const Color(0xFF5C6AA0),
                     borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Text(
-                    aff,
-                    style: TextStyle(
-                      color: isSelected
-                          ? const Color(0xFFECECEC)
-                          : const Color(0xFF404040),
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
-                      fontFamily: 'Geist',
-                      fontSize: 14,
-                    ),
                   ),
                 ),
               ),
-            );
-          }).toList(),
+            ),
+
+            // Layer 2: The text and tap handlers
+            Row(
+              children: affiliations.map((aff) {
+                final isSelected = aff == _selectedAffiliation;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedAffiliation = aff),
+                    child: Container(
+                      // Make the container transparent so the tap area
+                      // is the full expanded width, but background is clear
+                      color: Colors.transparent,
+                      alignment: Alignment.center,
+                      child: Text(
+                        aff,
+                        style: isSelected ? selectedStyle : unselectedStyle,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
       ),
     );
@@ -105,31 +132,43 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   Widget _buildOfficialsList() {
     final stream = _selectedAffiliation == 'USC' ? _uscStream : _collegeStream;
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: stream,
-      builder: (context, snap) {
-        if (snap.hasError) {
-          return Center(child: Text('Error loading officials'));
-        }
-        if (!snap.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final officials = snap.data!.docs
-            .map((doc) =>
-                Official.fromFirestore(doc, _selectedAffiliation))
-            .toList();
-
-        if (officials.isEmpty) {
-          return const Center(child: Text('No officials found'));
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 22),
-          itemCount: officials.length,
-          itemBuilder: (_, i) => OfficialListItem(official: officials[i]),
-        );
+    // Wrap the StreamBuilder in an AnimatedSwitcher
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      // Define the transition (fade)
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return FadeTransition(opacity: animation, child: child);
       },
+      child: StreamBuilder<QuerySnapshot>(
+        // *** KEY CHANGE ***
+        // Add a unique key based on the selection.
+        // This tells the AnimatedSwitcher that the child has changed.
+        key: ValueKey<String>(_selectedAffiliation),
+        stream: stream,
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(child: Text('Error loading officials'));
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final officials = snap.data!.docs
+              .map((doc) =>
+                  Official.fromFirestore(doc, _selectedAffiliation))
+              .toList();
+
+          if (officials.isEmpty) {
+            return const Center(child: Text('No officials found'));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 22),
+            itemCount: officials.length,
+            itemBuilder: (_, i) => OfficialListItem(official: officials[i]),
+          );
+        },
+      ),
     );
   }
 }
@@ -145,7 +184,7 @@ class OfficialListItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         height: 114,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: const Color(0xFFF7F7F7),
           borderRadius: BorderRadius.circular(20),
@@ -170,7 +209,7 @@ class OfficialListItem extends StatelessWidget {
                     : null,
               ),
             ),
-            const SizedBox(width: 15),
+            const SizedBox(width: 14), //will adjust sa figma
 
             // Official's details
             Expanded(
@@ -259,8 +298,8 @@ class Official {
       id: doc.id,
       name: data['name'] ?? 'Unknown',
       position: data['position'] ?? 'Unknown',
-      party: data['party'] ?? 'No Party [Elected Officials]',
-      details: data['details'] ?? 'No Details [Elected Officials]',
+      party: data['party'] ?? 'No Party',
+      details: data['details'] ?? 'No Details',
       imgPath: data['img'],
       affiliation: affiliation,
     );
