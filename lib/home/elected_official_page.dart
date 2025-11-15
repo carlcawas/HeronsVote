@@ -6,7 +6,7 @@ import '../services/firebase_service.dart';
 
 class ElectedOfficialsPage extends StatefulWidget {
   final String uid;
-  final String? defaultAffiliation; // Accepts the default tab to show
+  final String? defaultAffiliation;
 
   const ElectedOfficialsPage({
     super.key,
@@ -47,10 +47,8 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
       _collegeAbbreviation = _selectedAffiliation;
     }
 
-    // 1. Kick off the USC stream logic immediately
     _determineUscStream();
 
-    // 2. Listen for the user's college_id to load
     FirebaseService().getUserStream(_userId).listen((userSnap) {
       final data = userSnap.data() as Map<String, dynamic>;
       final newCollegeId = data['college_id'];
@@ -66,7 +64,6 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
           _collegeId = newCollegeId;
 
           if (_collegeId != null) {
-            // 3. Kick off the CSC stream logic now
             _determineCscStream(_collegeId!);
           } else {
             // Handle case where user has no college_id
@@ -87,7 +84,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     });
   }
 
-  /// Finds the latest USC election and sets the stream or no-results flag.
+  // Finds the latest USC election and sets the stream or no-results flag.
   void _determineUscStream() async {
     final electionQuery = await _service.getLatestUniversityElection().first;
     if (!mounted) return;
@@ -108,7 +105,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     }
   }
 
-  /// Finds the latest CSC election OR its fallback, then sets the stream.
+  // Finds the latest CSC election OR its fallback, then sets the stream.
   void _determineCscStream(String collegeId) async {
     setState(() {
       _isCscLoading = true;
@@ -163,8 +160,6 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     );
   }
 
-  /// This is the filter from Version 1, but updated with
-  /// the dynamic affiliation logic from Version 2.
   Widget _buildAffiliationFilter() {
     final affiliations = ['USC', _collegeAbbreviation];
 
@@ -245,12 +240,10 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     );
   }
 
-  /// This is the list-switching logic from Version 2.
-  /// It selects the pre-loaded stream to display.
+  // selects the pre-loaded stream to display.
   Widget _buildOfficialsList() {
-    // Use a key to help the AnimatedSwitcher differentiate the two lists
     if (_selectedAffiliation == 'USC') {
-      // --- Show USC List ---
+      // Show USC List
       if (_isUscLoading) {
         return const Center(
             key: ValueKey('usc_loading'), child: CircularProgressIndicator());
@@ -266,7 +259,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
         affiliation: 'USC',
       );
     } else {
-      // --- Show CSC List ---
+      // Show CSC List
       if (_isCscLoading) {
         return const Center(
             key: ValueKey('csc_loading'), child: CircularProgressIndicator());
@@ -285,7 +278,7 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
   }
 }
 
-/// This widget just builds the ListView from a given stream.
+// builds the ListView from a given stream.
 class _OfficialsListBuilder extends StatelessWidget {
   final Stream<QuerySnapshot> stream;
   final String affiliation;
@@ -305,8 +298,6 @@ class _OfficialsListBuilder extends StatelessWidget {
           return Center(child: Text('Error loading officials'));
         }
         if (!snap.hasData) {
-          // This shows a brief spinner as the pre-loaded stream
-          // gets its first batch of data.
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -427,7 +418,7 @@ class OfficialListItem extends StatelessWidget {
   }
 }
 
-// Official class (using the V2 factory)
+// Official class
 class Official {
   final String id;
   final String name;
@@ -455,7 +446,6 @@ class Official {
 
     String fullDetails;
 
-    // This is the improved factory logic from V2
     if (college != null && year != null) {
       fullDetails = '$college - $year Year';
     } else if (college != null) {

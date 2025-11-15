@@ -197,6 +197,17 @@ class FirebaseService {
         .snapshots();
   }
 
+  /// Gets a stream of the single latest college election (ongoing or ended).
+  Stream<QuerySnapshot> getLatestCollegeElection(String collegeId) {
+    return _firestore
+        .collection('elections')
+        .where('type', isEqualTo: 'college')
+        .where('college_id', isEqualTo: collegeId)
+        .orderBy('end', descending: true)
+        .limit(1)
+        .snapshots();
+  }
+
   /// Get img of an official from college
   Future<String?> getOfficialImage(String collegeId, String officialId) async {
     try {
