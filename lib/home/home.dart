@@ -7,7 +7,7 @@ import 'home_body.dart';
 import 'candidates_view_body.dart';
 
 // TODO: Import your Voting and Results pages
-import'';
+import'voting_body.dart';
 import'';
 
 // Import pages for the action buttons
@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // This is the Firebase service to get user data
   final FirebaseService _firebaseService = FirebaseService();
+  
 
   @override
   void initState() {
@@ -53,14 +54,13 @@ class _HomeScreenState extends State<HomeScreen> {
       CandidatesViewBody(uid: widget.uid),
 
       // TODO: Replace with VotingPage(uid: uid)
-      Container(color: Colors.red, child: Center(child: Text("Voting Page"))),
+      VotingHomePage(uid: widget.uid),
 
       // TODO: Replace with ResultsPage(uid: uid)
       Container(color: Colors.blue[100], child: Center(child: Text("Results Page"))),
     ];
   }
 
-  // This function will be called when a tab is tapped
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
