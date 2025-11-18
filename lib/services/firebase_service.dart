@@ -274,4 +274,22 @@ class FirebaseService {
       .doc('read_announcements')
       .snapshots();
   }
+
+  /// Get a live stream of ALL proposals --- can add .where('ongoing', isEqualTo: true)
+  Stream<QuerySnapshot> getAllProposalsStream() {
+    return _firestore
+        .collection('proposals')
+        //.where('ongoing', isEqualTo: true)
+        .orderBy('start', descending: true)
+        .snapshots();
+  }
+
+  /// Get a live stream of candidates filtered by their position/role.
+  Stream<QuerySnapshot> getCandidatesByPositionStream(String positionTitle) {
+    return _firestore
+        .collection('candidates')
+        .where('position', isEqualTo: positionTitle)
+        .orderBy('slate') // Optional: Group candidates by their slate
+        .snapshots();
+  }
 }

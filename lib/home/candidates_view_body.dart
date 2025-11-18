@@ -4,6 +4,10 @@ import 'sample_data.dart';
 import 'announcement.dart';
 import 'candidate_list.dart';
 import 'propoasl_view.dart';
+import '../services/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+/// This is the screen for Candidates' fragment
 
 enum ContentView { candidates, proposals }
 
@@ -154,15 +158,48 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
     );
   }
 
-  //builder proposal
-  // --- 4. ADDED Key PARAMETER ---
+  // builder proposal
   Widget _buildProposalsList({Key? key}) {
-    return ListView.builder(
-      key: key, // Pass the key to the ListView
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
-      itemCount: placeholderProposals.length,
-      itemBuilder: (context, index) {
-        return ProposalListItem(proposal: placeholderProposals[index]);
+    return StreamBuilder<QuerySnapshot>(
+      key: key,
+      stream: FirebaseService().getAllProposalsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text("Error loading proposals"));
+        }
+        
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // if no proposals
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(child: Text("No proposals available"));
+        }
+
+        // list builder
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            // Get the document data
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+
+            // Map Firestore data to Proposal obj. Check sample_data.dart/class Proposal 
+            final proposal = Proposal(
+              id: doc.id, 
+              title: data['name'] ?? 'Untitled Proposal',
+              summary: data['summary'] ?? 'No summary available.',
+              rationale: data['rationale'] ?? 'No rationale available.',
+              comparison: data['comparison'] ?? 'No comparison available.',
+              resources: data['resources'] ?? 'No resources available.',
+            );
+
+            return ProposalListItem(proposal: proposal);
+          },
+        );
       },
     );
   }
@@ -186,8 +223,7 @@ class PositionListItem extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) => CandidateListPage(
-                  positionTitle: position.title,
-                  allSlates: placeholderSlates),
+                  positionTitle: position.title,),
             ),
           );
         },

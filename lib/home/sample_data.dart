@@ -11,7 +11,8 @@ class Candidate {
   final String partylist;
   final String advocacy;
   final String platform;
-
+  final String? img;
+  
   Candidate({
     required this.name,
     required this.role,
@@ -22,6 +23,7 @@ class Candidate {
     required this.partylist,
     required this.advocacy,
     required this.platform,
+    this.img,
   });
 }
 
@@ -40,6 +42,7 @@ class Slate {
   });
 }
 
+/*
 final List<Slate> placeholderSlates = [
   Slate(
     name: 'The Loremlpsum Partylist',
@@ -194,6 +197,7 @@ final List<Slate> placeholderSlates = [
     ],
   ),
 ];
+*/
 
 class Official {
   final String position;
@@ -211,7 +215,7 @@ class Official {
   });
 }
 
-//offisyalz
+/* offisyalz
 final List<Official> placeholderOfficials = [
   Official(
     position: 'President',
@@ -257,15 +261,18 @@ final List<Official> placeholderOfficials = [
     affiliation: 'CCIS',
   ),
 ];
+*/
 
+// Position model
 class Position {
   final String title;
   final String path;
   Position({required this.title, required this.path});
 }
 
-// CORRECTED Proposal class
+// Proposal class
 class Proposal {
+  final String id;
   final String title;
   final String? summary;
   final String? rationale;
@@ -274,6 +281,7 @@ class Proposal {
   final String? path; // Added path for navigation if needed
 
   Proposal({
+    required this.id,
     required this.title,
     this.summary,
     this.rationale,
@@ -282,6 +290,8 @@ class Proposal {
     this.path,
   });
 }
+
+/* COMMENT KO SINCE REPLACED NA BY ACTUAL DATA
 
 final List<Proposal> placeholderProposals = [
   Proposal(
@@ -314,6 +324,7 @@ final List<Proposal> placeholderProposals = [
     resources: 'Review committee: Student Affairs Office\nTimeline: 6 months',
   ),
 ];
+*/
 
 final List<Position> placeholderPositions = [
   Position(title: 'Chairperson', path: 'chairperson_id'),

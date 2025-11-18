@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'sample_data.dart';
 import 'header.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Expandable Section Widget
 class ExpandableSection extends StatefulWidget {
@@ -154,9 +155,12 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
                     height: 344,
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 22),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD9D9D9),
-                      borderRadius: BorderRadius.circular(20),
+                    child: _buildSupabaseImageWidget(
+                      filePath: widget.candidate.img,
+                      width: double.infinity,
+                      height: 344,
+                      borderRadius: 20,
+                      iconSize: 100,
                     ),
                   ),
 
@@ -416,4 +420,62 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
       ),
     );
   }
+}
+
+Widget _buildSupabaseImageWidget({
+  required String? filePath,
+  required double width,
+  required double height,
+  required double borderRadius,
+  double iconSize = 50,
+}) {
+  String? publicUrl;
+  if (filePath != null && filePath.isNotEmpty) {
+    try {
+      publicUrl = Supabase.instance.client.storage
+          .from('images') // bucket name
+          .getPublicUrl(filePath);
+    } catch (e) {
+      print('Supabase URL generation error: $e');
+      publicUrl = null;
+    }
+  }
+  Widget content = publicUrl != null
+      ? Image.network(
+          publicUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Center(
+              child: Icon(
+                Icons.person,
+                size: iconSize,
+                color: Colors.grey,
+              ),
+            );
+          },
+        )
+      : Center(
+          child: Icon(
+            Icons.person,
+            size: iconSize,
+            color: Colors.grey,
+          ),
+        );
+
+  return Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: const Color(0xFFD9D9D9),
+      borderRadius: BorderRadius.circular(borderRadius),
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: content,
+    ),
+  );
 }
