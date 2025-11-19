@@ -1,4 +1,5 @@
 import 'sample_data.dart';
+
 class VotedCandidate {
   final String name;
   final String details;

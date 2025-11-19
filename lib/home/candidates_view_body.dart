@@ -19,7 +19,10 @@ class CandidatesViewBody extends StatefulWidget {
   State<CandidatesViewBody> createState() => _CandidatesViewBodyState();
 }
 
+
+
 class _CandidatesViewBodyState extends State<CandidatesViewBody> {
+  
   ContentView _selectedView = ContentView.candidates;
 
   @override
@@ -153,7 +156,7 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
       itemCount: placeholderPositions.length,
       itemBuilder: (context, index) {
-        return PositionListItem(position: placeholderPositions[index]);
+        return PositionListItem(position: placeholderPositions[index], uid: widget.uid);
       },
     );
   }
@@ -209,7 +212,8 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
 class PositionListItem extends StatelessWidget {
   final Position position;
   final VoidCallback? onTap;
-  const PositionListItem({super.key, required this.position, this.onTap});
+  final String uid;
+  const PositionListItem({super.key, required this.position, required this.uid, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -223,7 +227,9 @@ class PositionListItem extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (context) => CandidateListPage(
-                  positionTitle: position.title,),
+                  positionTitle: position.title,
+                  uid: uid,
+                  ),
             ),
           );
         },

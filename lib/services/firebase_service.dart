@@ -285,11 +285,12 @@ class FirebaseService {
   }
 
   /// Get a live stream of candidates filtered by their position/role.
-  Stream<QuerySnapshot> getCandidatesByPositionStream(String positionTitle) {
+  Stream<QuerySnapshot> getCandidatesByPositionStream(String positionTitle, String collegeId) {
     return _firestore
         .collection('candidates')
         .where('position', isEqualTo: positionTitle)
         .orderBy('slate') // Optional: Group candidates by their slate
+        .where('college_id', isEqualTo: collegeId)
         .snapshots();
   }
 }

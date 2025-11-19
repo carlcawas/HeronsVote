@@ -8,20 +8,41 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CandidateListPage extends StatelessWidget {
   final String positionTitle;
+  final String uid;
 
   const CandidateListPage({
     super.key,
     required this.positionTitle,
+    required this.uid,
   });
+
+  Future<String> _getUserId(BuildContext context) async {
+    String collegeId = "";
+    final FirebaseService firebaseService = FirebaseService();
+    final userData = await firebaseService.getDocument('users', uid);
+    if (userData != null) {
+      collegeId = userData['college_id'];
+    }
+    return collegeId;
+  }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: _getUserId(context),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final userCollegeId = userSnapshot.data ?? "";
     return ReusableListPage(
       title: positionTitle,
       onBack: () => Navigator.pop(context),
       items: [
         StreamBuilder<QuerySnapshot>(
-          stream: FirebaseService().getCandidatesByPositionStream(positionTitle),
+          stream: FirebaseService().getCandidatesByPositionStream(positionTitle, userCollegeId),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -95,6 +116,7 @@ class CandidateListPage extends StatelessWidget {
       ],
       emptyMessage: 'No candidates found for this position',
     );
+      },);
   }
 }
 
