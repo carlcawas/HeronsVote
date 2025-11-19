@@ -582,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildActiveItemsSliderCard(List<Map<String, dynamic>> items) {
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return Container(
+    return SizedBox(
       height: 220,
       width: double.infinity,
       child: Stack(

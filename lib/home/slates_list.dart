@@ -8,19 +8,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SlateListPage extends StatelessWidget {
   final String electionId;
-  const SlateListPage({Key? key, required this.electionId}) : super(key: key);
+  const SlateListPage({super.key, required this.electionId});
 
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    final FirebaseService _service = FirebaseService();
+    final FirebaseService service = FirebaseService();
     
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
           StreamBuilder<QuerySnapshot>(
-            stream: _service.getSlatesStream(electionId),
+            stream: service.getSlatesStream(electionId),
             builder: (context, snap) {
               if (snap.hasError) {
                 return Center(child: Text('Error loading slates'));
@@ -102,10 +102,10 @@ class SlateListItem extends StatelessWidget {
   final VoidCallback onTap;
 
   const SlateListItem({
-    Key? key,
+    super.key,
     required this.slate,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

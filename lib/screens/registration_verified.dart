@@ -76,10 +76,19 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
         bottom: false,
         child: Column(
           children: [
-            const SizedBox(height: 50),
-            const SizedBox(height: 50),
-            const StepProgressIndicator(currentStep: 4), 
-            const SizedBox(height: 20),
+            const SizedBox(height:0),
+            const SizedBox(height: 72),
+
+            const Center(
+              child: Hero(
+                tag: 'HeroStepProgressIndicator', 
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: StepProgressIndicator(currentStep: 4)),  
+              )
+            ),
+
+            const SizedBox(height: 0),
             Expanded(
               child: SlideTransition(
                 position: _contentSlide,
@@ -107,14 +116,33 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                       child: Text.rich(
                         TextSpan(
                           children: [
+
                             TextSpan(
-                              text: "Verified",
+                              text: "Registration ",
                               style: TextStyle(
-                                color: const Color(0xFF414141),
+                                color: Color(0xFF404040),
                                 fontSize: 24,
                                 fontFamily: 'Geist',
                               ),
                             ),
+                            TextSpan(
+                              text: "successful.",
+                              style: TextStyle(
+                                color: Color(0xFF404040),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 24,
+                                fontFamily: 'Geist',
+                              ),
+                            ),
+                            TextSpan(
+                              text: "\nYou are now logged in.",
+                              style: TextStyle(
+                                color: Color(0xFF404040),
+                                fontSize: 24,
+                                fontFamily: 'Geist',
+                              ),
+                            ),
+
                           ],
                         ),
                         textAlign: TextAlign.center,
@@ -145,7 +173,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const SizedBox(height: 0),
-                    Center(
+                    /*Center(
                       child: Text.rich(
                         TextSpan(
                           children: [
@@ -179,7 +207,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
                         textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 0),*/
                     GestureDetector(
                       onTap: () {
                         Navigator.pushAndRemoveUntil(
@@ -232,87 +260,128 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
   }
 }
 
-// Steps
+//progress step indicator
 class StepProgressIndicator extends StatelessWidget {
   final int currentStep;
-  const StepProgressIndicator({super.key, required this.currentStep});
+  final int totalSteps;
+
+  const StepProgressIndicator({
+    super.key,
+    required this.currentStep,
+    this.totalSteps = 4,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const activeColor = Color(0xFF354372);
-    const inactiveColor = Color(0xFFD9D9D9);
-    const lineActiveColor = Color(0xFF273E58);
+    // SIZES
+    const double innerCircleSize = 32.0;
+    const double gapSize = 4.0; 
+    const double outerCircleSize = innerCircleSize + (gapSize * 2); // 40.0 px
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(4, (index) {
-        final isActive = index + 1 <= currentStep;
-        final isLast = index == 3;
+    const Color activeColor = Color(0xFF354372);
+    const Color inactiveColor = Color(0xFFD6DAE5);
+    const Color checkIconColor = Colors.white;
 
-        return Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: isActive ? activeColor : inactiveColor,
-                border: Border.all(color: inactiveColor, width: 4),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    color: isActive ? Colors.white : Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    fontFamily: 'Geist',
+    // Calculate the total number of gaps (e.g., 4 steps = 3 gaps)
+    int totalIntervals = totalSteps - 1;
+    
+    // Calculate current progress
+    double progressValue;
+    if (currentStep >= totalSteps) {
+      // If last step, fill line completely
+      progressValue = 1.0; 
+    } else {
+      // Otherwise, fill to current step PLUS half of the next gap (+ 0.5)
+      progressValue = ((currentStep - 1) + 0.5) / totalIntervals;
+    }
+
+    return SizedBox(
+      width: 254,
+      height: outerCircleSize, 
+      child: Stack(
+        children: [
+          // LAYER 1: The Outer Containers (Bottom)
+          // These sit BEHIND the line.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(totalSteps, (index) {
+               return Container(
+                 width: outerCircleSize,
+                 height: outerCircleSize,
+                 decoration: const BoxDecoration(
+                   color: inactiveColor, // outer circle color
+                   shape: BoxShape.circle,
+                 ),
+               );
+            }),
+          ),
+
+          // LAYER 2: The Continuous Line (Middle)
+          // This sits ON TOP of Layer 1, so it is not erased.
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: outerCircleSize / 2),
+            child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(1),
+                child: Container( // <-- Add Container for the border
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: inactiveColor, //border color
+                      width: 2.0,
+                    ),
+                  ),
+                  child: LinearProgressIndicator(
+                    value: progressValue,
+                    backgroundColor: inactiveColor,
+                    valueColor: const AlwaysStoppedAnimation<Color>(activeColor),
+                    minHeight: 2,
                   ),
                 ),
               ),
             ),
-            if (!isLast)
-              SizedBox(
-                width: 40, // Keep the original line width for spacing
-                height: 7 + (2 * 2), // Total height including potential border
-                child: Stack(
-                  alignment: Alignment.centerLeft, // Align active line to the left
-                  children: [
-                    // --- Background (Inactive Line) ---
-                    Container(
-                      width: 40,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300], // Inactive fill color
-                        border: Border.all(color: Color(0xFFD9D9D9), width: 2),
-                        // Optional: Add border radius if you want rounded ends
-                        // borderRadius: BorderRadius.circular(3.5), 
-                      ),
-                    ),
-                    // --- Foreground (Active Line - Animated Width) ---
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: (index + 1 == currentStep) 
-                             ? 40 / 2 // Half width if this is the *current* step
-                             : (index + 1 < currentStep) 
-                               ? 40 // Full width if this step is *already passed*
-                               : 0, // Zero width if it's a future step
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: lineActiveColor, // Active fill color
-                        border: Border.all(color: Color(0xFFD9D9D9), width: 2), // Keep border consistent
-                         // Optional: Add border radius if you want rounded ends
-                        // borderRadius: BorderRadius.circular(3.5), 
-                      ),
-                    ),
-                  ],
-                ),
-              ), // End of Line SizedBox/Stack
+          ),
 
-          ], // End of inner Row children
-        ); // End of inner Row
-      }), // End of List.generate
-    ); // End of outer Row
+          // LAYER 3: The Inner Circles (Top)
+          // This sits ON TOP of the Line.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(totalSteps, (index) {
+              int stepNumber = index + 1;
+              bool isCompleted = stepNumber < currentStep;
+              bool isActive = stepNumber == currentStep;
+
+              return SizedBox(
+                width: outerCircleSize,
+                height: outerCircleSize,
+                child: Center(
+                  child: Container(
+                    width: innerCircleSize,
+                    height: innerCircleSize,
+                    decoration: BoxDecoration(
+                      color: (isActive || isCompleted) ? activeColor : inactiveColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: isCompleted
+                          ? const Icon(Icons.check, size: 12, color: checkIconColor)
+                          : Text(
+                              '$stepNumber',
+                              style: TextStyle(
+                                color: (isActive) ? Colors.white : const Color(0xFF404040),
+                                fontWeight: FontWeight.w100,
+                                fontSize: 14,
+                                fontFamily: 'Geist',
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
   }
 }

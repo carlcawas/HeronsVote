@@ -125,7 +125,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    String truncatedName = widget.candidate.name.split(' ').take(2).join(' ') + '...';
+    String truncatedName = '${widget.candidate.name.split(' ').take(2).join(' ')}...';
 
     final screenWidth = MediaQuery.of(context).size.width;
     final availableWidth = screenWidth - (25 * 2);

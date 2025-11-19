@@ -322,7 +322,7 @@ class _OfficialsListBuilder extends StatelessWidget {
 // OfficialListItem
 class OfficialListItem extends StatelessWidget {
   final Official official;
-  const OfficialListItem({Key? key, required this.official}) : super(key: key);
+  const OfficialListItem({super.key, required this.official});
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +401,7 @@ class OfficialListItem extends StatelessWidget {
               width: 40,
               decoration: const BoxDecoration(
                 color: Color(0xFF5C6AA0),
-                borderRadius: const BorderRadius.all(Radius.circular(16)),
+                borderRadius: BorderRadius.all(Radius.circular(16)),
               ),
               child: const Center(
                 child: Icon(
