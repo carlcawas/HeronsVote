@@ -253,26 +253,26 @@ class FirebaseService {
   }
 
   /// Gets announcements less than 6 months old
-  Stream<QuerySnapshot> getAnnouncementStream() {
+  Future<QuerySnapshot> getAnnouncements() {
 
-    final retentionDate = DateTime.now().subtract(Duration(days: 6 * 30)); //6 months
+    final retentionDate = DateTime.now().subtract(Duration(days: 6 * 30));
     final cutoffTimestamp = Timestamp.fromDate(retentionDate);
 
     return _firestore
         .collection('announcements')
         .where('posted_at', isGreaterThan: cutoffTimestamp)
         .orderBy('posted_at', descending: true)
-        .snapshots();
+        .get();
   }
 
-  ///Gets a live stream of read announcements of a user
-  Stream<DocumentSnapshot> getReadAnnouncementsStream(String userId) {
-  return _firestore
-      .collection('users')
-      .doc(userId)
-      .collection('read_status')
-      .doc('read_announcements')
-      .snapshots();
+  // Gets a one-time fetch of read announcements for a specific user
+  Future<DocumentSnapshot> getReadAnnouncements(String userId) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('read_status')
+        .doc('read_announcements')
+        .get();
   }
 
   /// Get a live stream of ALL proposals --- can add .where('ongoing', isEqualTo: true)

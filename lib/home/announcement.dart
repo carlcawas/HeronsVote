@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:rxdart/rxdart.dart';
-
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -25,6 +23,17 @@ class Announcement {
     this.isNew = true,
   });
 
+  Announcement copyWith({bool? isNew}) {
+    return Announcement(
+      id: id,
+      title: title,
+      dateDay: dateDay,
+      dateMonth: dateMonth,
+      description: description,
+      isNew: isNew ?? this.isNew,
+    );
+  }
+
   @override
   String toString() {
     return 'Announcement(title: $title, date: $dateMonth $dateDay, isNew: $isNew)';
@@ -34,44 +43,32 @@ class Announcement {
 class AnnouncementProvider {
   static const String collectionName = 'announcements';
 
-  Stream<List<Announcement>> getAnnouncements(String userId) {
-  final firestoreStream = FirebaseService().getAnnouncementStream();
-  final readStream = FirebaseService().getReadAnnouncementsStream(userId);
+  Future<List<Announcement>> getAnnouncements(String userId) async {
+    final querySnapshot = await FirebaseService().getAnnouncements();
+    final readDoc = await FirebaseService().getReadAnnouncements(userId);
 
-  return Rx.combineLatest2<QuerySnapshot, DocumentSnapshot, List<Announcement>>(
-    firestoreStream,
-    readStream,
-    (querySnapshot, readDoc) {
-      final readIds = readDoc.exists
-          ? List<String>.from(readDoc.get('announcement_ids') ?? [])
-          : <String>[];
+    final readIds = readDoc.exists
+        ? List<String>.from(readDoc.get('announcement_ids') ?? [])
+        : <String>[];
 
-      print('Data Test - Read announcement_ids: $readIds');
+    return querySnapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final timestamp = data['posted_at'] as Timestamp?;
+      final dateTime = timestamp?.toDate() ?? DateTime.now();
 
-      return querySnapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final timestamp = data['posted_at'] as Timestamp?;
-        final dateTime = timestamp?.toDate() ?? DateTime.now();
+      final day = dateTime.day.toString().padLeft(2, '0');
+      final month = _getMonthAbbreviate(dateTime.month);
 
-        final day = dateTime.day.toString().padLeft(2, '0');
-        final month = _getMonthAbbreviate(dateTime.month);
-        final isNew = !readIds.contains(doc.id);
-
-        print('Data Test - Announcement ID: ${doc.id}, isNew: $isNew');
-
-        return Announcement(
-          id: doc.id,
-          title: data['title'] ?? 'No Title',
-          dateDay: day,
-          dateMonth: month,
-          description: data['message'] ?? 'No Description',
-          isNew: isNew,
-        );
-      }).toList();
-    },
-  );
-}
-
+      return Announcement(
+        id: doc.id,
+        title: data['title'] ?? 'No Title',
+        dateDay: day,
+        dateMonth: month,
+        description: data['message'] ?? 'No Description',
+        isNew: !readIds.contains(doc.id),
+      );
+    }).toList();
+  }
 }
 
 String _getMonthAbbreviate(int month) {
@@ -189,162 +186,170 @@ class DateGroup {
 }
 
 // Main Screen
-class AnnouncementsPage extends StatelessWidget {
+class AnnouncementsPage extends StatefulWidget {
   final String userId;
   const AnnouncementsPage({super.key, required this.userId});
 
   @override
-  Widget build(BuildContext context) {
+  State<AnnouncementsPage> createState() => _AnnouncementsPageState();
+}
 
-    print('AnnouncementsPage built, received userId: $userId'); //debugging
-    final AnnouncementProvider provider = AnnouncementProvider();
+class _AnnouncementsPageState extends State<AnnouncementsPage> {
+  final AnnouncementProvider provider = AnnouncementProvider();
+  List<Announcement> _announcements = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnnouncements();
+  }
+
+  Future<void> _loadAnnouncements() async {
+    final data = await provider.getAnnouncements(widget.userId);
+    setState(() {
+      _announcements = data;
+      _loading = false;
+    });
+  }
+
+  void moveToRead(String announcementId) {
+    setState(() {
+      _announcements = _announcements.map((a) {
+        if (a.id == announcementId) return a.copyWith(isNew: false);
+        return a;
+      }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_announcements.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('No announcements available.')),
+      );
+    }
+
+    final newAnnouncements = _announcements.where((a) => a.isNew).toList();
+    final readAnnouncements = _announcements.where((a) => !a.isNew).toList();
+
+    final newDateGroups = _groupAnnouncementsByDate(
+      newAnnouncements,
+      const Color(0xFFF09062),
+    );
+    final readDateGroups = _groupAnnouncementsByDate(
+      readAnnouncements,
+      const Color(0xFF74B6F9),
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: StreamBuilder<List<Announcement>>(
-          stream: provider.getAnnouncements(userId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No announcements available.'));
-            }
-
-            debugPrint('Fetched announcements: ${snapshot.data}'); //bebugging
-
-            final announcements = snapshot.data!;
-
-            // Separate lists for New and Read announcements
-            final newAnnouncements = announcements
-                .where((a) => a.isNew)
-                .toList();
-            final readAnnouncements = announcements
-                .where((a) => !a.isNew)
-                .toList();
-
-            // Group announcements by date
-            final newDateGroups = _groupAnnouncementsByDate(
-              newAnnouncements,
-              const Color(0xFFF09062),
-            );
-            final readDateGroups = _groupAnnouncementsByDate(
-              readAnnouncements,
-              const Color(0xFF74B6F9),
-            );
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 25,
-                    bottom: 9,
-                    top: 25,
-                    right: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          height: 40,
-                          width: 40,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF5C6AA0),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: SvgPicture.asset(
-                              'assets/back.svg',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 25,
+                bottom: 9,
+                top: 25,
+                right: 16,
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      height: 40,
+                      width: 40,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF5C6AA0),
                       ),
-                      const SizedBox(width: 20),
-                      const Text(
-                        'Announcements',
-                        style: TextStyle(
-                          color: Color(0xFF404040),
-                          fontFamily: 'Geist',
-                          fontSize: 24,
-                          fontWeight: FontWeight.w600,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: SvgPicture.asset(
+                          'assets/back.svg',
+                          fit: BoxFit.contain,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Body content
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 16),
-                          // New Announcements Section
-                          _AnnouncementSection(
-                            title: 'New',
-                            color: const Color(0xFFF2A464),
-                            dateGroups: newDateGroups,
-                            totalCount: newAnnouncements.length,
-                            userId: userId,
-                            initiallyExpanded: false,
-                          ),
-                          const SizedBox(height: 16),
-                          // Read Announcements Section
-                          _AnnouncementSection(
-                            title: 'Read',
-                            color: const Color(0xFF74B6F9),
-                            dateGroups: readDateGroups,
-                            totalCount: readAnnouncements.length,
-                            userId: userId,
-                            initiallyExpanded: false,
-                          ),
-                          const SizedBox(height: 32),
-                        ],
                       ),
                     ),
                   ),
+                  const SizedBox(width: 20),
+                  const Text(
+                    'Announcements',
+                    style: TextStyle(
+                      color: Color(0xFF404040),
+                      fontFamily: 'Geist',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Body content
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
+                      _AnnouncementSection(
+                        title: 'New',
+                        color: const Color(0xFFF2A464),
+                        dateGroups: newDateGroups,
+                        totalCount: newAnnouncements.length,
+                        userId: widget.userId,
+                        onMarkAsRead: moveToRead,
+                      ),
+                      const SizedBox(height: 16),
+                      _AnnouncementSection(
+                        title: 'Read',
+                        color: const Color(0xFF74B6F9),
+                        dateGroups: readDateGroups,
+                        totalCount: readAnnouncements.length,
+                        userId: widget.userId,
+                        onMarkAsRead: moveToRead,
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Helper function to group announcements by date
   List<DateGroup> _groupAnnouncementsByDate(
     List<Announcement> announcements,
     Color color,
   ) {
     final Map<String, List<Announcement>> groupedMap = {};
-
-    for (final announcement in announcements) {
-      final key = '${announcement.dateMonth}-${announcement.dateDay}';
-      if (!groupedMap.containsKey(key)) {
-        groupedMap[key] = [];
-      }
-      groupedMap[key]!.add(announcement);
+    for (final a in announcements) {
+      final key = '${a.dateMonth}-${a.dateDay}';
+      groupedMap.putIfAbsent(key, () => []).add(a);
     }
-
-    return groupedMap.entries.map((entry) {
-        final dateParts = entry.key.split('-');
-        return DateGroup(
-          dateDay: dateParts[1],
-          dateMonth: dateParts[0],
-          announcements: entry.value,
-          timelineColor: color,
-        );
-      }).toList()
-      ..sort((a, b) => b.dateDay.compareTo(a.dateDay)); // sort descending
+    return groupedMap.entries.map((e) {
+      final parts = e.key.split('-');
+      return DateGroup(
+        dateMonth: parts[0],
+        dateDay: parts[1],
+        announcements: e.value,
+        timelineColor: color,
+      );
+    }).toList()..sort((a, b) => b.dateDay.compareTo(a.dateDay));
   }
 }
 
@@ -356,6 +361,7 @@ class _AnnouncementSection extends StatefulWidget {
   final int totalCount;
   final String userId;
   final bool initiallyExpanded;
+  final void Function(String)? onMarkAsRead;
 
   const _AnnouncementSection({
     required this.title,
@@ -364,6 +370,7 @@ class _AnnouncementSection extends StatefulWidget {
     required this.totalCount,
     required this.userId,
     this.initiallyExpanded = true,
+    required this.onMarkAsRead,
   });
 
   @override
@@ -462,33 +469,33 @@ Future<void> markAsRead({
   required String userId,
   required String announcementId,
 }) async {
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final firestore = FirebaseFirestore.instance;
   final readDocRef = firestore
       .collection('users')
       .doc(userId)
       .collection('read_status')
       .doc('read_announcements');
 
-  await firestore.runTransaction((transaction) async {
-    final snapshot = await transaction.get(readDocRef);
+  unawaited(
+    firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(readDocRef);
 
-    if (!snapshot.exists) {
-      // Create the document with the initial list
-      transaction.set(readDocRef, {
-        'announcement_ids': [announcementId],
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-    } else {
-      final List<dynamic> currentIds = snapshot.get('announcement_ids') ?? [];
-
-      if (!currentIds.contains(announcementId)) {
-        transaction.update(readDocRef, {
-          'announcement_ids': FieldValue.arrayUnion([announcementId]),
+      if (!snapshot.exists) {
+        transaction.set(readDocRef, {
+          'announcement_ids': [announcementId],
           'updated_at': FieldValue.serverTimestamp(),
         });
+      } else {
+        final currentIds = snapshot.get('announcement_ids') ?? [];
+        if (!currentIds.contains(announcementId)) {
+          transaction.update(readDocRef, {
+            'announcement_ids': FieldValue.arrayUnion([announcementId]),
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+        }
       }
-    }
-  });
+    }),
+  );
 }
 
 //check dates of announcements and collect them based on dates
@@ -516,10 +523,36 @@ class _DateGroupWidgetState extends State<_DateGroupWidget> {
   late bool _isExpanded;
   double _totalHeight = 150.0;
 
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  late List<Announcement> _visibleAnnouncements;
+
   @override
   void initState() {
     super.initState();
     _isExpanded = widget.initiallyExpanded;
+    _visibleAnnouncements = widget.showOnlyFirstAnnouncement
+        ? [widget.dateGroup.announcements.first]
+        : List.from(widget.dateGroup.announcements);
+  }
+
+  void removeAnnouncement(int index) {
+    final removed = _visibleAnnouncements.removeAt(index);
+    _listKey.currentState?.removeItem(
+      index,
+      (context, animation) => FadeTransition(
+        opacity: animation,
+        child: _AnnouncementCard(announcement: removed, userId: widget.userId),
+      ),
+      duration: const Duration(milliseconds: 400),
+    );
+  }
+
+  void addAnnouncement(Announcement announcement) {
+    _visibleAnnouncements.insert(0, announcement);
+    _listKey.currentState?.insertItem(
+      0,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   void _updateTotalHeight() {
@@ -596,29 +629,41 @@ class _DateGroupWidgetState extends State<_DateGroupWidget> {
           const SizedBox(width: 12),
           // Announcements for this date
           Expanded(
-            child: Column(
-              children: visibleAnnouncements
-                  .map(
-                    (announcement) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: _AnnouncementCard(
-                        announcement: announcement,
-                        userId: widget.userId,
-                        showDropdown:
-                            widget.dateGroup.announcements.length > 1 &&
-                            !widget.showOnlyFirstAnnouncement,
-                        isExpanded: _isExpanded,
-                        onToggle: () {
-                          if (widget.dateGroup.announcements.length > 1) {
-                            setState(() {
-                              _isExpanded = !_isExpanded;
-                            });
-                          }
-                        },
-                      ),
+            child: AnimatedList(
+              key: _listKey,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              initialItemCount: _visibleAnnouncements.length,
+              itemBuilder: (context, index, animation) {
+                final announcement = _visibleAnnouncements[index];
+                return FadeTransition(
+                  opacity: animation,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _AnnouncementCard(
+                      announcement: announcement,
+                      userId: widget.userId,
+                      showDropdown:
+                          widget.dateGroup.announcements.length > 1 &&
+                          !_isExpanded,
+                      isExpanded: _isExpanded,
+                      onToggle: () {
+                        setState(() => _isExpanded = !_isExpanded);
+                      },
+                      onMarkAsRead: () {
+                        removeAnnouncement(index); // fade out
+                        markAsRead(
+                          userId: widget.userId,
+                          announcementId: announcement.id,
+                        );
+                        context
+                            .findAncestorStateOfType<_AnnouncementsPageState>()!
+                            .moveToRead(announcement.id);
+                      },
                     ),
-                  )
-                  .toList(),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -715,6 +760,7 @@ class _AnnouncementCard extends StatefulWidget {
   final bool showDropdown;
   final bool isExpanded;
   final VoidCallback? onToggle;
+  final VoidCallback? onMarkAsRead;
 
   const _AnnouncementCard({
     required this.announcement,
@@ -722,6 +768,7 @@ class _AnnouncementCard extends StatefulWidget {
     this.showDropdown = false,
     this.isExpanded = true,
     this.onToggle,
+    this.onMarkAsRead,
   });
 
   @override
@@ -773,27 +820,21 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
                   ),
                 ),
                 GestureDetector(
-                  onTap: () async {
-                    // Handle marking as read
-                    await markAsRead(
-                      userId: widget.userId, // Replace with actual user ID
-                      announcementId: widget.announcement.id,
-                    );
-                  },
+                  onTap: widget
+                      .onMarkAsRead, // call the function passed from parent
                   child: Container(
                     width: 36,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: Color(0xFFECECEC),
-                      shape: BoxShape.rectangle,
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      color: const Color(0xFFECECEC),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.check,
                       size: 24,
                       color: Color(0xFF404040),
                     ),
-                  )
+                  ),
                 ),
               ],
             ),

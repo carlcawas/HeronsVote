@@ -42,7 +42,7 @@ class Slate {
   });
 }
 
-/*
+
 final List<Slate> placeholderSlates = [
   Slate(
     name: 'The Loremlpsum Partylist',
@@ -197,7 +197,7 @@ final List<Slate> placeholderSlates = [
     ],
   ),
 ];
-*/
+
 
 class Official {
   final String position;
