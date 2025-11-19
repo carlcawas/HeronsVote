@@ -44,7 +44,6 @@ class CandidateListPage extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       color: Colors.grey,
-                      fontStyle: FontStyle.italic,
                     ),
                   ),
                 ),

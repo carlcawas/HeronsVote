@@ -279,7 +279,7 @@ class FirebaseService {
   Stream<QuerySnapshot> getAllProposalsStream() {
     return _firestore
         .collection('proposals')
-        //.where('ongoing', isEqualTo: true)
+        .where('ongoing', isEqualTo: true)
         .orderBy('start', descending: true)
         .snapshots();
   }
