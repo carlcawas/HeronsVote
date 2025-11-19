@@ -67,7 +67,7 @@ final List<Slate> placeholderSlates = [
         details: 'CCIS - 2nd year',
         age: '20',
         year: '2nd',
-        college: 'College of Computing and Information Sciences',
+        college: 'CCIS',
         partylist: 'The Loremlpsum Partylist',
         advocacy: 'Advocacy for student rights and digital innovation.',
         platform:  'Lorem Ipsum is simply dummy text of the printing and typesetting industry.'
@@ -78,7 +78,7 @@ final List<Slate> placeholderSlates = [
         details: 'CCIS - 3rd year',
         age: '22',
         year: '3rd',
-        college: 'College of Computing and Information Sciences',
+        college: 'ION',
         partylist: 'The Loremlpsum Partylist',
         advocacy: 'Promoting academic excellence and student welfare.',
         platform:  'Lorem Ipsum is simply dummy text of the printing and typesetting industry.'
@@ -90,7 +90,7 @@ final List<Slate> placeholderSlates = [
         details: 'CCIS - 4th year',
         age: '23',
         year: '4th',
-        college: 'College of Computing and Information Sciences',
+        college: 'ML',
         partylist: 'The Loremlpsum Partylist',
         advocacy: 'Financial transparency and budget management for student organizations.',
         platform:  'Lorem Ipsum is simply dummy text of the printing and typesetting industry.'
