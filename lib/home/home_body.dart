@@ -11,8 +11,14 @@ import 'candidates_view_body.dart';
 
 class HomeBody extends StatefulWidget {
   final String uid;
-  const HomeBody({super.key, required this.uid});
-
+  final Function(int) onTabChange;
+  
+  const HomeBody({
+    super.key, 
+    required this.uid, 
+    required this.onTabChange,
+  });
+  
   @override
   State<HomeBody> createState() => _HomeBodyState();
 }
@@ -30,10 +36,16 @@ class _HomeBodyState extends State<HomeBody> {
   final PageController _slatesPageController = PageController();
   int _currentSlatesPage = 0;
 
+  final PageController _candidatesPageController = PageController();
+  int _currentCandidatesPage = 0;
+
   bool _isLoading = true; // Controls the main loading spinner
   final int _dataStreamsToLoad = 8; 
   int _dataStreamsLoaded = 0; // Counter
-
+  
+  Stream<QuerySnapshot>? _cscOfficialsStream;
+  Stream<QuerySnapshot>? _uscOfficialsStream;
+  
   // --- Stream Subscriptions ---
   StreamSubscription? _userSub;
   StreamSubscription? _collegeElecSub;
@@ -86,7 +98,8 @@ class _HomeBodyState extends State<HomeBody> {
     _timer?.cancel();
     _activeItemsPageController.dispose();
     _slatesPageController.dispose();
-
+    _candidatesPageController.dispose();
+    
     _userSub?.cancel();
     _collegeElecSub?.cancel();
     _uniElecSub?.cancel();
@@ -161,6 +174,9 @@ class _HomeBodyState extends State<HomeBody> {
       if (newCollegeId != _userCollegeId || _collegeElecSub == null) {
         _userCollegeId = newCollegeId;
 
+        _cscOfficialsStream = _firebaseService.getCurrentOfficialsStream(_userCollegeId);
+        _uscOfficialsStream = _firebaseService.getUniversityOfficialsStream();
+
         // Cancel old subscriptions
         _collegeElecSub?.cancel();
         _endedCollegeSub?.cancel();
@@ -192,7 +208,6 @@ class _HomeBodyState extends State<HomeBody> {
       } else {
         setState(() {});
       }
-      
       if (_isLoading) _onDataStreamLoaded();
     });
   }
@@ -809,9 +824,7 @@ class _HomeBodyState extends State<HomeBody> {
           "$_userCollegeAbbreviation Officials",
           _firebaseService.getElectionResultsStream(latestCollegeElectionId),
         );
-      }
-      // If no college officials, fall back to University officials
-      else if (latestUniElectionId != null) {
+      } else if (latestUniElectionId != null) {
         return _buildCurrentOfficialsSection(
           "University Officials",
           _firebaseService.getElectionResultsStream(latestUniElectionId),
@@ -827,30 +840,41 @@ class _HomeBodyState extends State<HomeBody> {
     }
 
     // Active/Recent state
+    if (_sliderItems.isEmpty) return const SizedBox.shrink();
+
     final currentItem = _sliderItems[_currentActiveItemPage];
     final String type = currentItem['type'];
     final String id = currentItem['id'];
     final bool isOngoing = currentItem['ongoing'];
 
     if (isOngoing) {
-      // Show Slates for ANY ongoing election
+      // USC Election: Show Candidates
+      if (type == 'university') {
+        return _buildCandidatesSection();
+      }
+
+      // Proposal: Show USC Officials followed by CSC Officials
+      if (type == 'proposal') {
+        return _buildCombinedOfficialsSection(
+          "Officials", // Label
+          _cscOfficialsStream ?? Stream.empty(), 
+          _uscOfficialsStream ?? Stream.empty(),
+        );
+      }
+
+      // College Election: Show Slates
       return _buildSlatesSection(id);
     }
 
     // Proposal State (Ongoing or Ended)
     if (type == 'proposal') {
-      // Show latest University officials
       if (latestUniElectionId != null) {
         return _buildCurrentOfficialsSection(
           "University Officials",
           _firebaseService.getElectionResultsStream(latestUniElectionId),
         );
       } else {
-        // Absolute fallback if no uni elections *at all* exist
-        return _buildCurrentOfficialsSection(
-          "University Officials",
-          Stream.empty(), // Will show "No officials found"
-        );
+        return _buildCurrentOfficialsSection("University Officials", Stream.empty());
       }
     }
 
@@ -858,7 +882,7 @@ class _HomeBodyState extends State<HomeBody> {
     else if (type == 'college') {
       return _buildCurrentOfficialsSection(
         "Newly Elected $_userCollegeId Officials",
-        _firebaseService.getElectionResultsStream(id), // 'id' is the ended election's ID
+        _firebaseService.getElectionResultsStream(id), 
         isResults: true,
       );
     }
@@ -866,8 +890,114 @@ class _HomeBodyState extends State<HomeBody> {
     // Recently Ended University Election
     return _buildCurrentOfficialsSection(
       "Newly Elected University Officials",
-      _firebaseService.getElectionResultsStream(id), // 'id' is the ended election's ID
+      _firebaseService.getElectionResultsStream(id), 
       isResults: true,
+    );
+  }
+
+  // combine two streams into one slider (CSC first, then USC)
+  Widget _buildCombinedOfficialsSection(
+    String title,
+    Stream<QuerySnapshot> cscStream,
+    Stream<QuerySnapshot> uscStream,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 28), 
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF404040),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 28),
+                child: GestureDetector( // see all
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ElectedOfficialsPage(
+                          uid: _userId,
+                          defaultAffiliation: _userCollegeAbbreviation, // Default to college since they are first
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEEEEE),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "See all",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF404040),
+                        fontFamily: 'Geist',
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 13),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: cscStream,
+            builder: (context, cscSnapshot) {
+              return StreamBuilder<QuerySnapshot>(
+                stream: uscStream,
+                builder: (context, uscSnapshot) {
+                  if (cscSnapshot.connectionState == ConnectionState.waiting ||
+                      uscSnapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(
+                      height: 184,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final cscDocs = cscSnapshot.data?.docs ?? [];
+                  final uscDocs = uscSnapshot.data?.docs ?? [];
+
+                  // Combine lists: CSC first, then USC
+                  final List<DocumentSnapshot> allOfficials = [...cscDocs, ...uscDocs];
+
+                  if (allOfficials.isEmpty) {
+                    return Container(
+                      height: 184,
+                      alignment: Alignment.center,
+                      child: const Text("No officials found."),
+                    );
+                  }
+
+                  return _OfficialsPageView(
+                    officials: allOfficials,
+                    isResults: false,
+                    cscCount: cscDocs.length, // how many are CSC
+                    collegeAbbreviation: _userCollegeAbbreviation, // Pass college abbreviation
+                  );
+                },
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 22),
+      ],
     );
   }
 
@@ -1240,6 +1370,192 @@ class _HomeBodyState extends State<HomeBody> {
     
   }
 
+  // Section to display USC Candidates
+  Widget _buildCandidatesSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Candidates",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF404040),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: GestureDetector( // see all
+                    onTap: () {
+                      // Switch to "Candidates" tab (Index 1)
+                      widget.onTabChange(1); 
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEEEEE),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        "See all",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              ],
+            ),
+          ),
+          const SizedBox(height: 13),
+          
+          StreamBuilder<QuerySnapshot>(
+            stream: _firebaseService.getUSCCandidatesStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Container(
+                  height: 184,
+                  alignment: Alignment.center,
+                  child: const Text("Error: Could not load candidates."),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.data!.docs.isEmpty) {
+                return Container(
+                  height: 184,
+                  alignment: Alignment.center,
+                  child: const Text("No candidates found."),
+                );
+              }
+
+              final candidates = snapshot.data!.docs;
+              
+              return Column(
+                children: [
+                  SizedBox(
+                    height: 184,
+                    child: Stack(
+                      children: [
+                        PageView.builder(
+                          controller: _candidatesPageController,
+                          itemCount: candidates.length,
+                          onPageChanged: (int page) {
+                            setState(() {
+                              _currentCandidatesPage = page;
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final candidate = candidates[index].data()
+                                as Map<String, dynamic>;
+                            final String name = candidate['name'] ?? 'Unknown';
+                            final String position = candidate['position'] ?? 'Unknown';
+                            final String? filePath = candidate['img'] as String?;
+
+                            String? publicUrl;
+                            if (filePath != null && filePath.isNotEmpty) {
+                              try {
+                                publicUrl = Supabase.instance.client.storage
+                                    .from('images')
+                                    .getPublicUrl(filePath);
+                              } catch (e) {
+                                publicUrl = null;
+                              }
+                            }
+
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 12),
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 35,
+                                    backgroundColor: Colors.grey.shade300,
+                                    backgroundImage: (publicUrl != null)
+                                        ? NetworkImage(publicUrl)
+                                        : null,
+                                    child: (publicUrl == null)
+                                        ? const Icon(Icons.person,
+                                            size: 35, color: Colors.grey)
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF414141),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    position,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        
+                        // Dots indicator
+                        Positioned(
+                          bottom: 12,
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(
+                              candidates.length,
+                              (index) => Container(
+                                width: 8,
+                                height: 8,
+                                margin: const EdgeInsets.symmetric(horizontal: 2),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: index == _currentCandidatesPage
+                                      ? const Color(0xFF354372)
+                                      : const Color(0xFFD9D9D9),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 22),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTimerSection(Duration timeLeft) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1348,9 +1664,16 @@ class _HomeBodyState extends State<HomeBody> {
 class _OfficialsPageView extends StatefulWidget {
   final List<DocumentSnapshot> officials;
   final bool isResults;
-
-  const _OfficialsPageView({required this.officials, this.isResults = false});
-
+  final int? cscCount; 
+  final String? collegeAbbreviation;
+  
+  const _OfficialsPageView({
+    required this.officials, 
+    this.isResults = false,
+    this.cscCount,
+    this.collegeAbbreviation,
+  });
+  
   @override
   State<_OfficialsPageView> createState() => _OfficialsPageViewState();
 }
@@ -1382,11 +1705,20 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   });
                 },
                 itemBuilder: (context, index) {
-                  final officialDoc =
-                      widget.officials[index].data() as Map<String, dynamic>;
+                  final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
                   final String name = officialDoc['name'] ?? 'Unknown';
-                  final String position = officialDoc['position'] ?? 'Unknown';
+                  final String rawPosition = officialDoc['position'] ?? 'Unknown';
                   final String? filePath = officialDoc['img'] as String?;
+
+                  String displayPosition = rawPosition;
+                  
+                  if (widget.cscCount != null && widget.collegeAbbreviation != null) {
+                    if (index < widget.cscCount!) {
+                      displayPosition = "${widget.collegeAbbreviation} - $rawPosition";
+                    } else {
+                      displayPosition = "USC - $rawPosition";
+                    }
+                  }
 
                   String? publicUrl;
                   if (filePath != null && filePath.isNotEmpty) {
@@ -1475,7 +1807,8 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          position,
+                          displayPosition,
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 14,
                             color: Color(0xFF666666),

@@ -17,8 +17,6 @@ class CandidatesViewBody extends StatefulWidget {
   State<CandidatesViewBody> createState() => _CandidatesViewBodyState();
 }
 
-
-
 class _CandidatesViewBodyState extends State<CandidatesViewBody> {
   
   ContentView _selectedView = ContentView.candidates;

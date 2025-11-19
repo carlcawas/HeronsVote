@@ -159,16 +159,6 @@ class FirebaseService {
         .snapshots();
   }
 
-  /// Get a live stream of current officials for a specific college
-  Stream<QuerySnapshot> getCurrentOfficialsStream(String collegeId) {
-    return _firestore
-        .collection('colleges')
-        .doc(collegeId)
-        .collection('officials')
-        .orderBy('rank', descending: false) 
-        .snapshots();
-  }
-
   /// Get a live stream of newly elected officials (results) for a specific election
   Stream<QuerySnapshot> getElectionResultsStream(String electionId) {
     return _firestore
@@ -176,14 +166,6 @@ class FirebaseService {
         .doc(electionId)
         .collection('results')
         .orderBy('rank', descending: false)
-        .snapshots();
-  }
-  
-  /// Get a live stream of current university-wide officials
-  Stream<QuerySnapshot> getUniversityOfficialsStream() {
-    return _firestore
-        .collection('university_officials')
-        .orderBy('rank', descending: false) 
         .snapshots();
   }
 
@@ -289,8 +271,34 @@ class FirebaseService {
     return _firestore
         .collection('candidates')
         .where('position', isEqualTo: positionTitle)
-        .orderBy('slate') // Optional: Group candidates by their slate
+        .orderBy('slate')
         .where('college_id', isEqualTo: collegeId)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot> getUSCCandidatesStream() {
+    return _firestore
+        .collection('candidates')
+        .where('college_id', isEqualTo: "")
+        .orderBy('pos_rank') 
+        .snapshots();
+  }
+
+  /// Get a live stream of current officials for a specific college (CSC)
+  Stream<QuerySnapshot> getCurrentOfficialsStream(String collegeId) {
+    return _firestore
+        .collection('colleges')
+        .doc(collegeId)
+        .collection('officials')
+        .orderBy('rank', descending: false)
+        .snapshots();
+  }
+
+  /// Get a live stream of current university-wide officials (USC)
+  Stream<QuerySnapshot> getUniversityOfficialsStream() {
+    return _firestore
+        .collection('university_officials')
+        .orderBy('rank', descending: false)
         .snapshots();
   }
 }

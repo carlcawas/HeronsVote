@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pages = [
 
       // TODO: Replace with HomePage(uid: uid)
-      HomeBody(uid: widget.uid),
+      HomeBody(uid: widget.uid, onTabChange: _onItemTapped),
 
       // TODO: Replace with CandidatePage(uid: uid)
       CandidatesViewBody(uid: widget.uid),
