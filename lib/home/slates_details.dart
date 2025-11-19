@@ -4,7 +4,7 @@ import 'slates_list.dart' show Slate, Candidate;
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;
-  const SlateDetailsPage({Key? key, required this.slate}) : super(key: key);
+  const SlateDetailsPage({super.key, required this.slate});
   @override
   State<SlateDetailsPage> createState() => _SlateDetailsPageState();
 }
@@ -115,8 +115,7 @@ class DetailsCard extends StatefulWidget {
   final String title;
   final String content;
 
-  const DetailsCard({Key? key, required this.title, required this.content})
-    : super(key: key);
+  const DetailsCard({super.key, required this.title, required this.content});
   @override
   State<DetailsCard> createState() => _DetailsCardState();
 }
@@ -202,8 +201,7 @@ class _DetailsCardState extends State<DetailsCard> {
 class CandidateListItem extends StatelessWidget {
   final Candidate candidate;
 
-  const CandidateListItem({Key? key, required this.candidate})
-    : super(key: key);
+  const CandidateListItem({super.key, required this.candidate});
 
   @override
   Widget build(BuildContext context) {

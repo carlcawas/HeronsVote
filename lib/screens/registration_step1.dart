@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'registration_step3.dart';
-import './Privacy&Terms/privacyPolicy.dart';
-import './Privacy&Terms/termsCondition.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
+import 'package:heronsvote/screens/registration_step2.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'dart:io';
+import 'package:read_pdf_text/read_pdf_text.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:ui';
 
 class RegistrationStep1 extends StatefulWidget {
   final String uid;
@@ -16,77 +20,489 @@ class RegistrationStep1 extends StatefulWidget {
 
 class _RegistrationStep1State extends State<RegistrationStep1>
     with TickerProviderStateMixin {
+  late final AnimationController _panelController;
+
   late final AnimationController _contentController;
   late final Animation<Offset> _contentSlide;
-  late final AnimationController _bottomController;
-  late final Animation<Offset> _bottomSlide;
-  late TapGestureRecognizer _termsTapRecognizer;
-  late TapGestureRecognizer _privacyTapRecognizer;
+  late final Animation<double> _contentFade;
 
-  bool _isBoxChecked = false;
+  bool _isUploading = false;
+  double _uploadProgress = 0;
+  String _selectedFileName = "";
+  bool _uploadComplete = false;
+  String? _nameCap;
+  String? _collegeCap;
+  String? _collegeId; 
+  String? _yearLevel;
+  String? _semester;
+  String? _sectionCap;
 
+  // Store the path of the selected PDF file
+  String? _selectedFilePath;
+  String? _uploadErrorMessage;
+
+
+  // --- Animation and Progress Methods ---
   @override
-  void initState() {
+  void initState(){
     super.initState();
-
-    _termsTapRecognizer = TapGestureRecognizer()
-      ..onTap = () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const TermsCondition()),
-        );
-      };
-
-    _privacyTapRecognizer = TapGestureRecognizer()
-      ..onTap = () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const PrivacyPolicy()),
-        );
-      };
+    // Save user's registration step 
+    _saveRegisterStep();
+    
+    _panelController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
 
     _contentController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
-    _contentSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+
+    _contentSlide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
         .animate(
-          CurvedAnimation(parent: _contentController, curve: Curves.easeOut),
+          CurvedAnimation(
+            parent: _contentController,
+            curve: Curves.easeOutCubic,
+          ),
         );
 
-    _bottomController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
+    _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _contentController, curve: Curves.linear),
     );
-    _bottomSlide = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _bottomController, curve: Curves.easeOut),
-        );
 
-    _contentController.forward();
-    Future.delayed(
-      const Duration(milliseconds: 300),
-      () => _bottomController.forward(),
-    );
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _contentController.forward();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _termsTapRecognizer.dispose();
-    _privacyTapRecognizer.dispose();
+    _panelController.dispose();
     _contentController.dispose();
-    _bottomController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveRegisterStep() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    await userRef.set({
+        'registration_step' : 1,
+      }, SetOptions(merge: true));
+  }
+
+  Future<void> _simulateProgress() async {
+    setState(() {
+      _uploadProgress = 0;
+    });
+
+    for (int i = 0; i <= 100; i++) {
+      if (!_isUploading) return;
+      await Future.delayed(const Duration(milliseconds: 10));
+      if (mounted) {
+        setState(() {
+          _uploadProgress = i / 100;
+        });
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _uploadComplete = true;
+      });
+    }
+
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
+  void _cancelUpload() {
+    setState(() {
+      _isUploading = false;
+      _uploadProgress = 0;
+      _uploadComplete = false;
+      _selectedFileName = "";
+      _selectedFilePath = null;
+      _uploadErrorMessage = null;
+    });
+  }
+
+  // --- Core File Upload and Processing Method ---
+  Future<void> _handleCORUpload(BuildContext context) async {
+    if (_isUploading) return; // Prevent multiple taps
+
+    // Clear previous error and reset visible file state before starting
+    setState(() {
+      _uploadErrorMessage = null;
+      _selectedFileName = '';
+      _selectedFilePath = null;
+      _uploadProgress = 0;
+      _uploadComplete = false;
+    });
+
+    // Init and check storage permission
+    PermissionStatus status;
+    if (Platform.isAndroid) {
+      status = await Permission.manageExternalStorage.request();
+    } else {
+      status = await Permission.storage.request();
+    }
+
+    if (!status.isGranted) {
+      Fluttertoast.showToast(
+        msg: "Please enable the storage permission.",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+      );
+      openAppSettings();
+      return;
+    }
+
+    // Select PDF file
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: false,
+    );
+
+    if (result == null || result.files.single.path == null) {
+      return; // user cancelled
+    }
+
+    final filePath = result.files.single.path!;
+    final fileName = result.files.single.name;
+    final fileSize = File(filePath).lengthSync();
+
+    // File size validation
+    if (fileSize > 5 * 1024 * 1024) {
+      setState(() {
+        _uploadErrorMessage = "Max file size reached.";
+        _selectedFilePath = null;
+      });
+      return;
+    }
+
+    // Save selected file and start upload UI
+    setState(() {
+      _isUploading = true;
+      _selectedFilePath = filePath;
+      _selectedFileName = fileName;
+      _uploadProgress = 0;
+      _uploadComplete = false;
+      _uploadErrorMessage = null;
+    });
+
+    final progressFuture = _simulateProgress();
+
+    try {
+      final text = await ReadPdfText.getPDFtext(filePath);
+      final pdfText = text.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+      // --- COR validation fields ---
+      final hasStudentNo = RegExp(
+        r'\b[ka]\d{8}\b',
+        caseSensitive: false,
+      ).hasMatch(pdfText);
+      final hasUmakEmail = RegExp(
+        r'\b[\w\.\-]+@umak\.edu\.ph\b',
+      ).hasMatch(pdfText);
+      final hasCollege =
+          pdfText.contains('college of') || pdfText.contains('college');
+      final hasProgram =
+          pdfText.contains('program') || pdfText.contains('major');
+      final hasYearLevel = pdfText.contains('year level');
+      final hasSemester = pdfText.contains('semester');
+
+      // --- Academic Year Validation ---
+      final currentYear = DateTime.now().year;
+      final ayMatch = RegExp(r'(20\d{2})\s*-\s*(20\d{2})').firstMatch(pdfText);
+      bool hasValidAY = false;
+      if (ayMatch != null) {
+        final startYear = int.tryParse(ayMatch.group(1) ?? '');
+        final endYear = int.tryParse(ayMatch.group(2) ?? '');
+        if (startYear != null && endYear != null) {
+          hasValidAY =
+              (startYear == currentYear || startYear == currentYear + 1);
+        }
+      }
+
+      if (!hasStudentNo ||
+          !hasUmakEmail ||
+          !hasCollege ||
+          !hasProgram ||
+          !hasYearLevel ||
+          !hasSemester) {
+        _cancelUpload();
+        setState(() {
+          _uploadErrorMessage = "This is not a University COR";
+        });
+        return;
+      }
+
+      if (!hasValidAY) {
+        _cancelUpload();
+        setState(() {
+          _uploadErrorMessage = "This is an outdated COR";
+        });
+        return;
+      }
+
+      // --- Extract student info ---
+      final name = RegExp(
+        r'name\s*:? ([a-z\s\.\-]+) student no',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      final studentNo = RegExp(
+        r'student no\.?\s*:? ([a-z0-9\-]+)',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      final email = RegExp(
+        r'email\s*:? ([\w\.\@]+)',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      final program = RegExp(
+        r'program/?major\s*:? ([a-z\s\.\-]+) year level',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      var yearLevel = RegExp(
+        r'year level\s*:? ([a-z0-9\s]+)',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      final college = RegExp(
+        r'college\s*:? ([a-z\s]+) semester',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      var semester = RegExp(
+        r'semester\s*&?\s*academic year\s*:? ([a-z0-9\s\.\-]+)',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      final gender = RegExp(
+        r'gender\s*:? ([a-z]+)',
+      ).firstMatch(pdfText)?.group(1)?.trim();
+      final rawSection = RegExp(
+        r'\b([ivx]{1,4})\s*-\s*([a-z]+)\b',
+        caseSensitive: false,
+      ).firstMatch(pdfText);
+      String? section;
+      if (rawSection != null) {
+        section = rawSection.group(2)?.toUpperCase().trim();
+      }
+
+      // --- Formatting helpers ---
+      String capitalizeWords(String? input) {
+        if (input == null || input.isEmpty) return '';
+        return input
+            .split(' ')
+            .map(
+              (w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}',
+            )
+            .join(' ')
+            .trim();
+      }
+
+      String cleanSection(String? input) {
+        if (input == null || input.isEmpty) return '';
+        final match = RegExp(r'\b[IVX]{1,4}\s*-\s*([A-Z]+)\b', caseSensitive: false).firstMatch(input);
+        return match != null ? match.group(1)!.toUpperCase().trim() : input.toUpperCase().trim();
+      }
+
+      final nameCap = capitalizeWords(name);
+      final studentNoCap = studentNo?.toUpperCase() ?? '';
+      final programCap = capitalizeWords(program);
+      final collegeCap = capitalizeWords(college);
+      final collegeId = findCollegeIdFromOCR(collegeCap);
+      final genderCap = capitalizeWords(gender);
+      final sectionCap = cleanSection(section);
+
+      if (yearLevel != null && yearLevel.contains('year')) {
+        final idx = yearLevel.indexOf('year');
+        yearLevel = yearLevel.substring(0, idx + 4).trim();
+        yearLevel = capitalizeWords(yearLevel);
+      }
+
+      if (semester != null) {
+        final match = RegExp(r'(20\d{2}-20\d{2})').firstMatch(semester);
+        if (match != null) semester = semester.substring(0, match.end).trim();
+        semester = semester.replaceAll(
+          RegExp(r'a\.?y\.?', caseSensitive: false),
+          'A.Y.',
+        );
+        semester = capitalizeWords(semester);
+      }
+
+      // --- Final Data Validation ---
+      final studentNoValid = RegExp(
+        r'^[KA]\d{8}$',
+        caseSensitive: false,
+      ).hasMatch(studentNoCap);
+      final emailValid =
+          email != null && email.toLowerCase().endsWith('@umak.edu.ph');
+      final hasEssentialData =
+          nameCap.isNotEmpty &&
+          programCap.isNotEmpty &&
+          collegeCap.isNotEmpty &&
+          yearLevel != null &&
+          semester != null;
+
+      if (!studentNoValid || !emailValid || !hasEssentialData) {
+        _cancelUpload();
+        setState(() {
+          _uploadErrorMessage =
+              "Invalid COR details. Please upload a valid University COR.";
+        });
+        return;
+      }
+
+      // Wait for progress simulation to finish
+      await progressFuture;
+      if (!_isUploading) return;
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        _cancelUpload();
+        setState(() {
+          _uploadErrorMessage =
+              "An error has occurred. Please try uploading again.";
+        });
+        return;
+      }
+
+      // Save extracted info to Firestore
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      await userRef.set({
+        'name': nameCap,
+        'student_number': studentNoCap,
+        'email': email,
+        'program': programCap,
+        'college': collegeCap,
+        'college_id': collegeId,
+        'year_level': yearLevel,
+        'section': sectionCap,
+        'semester': semester,
+        'gender': genderCap,
+        'lastUpdateCOR': DateTime.now(),
+        'registerComplete': false,
+      }, SetOptions(merge: true));
+
+      // Enable button
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+
+      setState(() {
+        _isUploading = false;
+        _uploadProgress = 1.0;
+        _uploadComplete = true;
+        _nameCap = nameCap;
+        _collegeCap = collegeCap;
+        _collegeId = collegeId; 
+        _yearLevel = yearLevel;
+        _semester = semester;
+        _sectionCap = sectionCap;
+      });
+    } catch (e) {
+      debugPrint('Error handling COR: $e');
+      _cancelUpload();
+      setState(() {
+        _uploadErrorMessage =
+            "An error has occurred while reading your COR. Please try again.";
+      });
+    }
+  }
+  
+  // College mapping
+  final Map<String, String> collegeMap = {
+    'CBFS': 'College of Business and Financial Science',
+    'CCIS': 'College of Computing and Information Sciences',
+    'CCSE': 'College of Construction Science and Engineering',
+    'CET': 'College of Engineering Technology',
+    'CHK': 'College of Human Kinetics',
+    'CITE': 'College of Innovative Teacher Education',
+    'CGPP': 'College of Governance and Public Policy',
+    'CTHM': 'College of Tourism and Hospitality Management',
+    'IAD': 'Institute of Arts and Design',
+    'IIHS': 'Institute of Imaging Health Sciences',
+    'IOA': 'Institute of Accountancy',
+    'ION': 'Institute of Nursing',
+    'IOP': 'Institute of Pharmacy',
+    'IOPSY': 'Institute of Psychology',
+    'ISW': 'Institute of Social Work',
+    'IDEM': 'Institute of Disaster and Emergency Management',
+  };
+
+  // Abbreviate college as id
+  String? findCollegeIdFromOCR(String? collegeText) {
+    if (collegeText == null || collegeText.isEmpty) return null;
+
+    String normalized = collegeText
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim()
+        .toLowerCase();
+
+    // contains match
+    for (final entry in collegeMap.entries) {
+      final fullName = entry.value.toLowerCase();
+      if (normalized.contains(fullName) || fullName.contains(normalized)) {
+        return entry.key;
+      }
+    }
+
+    // Partial word match (>=60% match)
+    for (final entry in collegeMap.entries) {
+      final parts = entry.value.toLowerCase().split(' ');
+      int matches = parts.where((p) => normalized.contains(p)).length;
+      if (matches >= (parts.length * 0.6)) return entry.key;
+    }
+
+    // Fuzzy match (Levenshtein)
+    String? bestMatchId;
+    double bestScore = double.infinity;
+
+    for (final entry in collegeMap.entries) {
+      final distance = levenshtein(normalized, entry.value.toLowerCase());
+      if (distance < bestScore) {
+        bestScore = distance.toDouble();
+        bestMatchId = entry.key;
+      }
+    }
+
+    // Accept fuzzy match if distance is small enough relative to string length
+    if (bestScore <= (normalized.length * 0.3)) {
+      return bestMatchId;
+    }
+
+    return null;
+  }
+
+  // for easier college to abbreviation matching
+  int levenshtein(String s, String t) {
+    if (s == t) return 0;
+    if (s.isEmpty) return t.length;
+    if (t.isEmpty) return s.length;
+
+    List<int> v0 = List<int>.generate(t.length + 1, (i) => i);
+    List<int> v1 = List<int>.filled(t.length + 1, 0);
+
+    for (int i = 0; i < s.length; i++) {
+      v1[0] = i + 1;
+      for (int j = 0; j < t.length; j++) {
+        int cost = (s[i] == t[j]) ? 0 : 1;
+        v1[j + 1] = [
+          v1[j] + 1,
+          v0[j + 1] + 1,
+          v0[j] + cost,
+        ].reduce((a, b) => a < b ? a : b);
+      }
+      List<int> temp = v0;
+      v0 = v1;
+      v1 = temp;
+    }
+    return v0[t.length];
   }
 
   @override
   Widget build(BuildContext context) {
+    final isButtonActive = !_isUploading && !_uploadComplete;
+
     return Scaffold(
       extendBody: true,
-      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF9F2D7),
-      appBar: AppBar(
-        toolbarHeight: 80,
+
+      appBar: AppBar( //appbar back button
+        toolbarHeight: 72,
         backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
         leading: Hero(
@@ -94,86 +510,43 @@ class _RegistrationStep1State extends State<RegistrationStep1>
           child: Padding(
             padding: const EdgeInsets.only(left: 6.0),
             child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Color(0xFF404040),
+                size: 24,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
           ),
         ),
       ),
+
       body: SafeArea(
         bottom: false,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 65),
-            SlideTransition(
-              position: _contentSlide,
-              child: Column(
-                children: [
-                  Container(
-                    height: 238,
-                    width: 238,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.transparent,
-                    ),
-                    child: SizedBox(
-                      width: 0,
-                      child: SvgPicture.asset(
-                        'assets/verify.svg',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 45),
-                  Center(
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: "First, let's ",
-                            style: TextStyle(
-                              color: const Color(0xFF414141),
-                              fontSize: 24,
-                              fontFamily: 'Geist',
-                            ),
-                          ),
-                          TextSpan(
-                            text: "verify\n",
-                            style: TextStyle(
-                              color: const Color(0xFF414141),
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Geist',
-                            ),
-                          ),
-                          TextSpan(
-                            text: "your identity",
-                            style: TextStyle(
-                              color: const Color(0xFF414141),
-                              fontSize: 24,
-                              fontWeight: FontWeight.normal,
-                              fontFamily: 'Geist',
-                            ),
-                          ),
-                        ],
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 0),
+
+            const Center(
+              child: Hero(
+                tag: 'HeroStepProgressIndicator', 
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: StepProgressIndicator(currentStep: 1)),  
+              )
             ),
-            const Spacer(),
-            SlideTransition(
-              position: _bottomSlide,
+            
+            const SizedBox(height: 0),
+            Expanded(
               child: Stack(
                 children: [
-                  // Hero for background panel only
                   Hero(
                     tag: 'bluePanel',
                     child: Material(
                       type: MaterialType.transparency,
                       child: Container(
+                        margin: const EdgeInsets.only(top: 35),
                         width: double.infinity,
                         decoration: const BoxDecoration(
                           color: Color(0xFF354372),
@@ -182,135 +555,360 @@ class _RegistrationStep1State extends State<RegistrationStep1>
                             topRight: Radius.circular(40),
                           ),
                         ),
-                        padding: const EdgeInsets.only(
-                          left: 24,
-                          right: 24,
-                          top: 30,
-                          bottom: 50,
-                        ),
+                      ),
+                    ),
+                  ),
+
+                  Container(
+                    padding: const EdgeInsets.only(
+                      left: 24,
+                      right: 24,
+                      top: 30,
+                      bottom: 47,
+                    ),
+                    child: FadeTransition(
+                      opacity: _contentFade,
+                      child: SlideTransition(
+                        position: _contentSlide,
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Verify Identity button
-                            GestureDetector(
-                              onTap: _isBoxChecked
-                                  ? () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => RegistrationStep3(
-                                            uid: widget.uid,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  : null,
-                              child: Container(
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: _isBoxChecked
-                                      ? const Color(0xFF5C6AA0)
-                                      : const Color(
-                                          0xFF5C6AA0,
-                                        ).withValues(alpha: 0.6),
-                                  borderRadius: BorderRadius.circular(40),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'Verify Identity',
-                                    style: TextStyle(
-                                      color: _isBoxChecked
-                                          ? Colors.white
-                                          : Colors.white60,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      fontFamily: 'Geist',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _isBoxChecked = !_isBoxChecked;
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24.0,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                            const SizedBox(height: 43),
+                            Center(
+                              child: Text.rich(
+                                TextSpan(
                                   children: [
-                                    // Checkbox
-                                    AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 350,
+                                    const TextSpan(
+                                      text: "Upload your ",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
                                       ),
-                                      curve: Curves.easeInOut,
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        color: _isBoxChecked
-                                            ? const Color(0xFF74B6F9)
-                                            : Colors.white,
-                                        borderRadius: BorderRadius.circular(5),
-                                      ),
-                                      child: _isBoxChecked
-                                          ? const Icon(
-                                              Icons.check,
-                                              size: 18,
-                                              color: Colors.white,
-                                            )
-                                          : null,
                                     ),
-                                    const SizedBox(width: 16),
-                                    // Text with clickable parts
-                                    Flexible(
-                                      child: RichText(
-                                        textAlign: TextAlign.left,
-                                        text: TextSpan(
-                                          style: const TextStyle(
-                                            color: Color(0xFFECECEC),
-                                            fontSize: 10,
-                                            fontFamily: 'Geist',
-                                            height: 16 / 10,
-                                            letterSpacing: 10 * 0.02,
-                                          ),
-                                          children: [
-                                            const TextSpan(
-                                              text:
-                                                  'By signing in to this app, you agree to our ',
-                                            ),
-                                            TextSpan(
-                                              text: 'Terms \n& Conditions',
-                                              style: const TextStyle(
-                                                decoration:
-                                                    TextDecoration.underline,
-                                                decorationColor: Colors.white70,
-                                              ),
-                                              recognizer: _termsTapRecognizer,
-                                            ),
-                                            const TextSpan(text: ' and '),
-                                            TextSpan(
-                                              text: 'Privacy Policy',
-                                              style: const TextStyle(
-                                                decoration:
-                                                    TextDecoration.underline,
-                                                decorationColor: Colors.white70,
-                                              ),
-                                              recognizer: _privacyTapRecognizer,
-                                            ),
-                                            const TextSpan(text: '.'),
-                                          ],
-                                        ),
+                                    TextSpan(
+                                      text: "COR",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 24,
+                                        fontFamily: 'Geist',
                                       ),
                                     ),
                                   ],
                                 ),
+                                textAlign: TextAlign.center,
                               ),
+                            ),
+                            const SizedBox(height: 32),
+
+                            // File selection box
+                            Material(
+                              color: const Color(0xFF5C6AA0),
+                              borderRadius: BorderRadius.circular(30),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(30),
+                                onTap: isButtonActive
+                                    ? () => _handleCORUpload(context)
+                                    : null,
+
+                                child: CustomPaint(
+                                  painter: _DashedBorderPainter(
+                                    color: const Color(0xFFFFEB66),
+                                    strokeWidth: 2.0,
+                                    radius: 28.0,
+                                    dashPattern: [6, 4],
+                                  ),
+
+                                  child: Container(
+                                    height: 240,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(24),
+                                      /*border: Border.all(
+                                        color: const Color(0xFFFFEB66),
+                                        width: 2,
+                                      ),*/
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Positioned(
+                                          top: 74,
+                                          left: 0,
+                                          right: 0,
+                                          child: const Icon(
+                                            Icons.file_present_rounded,
+                                            color: Color(0xFFF9F2D7),
+                                            size: 26,
+                                          ),
+                                        ),
+                                        Positioned(
+                                          left: 0,
+                                          right: 0,
+                                          bottom: 74,
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                'Tap here to upload your COR',
+                                                style: TextStyle(
+                                                  color: const Color(0xFFF8F8F8),
+                                                  fontSize: 14,
+                                                  fontFamily: 'Geist',
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                'Max file size 5mb.',
+                                                style: TextStyle(
+                                                  color: const Color(0xFFF8F8F8),
+                                                  fontSize: 12,
+                                                  fontFamily: 'Geist',
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                )
+
+                              ),
+                            ),
+
+                            // Upload status container
+                            if (_isUploading ||
+                                _uploadComplete ||
+                                _uploadErrorMessage != null)
+                              AnimatedOpacity(
+                                opacity:
+                                    (_selectedFilePath != null ||
+                                        _uploadErrorMessage != null)
+                                    ? 1.0
+                                    : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 22),
+                                  //padding: const EdgeInsets.all(20),
+                                  margin: const EdgeInsets.only(
+                                    top: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF5C6AA0),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.insert_drive_file,
+                                        color: const Color(0xFFF9F2D7),
+                                        size: 28,
+                                      ),
+                                      const SizedBox(width: 10),
+
+                                      Expanded(
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _uploadErrorMessage != null
+                                              ? Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.center,
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        _uploadErrorMessage!,
+                                                        style: const TextStyle(
+                                                          color: const Color(0xFFF8F8F8),
+                                                          fontFamily: 'Geist',
+                                                          fontSize: 12,
+                                                          //height: 1.2,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        maxLines: 1,
+                                                        softWrap: true,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    SvgPicture.asset(
+                                                      'assets/error.svg',
+                                                      width: 20,
+                                                      height: 20,
+                                                    ),
+                                                  ],
+                                                )
+                                              : Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Row(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .center,
+                                                      children: [
+                                                        Expanded(
+                                                          child: Transform.translate(
+                                                            offset: const Offset(0, -1),
+                                                              child: Text(
+                                                                _selectedFileName,
+                                                                style:
+                                                                    const TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontFamily:
+                                                                          'Geist',
+                                                                      fontSize: 12,
+                                                                    ),
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                              ),
+                                                            ),
+                                                        ),
+
+                                                        const SizedBox(
+                                                          width: 12,
+                                                        ),
+                                                        Transform.translate(
+                                                          offset: const Offset(0, -1),
+                                                          child: Text(
+                                                          '${(_uploadProgress * 100).toInt()}%',
+                                                            style:
+                                                                const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  fontFamily:
+                                                                      'Geist',
+                                                                ),
+                                                          ),
+                                                      
+                                                        )
+                                                        
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 0),
+                                                    Container(
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                          color: const Color(0xFF354372),
+                                                          width: 3.0,  
+                                                        ),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
+                                                        child: LinearProgressIndicator(
+                                                          value: _uploadProgress,
+                                                          minHeight: 3,
+                                                          backgroundColor:
+                                                              const Color(0xFF354372),
+                                                          valueColor:
+                                                              const AlwaysStoppedAnimation<
+                                                                Color
+                                                              >(Colors.white),
+                                                        ),
+                                                      ),
+                                                    )
+                                                    
+                                                  ],
+                                                ),
+                                        ),
+                                      ),
+
+                                      const SizedBox(width: 12),
+                                      GestureDetector(
+                                        onTap: _cancelUpload,
+                                        child:Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF354372),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                        )
+                                        
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+
+                            const Spacer(),
+                            Center(
+                              child: Opacity(
+                                opacity: _uploadComplete ? 1.0 : 0.5,
+
+                                child: Material(
+                                  color: const Color(0xFF5C6AA0),
+                                  borderRadius: BorderRadius.circular(40),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: InkWell(
+                                    onTap: _uploadComplete
+                                    ? () {
+                                        if (_nameCap != null &&
+                                            _collegeCap != null &&
+                                            _collegeId != null && 
+                                            _yearLevel != null &&
+                                            _semester != null &&
+                                            _sectionCap != null) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RegistrationStep2(
+                                                uid: widget.uid,
+                                                name: _nameCap!,
+                                                college: _collegeCap!,
+                                                collegeId: _collegeId!,
+                                                yearLevel: _yearLevel!,
+                                                semester: _semester!,
+                                                section: _sectionCap!,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    : null,
+
+                                    child: Container(
+                                      height: 60,
+                                      width: double.infinity,
+                                      
+                                      child: Center(
+                                        child: Text(
+                                          'Next',
+                                          style: TextStyle(
+                                            color: _uploadComplete
+                                                ? Colors.white
+                                                : Colors.white60,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'Geist',
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+
                             ),
                           ],
                         ),
@@ -324,5 +922,192 @@ class _RegistrationStep1State extends State<RegistrationStep1>
         ),
       ),
     );
+  }
+}
+
+
+//progress step indicator
+class StepProgressIndicator extends StatelessWidget {
+  final int currentStep;
+  final int totalSteps;
+
+  const StepProgressIndicator({
+    super.key,
+    required this.currentStep,
+    this.totalSteps = 4,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // SIZES
+    const double innerCircleSize = 32.0;
+    const double gapSize = 4.0; 
+    const double outerCircleSize = innerCircleSize + (gapSize * 2); // 40.0 px
+
+    const Color activeColor = Color(0xFF354372);
+    const Color inactiveColor = Color(0xFFD6DAE5);
+    const Color checkIconColor = Colors.white;
+
+    // Calculate the total number of gaps (e.g., 4 steps = 3 gaps)
+    int totalIntervals = totalSteps - 1;
+    
+    // Calculate current progress
+    double progressValue;
+    if (currentStep >= totalSteps) {
+      // If last step, fill line completely
+      progressValue = 1.0; 
+    } else {
+      // Otherwise, fill to current step PLUS half of the next gap (+ 0.5)
+      progressValue = ((currentStep - 1) + 0.5) / totalIntervals;
+    }
+
+    return SizedBox(
+      width: 254,
+      height: outerCircleSize, 
+      child: Stack(
+        children: [
+          // LAYER 1: The Outer Containers (Bottom)
+          // These sit BEHIND the line.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(totalSteps, (index) {
+               return Container(
+                 width: outerCircleSize,
+                 height: outerCircleSize,
+                 decoration: const BoxDecoration(
+                   color: inactiveColor, // outer circle color
+                   shape: BoxShape.circle,
+                 ),
+               );
+            }),
+          ),
+
+          // LAYER 2: The Continuous Line (Middle)
+          // This sits ON TOP of Layer 1, so it is not erased.
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: outerCircleSize / 2),
+            child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(1),
+                child: Container( // <-- Add Container for the border
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: inactiveColor, //border color
+                      width: 2.0,
+                    ),
+                  ),
+                  child: LinearProgressIndicator(
+                    value: progressValue,
+                    backgroundColor: inactiveColor,
+                    valueColor: const AlwaysStoppedAnimation<Color>(activeColor),
+                    minHeight: 2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // LAYER 3: The Inner Circles (Top)
+          // This sits ON TOP of the Line.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(totalSteps, (index) {
+              int stepNumber = index + 1;
+              bool isCompleted = stepNumber < currentStep;
+              bool isActive = stepNumber == currentStep;
+
+              return SizedBox(
+                width: outerCircleSize,
+                height: outerCircleSize,
+                child: Center(
+                  child: Container(
+                    width: innerCircleSize,
+                    height: innerCircleSize,
+                    decoration: BoxDecoration(
+                      color: (isActive || isCompleted) ? activeColor : inactiveColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: isCompleted
+                          ? const Icon(Icons.check, size: 12, color: checkIconColor)
+                          : Text(
+                              '$stepNumber',
+                              style: TextStyle(
+                                color: (isActive) ? Colors.white : const Color(0xFF404040),
+                                fontWeight: FontWeight.w100,
+                                fontSize: 14,
+                                fontFamily: 'Geist',
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+
+//dashed line
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double radius;
+  final List<double> dashPattern;
+
+  _DashedBorderPainter({
+    required this.color,
+    this.strokeWidth = 1.0,
+    this.radius = 0.0,
+    this.dashPattern = const [5, 3],
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final Path path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+          Radius.circular(radius),
+        ),
+      );
+
+    // Logic to draw dashed path
+    final Path dashedPath = Path();
+    double distance = 0.0;
+    final PathMetrics pathMetrics = path.computeMetrics();
+
+    for (final PathMetric pathMetric in pathMetrics) {
+      while (distance < pathMetric.length) {
+        final double length = dashPattern[0];
+        final double gap = dashPattern.length > 1 ? dashPattern[1] : length;
+
+        dashedPath.addPath(
+          pathMetric.extractPath(distance, distance + length),
+          Offset.zero,
+        );
+        distance += length + gap;
+      }
+    }
+
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) {
+    return color != oldDelegate.color ||
+        strokeWidth != oldDelegate.strokeWidth ||
+        radius != oldDelegate.radius;
   }
 }

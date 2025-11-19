@@ -31,7 +31,7 @@ class _HomeBodyState extends State<HomeBody> {
   int _currentSlatesPage = 0;
 
   bool _isLoading = true; // Controls the main loading spinner
-  int _dataStreamsToLoad = 8; 
+  final int _dataStreamsToLoad = 8; 
   int _dataStreamsLoaded = 0; // Counter
 
   // --- Stream Subscriptions ---
@@ -361,7 +361,7 @@ class _HomeBodyState extends State<HomeBody> {
       physics:
           const ClampingScrollPhysics(), //scroll only when needed
       padding: const EdgeInsets.symmetric(
-        horizontal: 24, //balik mo to 25 pag wala na margin lahat ng widget keyword:25marginback
+        horizontal: 0, //di na need since individual widget is naka 24 na
         vertical: 0,
       ),
       child: Column(
@@ -370,20 +370,19 @@ class _HomeBodyState extends State<HomeBody> {
           // 'Not Verified' message shows if user not verified
           if (!_isVerified) ...[
             _buildNotVerifiedWarningCard(),
-            const SizedBox(height: 30),
+            const SizedBox(height: 22), // gap ni not verified and ended or ongoing card
           ],
 
           // call election cards
           _buildSliderOrNoElectionCard(),
-          const SizedBox(
-              height: 22), // gap ni ongoing slates and countdown card
+          const SizedBox(height: 12), // gap ni CCIS officials / SLATES sa idle card
 
           // Officials/Slates card
           _buildConditionalSecondSection(),
 
           // 'Before you vote' card
           Padding(
-            padding: const EdgeInsets.only(left: 4),
+            padding: const EdgeInsets.only(left: 28), //seperate padding both part hence 24+4
             child: const Text("Before you vote",
                 style: TextStyle(
                   fontSize: 16,
@@ -391,20 +390,22 @@ class _HomeBodyState extends State<HomeBody> {
                   color: Color(0xFF404040),
                 )),
           ),
-
-          const SizedBox(
-              height: 16), //gap between title and respective btns
-          Row(
-            children: [
-              // TODO: ADD REDIRECT FUNCTIONS
-              _buildInfoCard("Voting rules"),
-              const SizedBox(width: 22),
-              _buildInfoCard(
-                "Voting process",
-              ),
-            ],
+          const SizedBox(height: 16), //gap between before u vote title and respective btns
+          Padding(
+            padding: const EdgeInsets.only(left: 24, right: 24),
+            child: Row(
+              children: [
+                // TODO: ADD REDIRECT FUNCTIONS
+                _buildInfoCard("Voting rules"),
+                const SizedBox(width: 22),
+                _buildInfoCard(
+                  "Voting process",
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 12), //para san itech, ahh para sa extra space under before u vote section
+
         ],
       ),
     );
@@ -414,10 +415,11 @@ class _HomeBodyState extends State<HomeBody> {
   Widget _buildNotVerifiedWarningCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 20, left: 28, bottom: 30, right: 28),
+      margin: const EdgeInsets.symmetric(horizontal: 24.0),
+      padding: const EdgeInsets.only(top: 20, left: 28, bottom: 21, right: 28),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF354372),
+        color: const Color(0xFFF7F7F7),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,8 +427,8 @@ class _HomeBodyState extends State<HomeBody> {
           const Text(
             "Account not Verified",
             style: TextStyle(
-              color: Color(0xFFF8F8F8),
-              fontSize: 24,
+              color: Color(0xFF404040),
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               fontFamily: 'Geist',
             ),
@@ -435,16 +437,16 @@ class _HomeBodyState extends State<HomeBody> {
           const Text(
             "It seems like your semester has ended,\nPlease re-verify your account",
             style: TextStyle(
-              color: Color(0xFFD9D9D9),
+              color: Color(0xFF747474),
               fontSize: 14,
               fontFamily: 'Geist',
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 13),
           SizedBox(
             width: double.infinity,
-            height: 47,
+            height: 44,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF5C6AA0),
@@ -483,6 +485,7 @@ class _HomeBodyState extends State<HomeBody> {
   //idle election card
   Widget _buildNoElectionCard() {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24.0),
       width: double.infinity,
       padding: const EdgeInsets.only(top: 20, left: 28, bottom: 21, right: 28),
       decoration: BoxDecoration(
@@ -569,27 +572,103 @@ class _HomeBodyState extends State<HomeBody> {
   Widget _buildActiveItemsSliderCard(List<Map<String, dynamic>> items) {
     if (items.isEmpty) return const SizedBox.shrink();
 
+    //para sa next prev btn
+    final bool hasMultipleItems = items.length > 1;
+    final bool showNextButton = hasMultipleItems && _currentActiveItemPage == 0;
+    final bool showPreviousButton = _currentActiveItemPage > 0;
+
     return SizedBox(
-      height: 180,
+      height: 200, //height prev 184 to account for the 3 dots lang to 184+16
       width: double.infinity,
       child: Stack(
-        children: [
-          PageView.builder(
-            controller: _activeItemsPageController,
-            itemCount: items.length,
-            onPageChanged: (page) {
-              setState(() {
-                _currentActiveItemPage = page;
-              });
-            },
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return _buildSliderItemCard(item);
-            },
+        children: [ //ill add another card na 184
+
+          SizedBox(
+            height: 184, //actual card
+            child: Stack(
+              children: [
+                PageView.builder(
+                  controller: _activeItemsPageController,
+                  itemCount: items.length,
+                  onPageChanged: (page) {
+                    setState(() {
+                      _currentActiveItemPage = page;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 0),
+                      child: _buildSliderItemCard(item),
+                    );
+                  },
+                ),
+
+                //"Previous" Button
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: showPreviousButton ? 1.0 : 0.0,
+                    child: Transform.translate(
+                      // An offset of (-10, 0) moves it 10 pixels to the LEFT
+                      offset: const Offset(-12.0, 0.0), 
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+
+                        icon: const Icon(Icons.arrow_back_ios_new, color:Color(0xFF747474)),
+                        onPressed: !showPreviousButton
+                            ? null
+                            : () {
+                                _activeItemsPageController.animateToPage(
+                                  0, // Go to first card
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                      ),
+                    ),
+                  ),
+                ),
+
+                //"Next" Button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: showNextButton ? 1.0 : 0.0,
+                    child: Transform.translate(
+                      // An offset of (10, 0) moves the widget 10 pixels to the RIGHT,
+                      // achieving the "negative padding" effect you want.
+                      offset: const Offset(12.0, 0.0), 
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        
+                        icon: const Icon(Icons.arrow_forward_ios, color:Color(0xFF747474)),
+                        onPressed: !showNextButton
+                            ? null
+                            : () {
+                                _activeItemsPageController.animateToPage(
+                                  1, // Go to second card
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                      ),
+                    ),
+                  ),
+                ),
+
+              ],
+            )
           ),
-          if (items.length > 1)
+
+          if (items.length > 1) //yung election dots
             Positioned(
-              bottom: 12,
+              bottom: 0,
               left: 0,
               right: 0,
               child: Row(
@@ -603,8 +682,8 @@ class _HomeBodyState extends State<HomeBody> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: index == _currentActiveItemPage
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.5),
+                          ? const Color(0xFF354372)
+                          : const Color(0xFFD9D9D9)
                     ),
                   ),
                 ),
@@ -624,6 +703,7 @@ class _HomeBodyState extends State<HomeBody> {
     final String subtitle = _formatType(type);
 
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24.0),
       width: double.infinity,
       padding: const EdgeInsets.only(top: 20, left: 28, bottom: 21, right: 28),
       decoration: BoxDecoration(
@@ -678,7 +758,7 @@ class _HomeBodyState extends State<HomeBody> {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              height: 47,
+              height: 44,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF5C6AA0),
@@ -791,7 +871,7 @@ class _HomeBodyState extends State<HomeBody> {
     );
   }
 
-  Widget _buildCurrentOfficialsSection(
+  Widget _buildCurrentOfficialsSection( //newly elected [college] official, [type] officials
     String title,
     Stream<QuerySnapshot> stream, {
     bool isResults = false,
@@ -800,7 +880,7 @@ class _HomeBodyState extends State<HomeBody> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4),
+          padding: const EdgeInsets.only(left: 28), //itong padding ni elected officials and see all d2 banda 24+4
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -813,7 +893,7 @@ class _HomeBodyState extends State<HomeBody> {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.only(right: 4),
+                padding: EdgeInsets.only(right: 28),
                 child: GestureDetector( //see all
                   onTap: () {
                     String defaultAffiliation = 'USC'; // Default to USC
@@ -837,7 +917,7 @@ class _HomeBodyState extends State<HomeBody> {
                   },
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6), //see all button padding
                     decoration: BoxDecoration(
                       color: Color(0xFFEEEEEE),
                       borderRadius: BorderRadius.circular(20),
@@ -856,297 +936,308 @@ class _HomeBodyState extends State<HomeBody> {
             ],
           ),
         ),
-        const SizedBox(
-            height:
-                13), // gap between "CCIS Officials" and see all btn - ended election ng title see all btn and img placeholder
-        StreamBuilder<QuerySnapshot>(
-          stream: stream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              print("Error loading officials: ${snapshot.error}");
-              return Container(
-                height: 180,
-                alignment: Alignment.center,
-                child: Text("Error: Could not load officials."),
-              );
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.data!.docs.isEmpty) {
-              return Container(
-                height: 180,
-                alignment: Alignment.center,
-                child: Text("No ${isResults ? 'results' : 'officials'} found."),
-              );
-            }
 
-            final officials = snapshot.data!.docs;
-            return _OfficialsPageView(
-              officials: officials,
-              isResults: isResults,
-            );
-          },
+        const SizedBox(height:13), // gap between "CCIS Officials" and see all btn - ended election ng title see all btn and img placeholder
+
+        Padding(
+          padding: EdgeInsetsGeometry.symmetric(horizontal: 16), //padding ni newly elected
+
+          child: StreamBuilder<QuerySnapshot>(
+            stream: stream,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                print("Error loading officials: ${snapshot.error}");
+                return Container(
+                  height: 184,
+                  alignment: Alignment.center,
+                  child: Text("Error: Could not load officials."),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.data!.docs.isEmpty) {
+                return Container(
+                  height: 184,
+                  alignment: Alignment.center,
+                  child: Text("No ${isResults ? 'results' : 'officials'} found."),
+                );
+              }
+
+              final officials = snapshot.data!.docs;
+              return _OfficialsPageView(
+                officials: officials,
+                isResults: isResults,
+              );
+            },
+          ),
+
         ),
-        const SizedBox(height: 22), //hap between section 3 and section 2
+        
+        const SizedBox(height: 22), //gap between section 3 and section 2
+
       ],
     );
   }
 
-  Widget _buildSlatesSection(String electionId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Slates",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF404040),
+  Widget _buildSlatesSection(String electionId) { //slates
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12), //padding left right, may dineclare ako +12 sa baba para naka crop siya
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Slates",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF404040),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: EdgeInsets.only(right: 4),
-                child: GestureDetector( // see all
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            SlateListPage(electionId: electionId),
+                Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: GestureDetector( // see all
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              SlateListPage(electionId: electionId),
+                        ),
+                      );
+                    },
+                    child: Container( // see all btn to
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFEEEEEE),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFEEEEEE),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      "See all",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF404040),
-                        fontFamily: 'Geist',
+                      child: const Text(
+                        "See all",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                        ),
                       ),
                     ),
                   ),
-                ),
-              )
-            ],
+                )
+              ],
+            ),
           ),
-        ),
-        const SizedBox(
-            height: 13), //ayon gap ne see all and slates title sa image placeholder
-        StreamBuilder<QuerySnapshot>(
-          stream: _firebaseService.getSlatesStream(electionId),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              print("Error loading slates: ${snapshot.error}");
-              return Container(
-                height: 180,
-                alignment: Alignment.center,
-                child: Text("Error: Could not load slates."),
-              );
-            }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.data!.docs.isEmpty) {
-              return const SizedBox.shrink();
-            }
+          const SizedBox(height: 13), //ayon gap ng see all and slates title sa image placeholder
+          StreamBuilder<QuerySnapshot>(
+            stream: _firebaseService.getSlatesStream(electionId),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                print("Error loading slates: ${snapshot.error}");
+                return Container(
+                  height: 184,
+                  alignment: Alignment.center,
+                  child: Text("Error: Could not load slates."),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.data!.docs.isEmpty) {
+                return const SizedBox.shrink();
+              }
 
-            final slates = snapshot.data!.docs;
-            return Column(
-              children: [
-                SizedBox(
-                  height: 180,
-                  child: Stack(
-                    children: [
-                      PageView.builder(
-                        controller: _slatesPageController,
-                        itemCount: slates.length,
-                        onPageChanged: (int page) {
-                          setState(() {
-                            _currentSlatesPage = page;
-                          });
-                        },
-                        itemBuilder: (context, index) {
-                          final slate =
-                              slates[index].data() as Map<String, dynamic>;
-                          final String name = slate['name'] ?? 'Unnamed Slate';
-                          final String description =
-                              slate['slogan'] ?? 'No description.';
-                          final String? filePath = slate['img'] as String?;
+              final slates = snapshot.data!.docs;
+              return Column(
+                children: [
+                  SizedBox(
+                    height: 184,
+                    child: Stack(
+                      children: [
+                        PageView.builder(
+                          controller: _slatesPageController,
+                          itemCount: slates.length,
+                          onPageChanged: (int page) {
+                            setState(() {
+                              _currentSlatesPage = page;
+                            });
+                          },
+                          itemBuilder: (context, index) {
+                            final slate =
+                                slates[index].data() as Map<String, dynamic>;
+                            final String name = slate['name'] ?? 'Unnamed Slate';
+                            final String description =
+                                slate['slogan'] ?? 'No description.';
+                            final String? filePath = slate['img'] as String?;
 
-                          String? publicUrl;
-                          if (filePath != null && filePath.isNotEmpty) {
-                            try {
-                              publicUrl = Supabase.instance.client.storage
-                                  .from('images')
-                                  .getPublicUrl(filePath);
-                            } catch (e) {
-                              print('Error getting public URL: $e');
-                              publicUrl = null;
+                            String? publicUrl;
+                            if (filePath != null && filePath.isNotEmpty) {
+                              try {
+                                publicUrl = Supabase.instance.client.storage
+                                    .from('images')
+                                    .getPublicUrl(filePath);
+                              } catch (e) {
+                                print('Error getting public URL: $e');
+                                publicUrl = null;
+                              }
                             }
-                          }
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            clipBehavior: Clip.antiAlias,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300, // Fallback color
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                // IMAGE LAYER
-                                if (publicUrl != null)
-                                  Image.network(
-                                    publicUrl,
-                                    fit: BoxFit.cover,
-                                    // Shows a loading spinner while image loads
-                                    loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Center(
-                                        child: CircularProgressIndicator(
-                                          value: loadingProgress.expectedTotalBytes != null
-                                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                              : null,
-                                        ),
-                                      );
-                                    },
-                                    
-                                    errorBuilder: (BuildContext context, Object exception, StackTrace? stackTrace) {
-                                      print('Error loading image: $exception');
-                                      return Center(
-                                        child: SvgPicture.asset(
-                                          'assets/account.svg', // placeholder on error
-                                          color: Colors.grey.shade600,
-                                          width: 60,
-                                          height: 60,
-                                        ),
-                                      );
-                                    },
-                                  )
-                                else
-                                  // Placeholder if no URL was provided
-                                  Center(
-                                    child: SvgPicture.asset(
-                                      'assets/account.svg', // placeholder
-                                      color: Colors.grey.shade600,
-                                      width: 60,
-                                      height: 60,
-                                    ),
-                                  ),
-                                
-                                // GRADIENT LAYER
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.bottomCenter,
-                                      end: Alignment.topCenter,
-                                      colors: [
-                                        Colors.black.withOpacity(0.8),
-                                        Colors.black.withOpacity(0.0),
-                                      ],
-                                      stops: [0.0, 0.5],
-                                    ),
-                                  ),
-                                ),
-
-                                // TEXT LAYER
-                                Padding(
-                                  padding: const EdgeInsets.all(20.0),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                          shadows: [
-                                            Shadow(
-                                              blurRadius: 2,
-                                              color: Colors.black54,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        description,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.white,
-                                          shadows: [
-                                            Shadow(
-                                              blurRadius: 2,
-                                              color: Colors.black54,
-                                            ),
-                                          ],
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      Positioned(
-                        bottom: 12,
-                        left: 0,
-                        right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            slates.length,
-                            (index) => Container(
-                              width: 8,
-                              height: 8,
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 2),
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 12), //ito pla yon dapat wla o huhu hirap hnapin, para may space yung items
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: index == _currentSlatesPage
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.5),
-                                boxShadow: [
-                                  BoxShadow(
-                                    blurRadius: 2,
-                                    color: Colors.black54,
+                                color: Colors.grey.shade300, // Fallback color
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // IMAGE LAYER
+                                  if (publicUrl != null)
+                                    Image.network(
+                                      publicUrl,
+                                      fit: BoxFit.cover,
+                                      // Shows a loading spinner while image loads
+                                      loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Center(
+                                          child: CircularProgressIndicator(
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                                : null,
+                                          ),
+                                        );
+                                      },
+                                      
+                                      errorBuilder: (BuildContext context, Object exception, StackTrace? stackTrace) {
+                                        print('Error loading image: $exception');
+                                        return Center(
+                                          child: SvgPicture.asset(
+                                            'assets/account.svg', // placeholder on error
+                                            color: Colors.grey.shade600,
+                                            width: 60,
+                                            height: 60,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  else
+                                    // Placeholder if no URL was provided
+                                    Center(
+                                      child: SvgPicture.asset(
+                                        'assets/account.svg', // placeholder
+                                        color: Colors.grey.shade600,
+                                        width: 60,
+                                        height: 60,
+                                      ),
+                                    ),
+                                  
+                                  // GRADIENT LAYER
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [
+                                          Colors.black.withOpacity(0.8),
+                                          Colors.black.withOpacity(0.0),
+                                        ],
+                                        stops: [0.0, 0.5],
+                                      ),
+                                    ),
+                                  ),
+
+                                  // TEXT LAYER
+                                  Padding(
+                                    padding: const EdgeInsets.all(20.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                            shadows: [
+                                              Shadow(
+                                                blurRadius: 2,
+                                                color: Colors.black54,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          description,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.white,
+                                            shadows: [
+                                              Shadow(
+                                                blurRadius: 2,
+                                                color: Colors.black54,
+                                              ),
+                                            ],
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
+                              ),
+                            );
+                          },
+                        ),
+                        Positioned(
+                          bottom: 12,
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(
+                              slates.length,
+                              (index) => Container(
+                                width: 8,
+                                height: 8,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 2),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: index == _currentSlatesPage
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.5),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      blurRadius: 2,
+                                      color: Colors.black54,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 30),
-      ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 22), //space ni slates and beofre you vote section, ito need ma adjust
+        ],
+      ),
+      
     );
+    
   }
 
   Widget _buildTimerSection(Duration timeLeft) {
@@ -1229,7 +1320,7 @@ class _HomeBodyState extends State<HomeBody> {
   Widget _buildInfoCard(String title) {
     return Expanded(
       child: Container(
-        height: 87,
+        height: 87,        
         decoration: BoxDecoration(
           color: Color(0xFF5C6AA0),
           borderRadius: BorderRadius.circular(16),
@@ -1279,7 +1370,7 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
     return Column(
       children: [
         SizedBox(
-          height: 180,
+          height: 184,
           child: Stack(
             children: [
               PageView.builder(
@@ -1309,7 +1400,10 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                     }
                   }
 
-                  return Container( // container nun elected and slates
+                  return Container( // container nun elected officials yun may trophy
+
+                  margin: const EdgeInsets.symmetric(horizontal: 8.0),
+
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(20),

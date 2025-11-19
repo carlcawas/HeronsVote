@@ -452,7 +452,7 @@ class _AnnouncementSectionState extends State<_AnnouncementSection> {
             showOnlyFirstAnnouncement: !_isExpanded,
             userId: widget.userId,
           );
-        }).toList(),
+        }),
       ],
     );
   }

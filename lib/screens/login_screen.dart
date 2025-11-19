@@ -2,15 +2,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:heronsvote/home/home.dart';
-import 'registration_step1.dart';
+import 'registration_step0.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import './Privacy&Terms/privacyPolicy.dart';
 import './Privacy&Terms/termsCondition.dart';
 import 'package:flutter/gestures.dart';
+import 'registration_step1.dart';
+import 'registration_step2.dart';
 import 'registration_step3.dart';
-import 'registration_step4.dart';
-import 'registration_step5.dart';
 import 'registration_verified.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -142,39 +142,13 @@ class _LoginScreenState extends State<LoginScreen>
                       child: FadeTransition(
                         opacity: _textFade,
                         child: Center(
-                          child: Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: "H",
-                                  style: TextStyle(
-                                    color: const Color(0xFF414141),
-                                    fontSize: 32,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: "erons",
-                                  style: TextStyle(
-                                    color: const Color(0xFF414141),
-                                    fontSize: 32,
-                                    fontFamily: 'Geist',
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: "Vote",
-                                  style: TextStyle(
-                                    color: const Color(0xFF414141),
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Geist',
-                                  ),
-                                ),
-                              ],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
+
+                          child: Image.asset('assets/HeronsVoteText.png',
+                          width: 181, 
+                          height: 39,
+                          fit: BoxFit.contain,  
+                          ),                      
+                        
                         ),
                       ),
                     ),
@@ -337,16 +311,16 @@ class _LoginScreenState extends State<LoginScreen>
         barrierColor: Colors.transparent,
         builder: (_) => Center(
           child: Transform.translate(
-            offset: Offset(0, 5), //adjust the position of loading eme
+            offset: Offset(0, 55), //adjust the position of loading eme
             child: SizedBox(
-              width: 50,
-              height: 50,
+              width: 36,
+              height: 36,
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  Color(0xFF666666),
+                  Color(0xFF354372),
                 ), // dark gray
-                backgroundColor: Color(0xFFB3B3A9),
-                strokeWidth: 7, //dito adjust ung size or width ng loading
+                backgroundColor: Color(0xFFDFE3F0),
+                strokeWidth: 3, //dito adjust ung size or width ng loading
                 strokeCap: StrokeCap.round,
               ),
             ),
@@ -439,27 +413,27 @@ class _LoginScreenState extends State<LoginScreen>
                 MaterialPageRoute(builder: (_) => RegistrationStep3(uid: uid)),
               );
             case 2:
-              String _nameCap = userData['name'];
-              String? _collegeCap = userData['college'];
-              String? _collegeId = userData['college_id'];
-              String? _yearLevel = userData['year_level'];
-              String? _semester = userData['semester'];
-              String? _sectionCap = userData['section'];
+              String nameCap = userData['name'];
+              String? collegeCap = userData['college'];
+              String? collegeId = userData['college_id'];
+              String? yearLevel = userData['year_level'];
+              String? semester = userData['semester'];
+              String? sectionCap = userData['section'];
               Navigator.push(context,
                 MaterialPageRoute(
                   builder: (_) => 
-                  RegistrationStep4(
+                  RegistrationStep2(
                     uid: uid,
-                    name: _nameCap,
-                    college: _collegeCap!,
-                    collegeId: _collegeId!,
-                    yearLevel: _yearLevel!,
-                    semester: _semester!,
-                    section: _sectionCap!,)),);
+                    name: nameCap,
+                    college: collegeCap!,
+                    collegeId: collegeId!,
+                    yearLevel: yearLevel!,
+                    semester: semester!,
+                    section: sectionCap!,)),); 
             case 3:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => RegistrationStep5(uid: uid)),
+                MaterialPageRoute(builder: (_) => RegistrationStep3(uid: uid)),
               );
             case 4:
               Navigator.push(
@@ -469,7 +443,7 @@ class _LoginScreenState extends State<LoginScreen>
             default:
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
+                MaterialPageRoute(builder: (_) => RegistrationStep0(uid: uid)),
               );
           }
         }

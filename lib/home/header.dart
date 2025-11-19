@@ -6,10 +6,10 @@ class CustomHeader extends StatelessWidget {
   final VoidCallback onBack;
 
   const CustomHeader({
-    Key? key,
+    super.key,
     required this.title,
     required this.onBack,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

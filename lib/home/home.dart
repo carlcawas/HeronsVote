@@ -7,14 +7,11 @@ import 'home_body.dart';
 import 'candidates_view_body.dart';
 
 // TODO: Import your Voting and Results pages
-import'';
-import'';
 
 // Import pages for the action buttons
 import 'announcement.dart';
 
 // TODO: Import your Profile page
-import'';
 
 // Import your Firebase service
 import '../services/firebase_service.dart';
