@@ -37,86 +37,135 @@ class CandidateListPage extends StatelessWidget {
           );
         }
         final userCollegeId = userSnapshot.data ?? "";
-    return ReusableListPage(
-      title: positionTitle,
-      onBack: () => Navigator.pop(context),
-      items: [
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseService().getCandidatesByPositionStream(positionTitle, userCollegeId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-
-            final docs = snapshot.data?.docs ?? [];
-
-            // TODO: paayos nalang nito, fallback msg kapag wlaang candidate for that position
-            if (docs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Center(
-                  child: Text(
-                    'No candidates found for ${positionTitle}.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
+        return ReusableListPage(
+          title: positionTitle,
+          onBack: () => Navigator.pop(context),
+          items: [
+            // Check if there is an ongoing USC Election
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseService().getActiveUniversityElectionStream(),
+              builder: (context, uscSnapshot) {
+                // Check if there is an ongoing CSC Election
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseService().getActiveCollegeElectionStream(
+                    userCollegeId,
                   ),
-                ),
-              );
-            }
+                  builder: (context, cscSnapshot) {
+                    String targetCollegeId = "none";
+                    bool isUscActive =
+                        uscSnapshot.hasData &&
+                        uscSnapshot.data!.docs.isNotEmpty;
+                    bool isCscActive =
+                        cscSnapshot.hasData &&
+                        cscSnapshot.data!.docs.isNotEmpty;
 
-            // Map Firestore documents to CandidateListItem widgets
-            final candidateItems = docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              
-              final college = data['college_id'];
-              final year = data['year'];
+                    if (isUscActive) {
+                      targetCollegeId = "";
+                    } else if (isCscActive) {
+                      targetCollegeId = userCollegeId;
+                    }
 
-              String fullDetails;
+                    // If no election is active, show a message
+                    if (!isUscActive && !isCscActive) {
+                      return const Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Center(
+                          child: Text(
+                            "No active election found for this position.",
+                          ),
+                        ),
+                      );
+                    }
 
-              if (college != null && year != null) {
-                fullDetails = '$college - $year Year';
-              } else if (college != null) {
-                fullDetails = college.toString();
-              } else if (year != null) {
-                fullDetails = '$year Year';
-              } else {
-                fullDetails = data['details'] ?? 'No Details';
-              }
+                    return StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseService().getCandidatesByPositionStream(
+                        positionTitle,
+                        targetCollegeId,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-              // Map Firestore data to Candidate model
-              final candidate = Candidate(
-                name: data['name'] ?? 'MissingNo?',
-                role: data['position'] ?? positionTitle, // Uses the query title as fallback
-                details: fullDetails, // e.g. CCIS - 3rd year
-                age: data['age']?.toString() ?? 'N/A',
-                year: data['year'] ?? 'N/A',
-                college: data['college_id'] ?? 'N/A',
-                img: data['img'] as String?,
-                partylist: data['slate'] ?? 'Independent', 
-                advocacy: data['advocacy'] ?? 'No advocacy provided.',
-                platform: data['platform'] ?? 'No platform provided.',
-              );
-              
-              return CandidateListItem(
-                candidate: candidate,
-                partylistName: candidate.partylist,
-              );
-            }).toList();
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text('Error: ${snapshot.error}'),
+                          );
+                        }
 
-            return Column(children: candidateItems);
-          },
-        ),
-      ],
-      emptyMessage: 'No candidates found for this position',
+                        final docs = snapshot.data?.docs ?? [];
+
+                        if (docs.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.all(24.0),
+                            child: Center(
+                              child: Text(
+                                'No candidates found for $positionTitle.',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        // Map Firestore documents to CandidateListItem widgets
+                        final candidateItems = docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+
+                          String? college = data['college_id'] as String?;
+                          final year = data['year'];
+
+                          if (college == null || college.isEmpty) {
+                            college = 'USC';
+                          }
+
+                          String fullDetails;
+
+                          if (college != null && year != null) {
+                            fullDetails = '$college - $year Year';
+                          } else if (college != null) {
+                            fullDetails = college.toString();
+                          }
+
+                          final candidate = Candidate(
+                            name: data['name'] ?? 'MissingNo?',
+                            role: data['position'] ?? positionTitle,
+                            details: fullDetails,
+                            age: data['age']?.toString() ?? 'N/A',
+                            year: data['year'] ?? 'N/A',
+                            college: data['college_id'] ?? 'N/A',
+                            img: data['img'] as String?,
+                            partylist: data['slate'] ?? 'Independent',
+                            advocacy:
+                                data['advocacy'] ?? 'No advocacy provided.',
+                            platform:
+                                data['platform'] ?? 'No platform provided.',
+                          );
+
+                          return CandidateListItem(
+                            candidate: candidate,
+                            partylistName: candidate.partylist,
+                          );
+                        }).toList();
+
+                        return Column(children: candidateItems);
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+          emptyMessage: 'No candidates found', //
+        );
+      },
     );
-      },);
   }
 }
 
