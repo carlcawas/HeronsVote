@@ -7,13 +7,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-import 'sample_data.dart';
+import 'voting_models.dart';
 import 'vote_submitted.dart';
 import 'header.dart';
 
 class FaceVerificationPage extends StatefulWidget {
-  final Map<String, Candidate?>
-  selectedCandidates; // Passed from previous screen
+  final Map<String, VotingCandidate?> selectedCandidates;
 
   const FaceVerificationPage({super.key, required this.selectedCandidates});
 

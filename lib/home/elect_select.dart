@@ -1,27 +1,22 @@
 import 'package:flutter/material.dart';
-import 'voting_body.dart'; 
 
 class ElectionSelectionPage extends StatefulWidget {
   final String uid;
+  final List<Map<String, dynamic>> activeElections;
+  final Function(Map<String, dynamic>) onElectionSelected;
 
-  const ElectionSelectionPage({super.key, required this.uid});
+  const ElectionSelectionPage({
+    super.key, 
+    required this.uid, 
+    required this.activeElections,
+    required this.onElectionSelected,
+  });
 
   @override
   State<ElectionSelectionPage> createState() => _ElectionSelectionPageState();
 }
 
 class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
-  final List<Map<String, dynamic>> _activeElections = [
-    {
-      'title': 'College Student Council',
-      'type': 'election',
-    },
-    {
-      'title': 'Proposals',
-      'type': 'proposal',
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,23 +27,6 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
-              //header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Voting',
-                    style: TextStyle(
-                      color: Color(0xFF404040),
-                      fontSize: 24,
-                      fontFamily: 'Geist',
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 20),
               Container(
                 width: double.infinity,
@@ -65,10 +43,10 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     ),
                   ],
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Choose Election',
                       style: TextStyle(
                         color: Color(0xFF404040),
@@ -77,10 +55,10 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
-                      'You have multiple active elections.\nPlease select one to continue.',
-                      style: TextStyle(
+                      'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
+                      style: const TextStyle(
                         color: Color(0xFF747474),
                         fontSize: 14,
                         fontFamily: 'Geist',
@@ -105,7 +83,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
 
               const SizedBox(height: 12),
 
-              //list electio n
+              //list election
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F7F7),
@@ -125,7 +103,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     padding: EdgeInsets.zero,
-                    itemCount: _activeElections.length,
+                    itemCount: widget.activeElections.length,
                   
                     separatorBuilder: (context, index) => const Divider(
                       height: 1,
@@ -137,23 +115,12 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     
                     // List 
                     itemBuilder: (context, index) {
-                      final election = _activeElections[index];
+                      final election = widget.activeElections[index];
                       return Material(
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            if (election['title'] == 'College Student Council') {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => VotingHomePage(uid: widget.uid),
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Selected: ${election['title']}")),
-                              );
-                            }
+                            widget.onElectionSelected(election);
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
@@ -161,7 +128,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    election['title'],
+                                    election['title'] ?? 'Election',
                                     style: const TextStyle(
                                       color: Color(0xFF404040),
                                       fontSize: 16,

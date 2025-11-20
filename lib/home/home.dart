@@ -7,8 +7,8 @@ import 'home_body.dart';
 import 'candidates_view_body.dart';
 
 // TODO: Import your Voting and Results pages
-import'voting_body.dart';
-import'';
+import 'voting_body.dart';
+import 'elect_select.dart';
 
 // Import pages for the action buttons
 import 'announcement.dart';
@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
       CandidatesViewBody(uid: widget.uid),
 
       // TODO: Replace with VotingPage(uid: uid)
-      VotingHomePage(uid: widget.uid),
+      VotingGateway(uid: widget.uid),
 
       // TODO: Replace with ResultsPage(uid: uid)
       Container(color: Colors.blue[100], child: Center(child: Text("Results Page"))),
@@ -346,6 +346,79 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class VotingGateway extends StatefulWidget {
+  final String uid;
+  const VotingGateway({super.key, required this.uid});
+
+  @override
+  State<VotingGateway> createState() => _VotingGatewayState();
+}
+
+class _VotingGatewayState extends State<VotingGateway> {
+  final FirebaseService _firebaseService = FirebaseService();
+  Future<List<Map<String, dynamic>>>? _electionsFuture;
+  Map<String, dynamic>? _selectedElection;
+  
+  @override
+  void initState() {
+    super.initState();
+    _electionsFuture = _firebaseService.getActiveElectionsForUser(widget.uid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _electionsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF354372)));
+        }
+        
+        if (snapshot.hasError) {
+          return Center(child: Text("Error loading elections: ${snapshot.error}"));
+        }
+
+        final elections = snapshot.data ?? [];
+
+        if (elections.isEmpty) {
+           return const Center(child: Text("No active elections at the moment."));
+        }
+        
+        // User hasn't selected yet and there are multiple elections
+        if (elections.length > 1 && _selectedElection == null) {
+           return ElectionSelectionPage(
+             uid: widget.uid, 
+             activeElections: elections,
+             onElectionSelected: (selected) {
+               setState(() {
+                 _selectedElection = selected;
+               });
+             },
+           );
+        } 
+        
+        // Single election or user has selected one
+        else {
+           final targetElection = _selectedElection ?? elections.first;
+           
+           return VotingHomePage(
+             uid: widget.uid, 
+             electionData: targetElection,
+             // if there are multiple elections, allow going back
+             onBack: elections.length > 1 
+               ? () {
+                   setState(() {
+                     _selectedElection = null;
+                   });
+                 }
+               : null,
+           );
+        }
+      },
     );
   }
 }

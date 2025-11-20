@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'sample_data.dart';
+import 'voting_models.dart';
 import 'face_verification.dart';
 import 'header.dart';
 
 class VoteConfirmationPage extends StatelessWidget {
-  final Map<String, Candidate?> selectedCandidates;
+  final Map<String, VotingCandidate?> selectedCandidates;
 
   const VoteConfirmationPage({super.key, required this.selectedCandidates});
 

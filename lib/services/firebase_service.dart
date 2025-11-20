@@ -301,4 +301,81 @@ class FirebaseService {
         .orderBy('rank', descending: false)
         .snapshots();
   }
+
+  /// Get all active elections
+  Future<List<Map<String, dynamic>>> getActiveElectionsForUser(String uid) async {
+    List<Map<String, dynamic>> activeElections = [];
+
+    try {
+      // Get User's College ID first
+      String? collegeId;
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        collegeId = (userDoc.data() as Map<String, dynamic>)['college_id'];
+      }
+
+      // Get Active University Elections
+      QuerySnapshot uscSnapshot = await _firestore
+          .collection('elections')
+          .where('type', isEqualTo: 'university')
+          .where('ongoing', isEqualTo: true)
+          .get();
+      
+      for (var doc in uscSnapshot.docs) {
+        activeElections.add({
+          'id': doc.id,
+          'type': 'university',
+          'title': (doc.data() as Map<String, dynamic>)['name'] ?? 'University Election',
+           ...doc.data() as Map<String, dynamic>
+        });
+      }
+
+      // Get Active College Elections
+      if (collegeId != null && collegeId.isNotEmpty) {
+        QuerySnapshot cscSnapshot = await _firestore
+            .collection('elections')
+            .where('type', isEqualTo: 'college')
+            .where('college_id', isEqualTo: collegeId)
+            .where('ongoing', isEqualTo: true)
+            .get();
+
+        for (var doc in cscSnapshot.docs) {
+          activeElections.add({
+            'id': doc.id,
+            'type': 'college',
+            'title': (doc.data() as Map<String, dynamic>)['name'] ?? 'College Election',
+            ...doc.data() as Map<String, dynamic>
+          });
+        }
+      }
+
+      // Get Active Proposals
+      QuerySnapshot propSnapshot = await _firestore
+          .collection('proposals')
+          .where('ongoing', isEqualTo: true)
+          .get();
+
+      for (var doc in propSnapshot.docs) {
+        activeElections.add({
+          'id': doc.id,
+          'type': 'proposal',
+          'title': (doc.data() as Map<String, dynamic>)['name'] ?? 'Proposal Voting',
+          ...doc.data() as Map<String, dynamic>
+        });
+      }
+
+    } catch (e) {
+      print("Error fetching active elections: $e");
+    }
+
+    return activeElections;
+  }
+
+  /// Get candidates of a specific election using its id
+  Stream<QuerySnapshot> getCandidatesByElectionId(String electionId) {
+    return _firestore
+        .collection('candidates')
+        .where('election_id', isEqualTo: electionId)
+        .snapshots();
+  }
 }

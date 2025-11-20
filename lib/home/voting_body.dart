@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'sample_data.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'voting_models.dart';
 import 'candidate_selection.dart';
 import 'voting_confirmation.dart';
-
+import '../services/firebase_service.dart';
 
 // Candidate list card
 class ChooseCandidateCard extends StatelessWidget {
   final VoidCallback onTap;
-
   const ChooseCandidateCard({super.key, required this.onTap});
 
   @override
@@ -26,10 +28,10 @@ class ChooseCandidateCard extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
+            const Text(
               'Choose your candidate',
               style: TextStyle(
-                color: const Color(0xFF404040),
+                color: Color(0xFF404040),
                 fontSize: 16,
                 fontFamily: 'Geist',
                 fontWeight: FontWeight.w500,
@@ -43,11 +45,7 @@ class ChooseCandidateCard extends StatelessWidget {
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
               child: const Center(
-                child: Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white,
-                  size: 18,
-                ),
+                child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
               ),
             ),
           ],
@@ -59,17 +57,68 @@ class ChooseCandidateCard extends StatelessWidget {
 
 // Candidate vote card (selected candidate)
 class CandidateVoteCard extends StatelessWidget {
-  final Candidate candidate;
+  final VotingCandidate candidate;
   final VoidCallback onTap;
 
-  const CandidateVoteCard({
-    super.key,
-    required this.candidate,
-    required this.onTap,
-  });
+  const CandidateVoteCard({super.key, required this.candidate, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    if (candidate.isAbstain) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 78,
+          padding: const EdgeInsets.only(left: 12, right: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F7F7),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE7E8E9), width: 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 50, height: 50,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE7E8E9),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const Icon(Icons.how_to_vote_outlined, color: Color(0xFF747474)),
+              ),
+              const Expanded(
+                child: Text(
+                  'Abstain',
+                  style: TextStyle(color: Color(0xFF404040), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
+                ),
+              ),
+              Container(
+                width: 39, height: 64,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF5C6AA0),
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                ),
+                child: const Center(
+                  child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    String? publicUrl;
+    if (candidate.img != null && candidate.img!.isNotEmpty) {
+      try {
+        publicUrl = Supabase.instance.client.storage
+            .from('images')
+            .getPublicUrl(candidate.img!);
+      } catch (e) {
+        publicUrl = null;
+      }
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -84,15 +133,22 @@ class CandidateVoteCard extends StatelessWidget {
           children: [
             // Image Placeholder
             Container(
-              width: 50,
-              height: 50,
+              width: 50, height: 50,
               margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFE7E8E9),
                 borderRadius: BorderRadius.circular(50),
+                image: (publicUrl != null)
+                    ? DecorationImage(
+                        image: NetworkImage(publicUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
+              child: (publicUrl == null)
+                  ? const Icon(Icons.person, color: Colors.grey)
+                  : null,
             ),
-
             // Candidate Name and Partylist
             Expanded(
               child: Column(
@@ -101,62 +157,38 @@ class CandidateVoteCard extends StatelessWidget {
                 children: [
                   Text(
                     candidate.name,
-                    style: const TextStyle(
-                      color: Color(0xFF404040),
-                      fontSize: 16,
-                      fontFamily: 'Geist',
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: const TextStyle(color: Color(0xFF404040), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    candidate.partylist,
-                    style: TextStyle(
-                      color: const Color(0xFF747474),
-                      fontSize: 12,
-                      fontFamily: 'Geist',
+                  if(candidate.partylist.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      candidate.partylist,
+                      style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist'),
                     ),
-                  ),
+                  ]
                 ],
               ),
             ),
-
             // Year/College and Arrow Button
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '${candidate.year} Year',
-                  style: TextStyle(
-                    color: const Color(0xFF747474),
-                    fontSize: 12,
-                    fontFamily: 'Geist',
-                  ),
-                ),
-                Text(
-                  candidate.college,
-                  style: TextStyle(
-                    color: const Color(0xFF747474),
-                    fontFamily: 'Geist',
-                  ),
-                ),
+                if(candidate.year.isNotEmpty)
+                  Text('${candidate.year} Year', style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist')),
+                if(candidate.college.isNotEmpty)
+                  Text(candidate.college, style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist')),
               ],
             ),
             const SizedBox(width: 12),
             Container(
-              width: 39,
-              height: 64,
+              width: 39, height: 64,
               decoration: const BoxDecoration(
                 color: Color(0xFF5C6AA0),
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
               child: const Center(
-                child: Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white,
-                  size: 18,
-                ),
+                child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
               ),
             ),
           ],
@@ -169,7 +201,7 @@ class CandidateVoteCard extends StatelessWidget {
 // PositionVoteItem with error state
 class PositionVoteItem extends StatelessWidget {
   final String positionTitle;
-  final Candidate? selectedCandidate;
+  final VotingCandidate? selectedCandidate;
   final VoidCallback onSelectCandidate;
   final bool hasError;
 
@@ -204,175 +236,148 @@ class PositionVoteItem extends StatelessWidget {
               if (hasError)
                 Row(
                   children: [
-                  Text(
-                    'No Chosen Candidate',
-                    style: TextStyle(
-                      color: const Color(0xFFED6C6A),
-                      fontSize: 12,
-                      fontFamily: 'Geist',
+                    const Text(
+                      'No Chosen Candidate',
+                      style: TextStyle(color: Color(0xFFED6C6A), fontSize: 12, fontFamily: 'Geist'),
                     ),
-                  ),
-                  const SizedBox(width: 6,),
-                  SvgPicture.asset(
-                    'assets/error.svg',
-                    height: 20,
-                    width: 20,
-                  )
+                    const SizedBox(width: 6),
+                    SvgPicture.asset('assets/error.svg', height: 20, width: 20)
                   ],
                 ),
             ],
           ),
         ),
-        // Show selected candidate or choose card
         selectedCandidate == null
             ? ChooseCandidateCard(onTap: onSelectCandidate)
-            : CandidateVoteCard(
-                candidate: selectedCandidate!,
-                onTap: onSelectCandidate,
-              ),
+            : CandidateVoteCard(candidate: selectedCandidate!, onTap: onSelectCandidate),
       ],
     );
   }
 }
 
 //VOTING PAGE
-
 class VotingHomePage extends StatefulWidget {
   final String uid;
+  final Map<String, dynamic> electionData;
+  final VoidCallback? onBack;
 
-  const VotingHomePage({super.key, required this.uid});
+  const VotingHomePage({
+    super.key,
+    required this.uid,
+    required this.electionData,
+    this.onBack,
+  });
 
   @override
   State<VotingHomePage> createState() => _VotingHomePageState();
 }
 
 class _VotingHomePageState extends State<VotingHomePage> {
-  final Map<String, Candidate?> _selectedCandidates = {};
+  final Map<String, VotingCandidate?> _selectedCandidates = {};
   bool _showErrors = false;
 
-  // Hardcoded info for the header card
-  final String _electionTitle = 'College Student Council Election';
-  final String _electionPeriod = '(S.Y. 2025-2026)';
+  late String _electionTitle;
+  late String _electionPeriod;
+  bool _isProposal = false;
 
-  List<String> get _positions {
-    final allPositions = placeholderSlates
-        .expand((slate) => slate.candidates)
-        .map((candidate) => candidate.role)
-        .toSet()
-        .toList();
-
-    // Sort positions in a logical order
-    final positionOrder = [
-      'Chairperson',
-      'Vice Chairperson',
-      'Secretary',
-      'Treasurer',
-      'Auditor',
-    ];
-
-    allPositions.sort((a, b) {
-      final indexA = positionOrder.indexOf(a);
-      final indexB = positionOrder.indexOf(b);
-      if (indexA != -1 && indexB != -1) return indexA.compareTo(indexB);
-      if (indexA != -1) return -1;
-      if (indexB != -1) return 1;
-      return a.compareTo(b);
-    });
-
-    return allPositions;
-  }
-
-  // Get candidates for a specific position
-  List<Candidate> _getCandidatesForPosition(String position) {
-    return placeholderSlates
-        .expand((slate) => slate.candidates)
-        .where((candidate) => candidate.role == position)
-        .toList();
-  }
+  // STATIC POSITIONS
+  final List<String> _definedPositions = [
+    'Chairperson',
+    'Vice Chairperson',
+    'Secretary',
+    'Treasurer',
+    'Auditor',
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Initialize all positions with no selection
-    for (var position in _positions) {
-      _selectedCandidates[position] = null;
+    _electionTitle = widget.electionData['title'] ?? 'Election Voting';
+    _isProposal = widget.electionData['type'] == 'proposal';
+
+    // Date Handling
+    if (widget.electionData['start'] != null && widget.electionData['end'] != null) {
+      try {
+        Timestamp startTs = widget.electionData['start'];
+        Timestamp endTs = widget.electionData['end'];
+        String start = DateFormat('MMMM d, yyyy').format(startTs.toDate());
+        String end = DateFormat('MMMM d, yyyy').format(endTs.toDate());
+        _electionPeriod = '$start - $end';
+      } catch (e) {
+        _electionPeriod = '(Ongoing)';
+      }
+    } else {
+      _electionPeriod = '(Ongoing)';
+    }
+    
+    for (var pos in _definedPositions) {
+      _selectedCandidates[pos] = null;
     }
   }
 
-  void _handleSelectCandidate(String positionTitle) async {
-    // Navigate to CandidateSelectionPage and wait for result
-    final Candidate? selectedCandidate = await Navigator.push(
+  List<VotingCandidate> _mapFirestoreToCandidates(List<DocumentSnapshot> docs) {
+    return docs.map((doc) {
+      return VotingCandidate.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }).toList();
+  }
+
+  List<VotingCandidate> _getProposalOptions() {
+    return [
+      VotingCandidate(name: 'Yes', role: 'Proposal', isProposalOption: true),
+      VotingCandidate(name: 'No', role: 'Proposal', isProposalOption: true),
+    ];
+  }
+
+  void _handleSelectCandidate(String positionTitle, List<VotingCandidate> candidates) async {
+    final VotingCandidate? result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => CandidateSelectionPage(
           positionTitle: positionTitle,
-          candidates: _getCandidatesForPosition(positionTitle),
+          candidates: candidates,
           initialSelection: _selectedCandidates[positionTitle],
         ),
       ),
     );
 
-    if (selectedCandidate != null && mounted) {
+    if (result != null && mounted) {
       setState(() {
-        _selectedCandidates[positionTitle] = selectedCandidate;
-        // Hide errors when user selects a candidate
+        _selectedCandidates[positionTitle] = result;
         _showErrors = false;
       });
     }
   }
 
-  void _submitVote() {
-    // Check if all positions have been voted for
-    final hasEmptyPositions = _selectedCandidates.values.any(
-      (candidate) => candidate == null,
-    );
+  void _submitVote(List<String> positionsToCheck) {
+    final hasEmpty = positionsToCheck.any((pos) => _selectedCandidates[pos] == null);
 
-    if (hasEmptyPositions) {
-      setState(() {
-        _showErrors = true;
-      });
-
-      // Count empty positions
-      final emptyPositions = _positions
-          .where((position) => _selectedCandidates[position] == null)
-          .toList();
-
+    if (hasEmpty) {
+      setState(() => _showErrors = true);
+      final missing = positionsToCheck.where((pos) => _selectedCandidates[pos] == null).toList();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Please select candidates for all positions!',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Missing: ${emptyPositions.join(', ')}',
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
+          content: Text('Missing: ${missing.join(', ')}'),
           backgroundColor: const Color(0xFFDC2626),
-          duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
-   Navigator.push(
+
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VoteConfirmationPage(
-          selectedCandidates: _selectedCandidates,
-        ),
+        builder: (context) => VoteConfirmationPage(selectedCandidates: _selectedCandidates),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    Stream<QuerySnapshot> candidateStream = _isProposal
+        ? const Stream.empty()
+        : FirebaseService().getCandidatesByElectionId(widget.electionData['id']);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -383,6 +388,19 @@ class _VotingHomePageState extends State<VotingHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
+                if (widget.onBack != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: GestureDetector(
+                      onTap: widget.onBack,
+                      child: const Row(
+                        children: [
+                          Icon(Icons.arrow_back_ios, size: 14, color: Color(0xFF5C6AA0)),
+                          Text(" Switch Election", style: TextStyle(color: Color(0xFF5C6AA0), fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ),
 
                 // Election Info Card
                 Container(
@@ -393,12 +411,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
                     color: const Color(0xFFF7F7F7),
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 2,
-                        blurRadius: 5,
-                        offset: const Offset(0, 3),
-                      ),
+                      BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 5, offset: const Offset(0, 3)),
                     ],
                   ),
                   child: Column(
@@ -406,96 +419,96 @@ class _VotingHomePageState extends State<VotingHomePage> {
                     children: [
                       Text(
                         _electionTitle,
-                        style: const TextStyle(
-                          color: Color(0xFF404040),
-                          fontSize: 24,
-                          fontFamily: 'Geist',
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(color: Color(0xFF404040), fontSize: 24, fontFamily: 'Geist', fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 5),
                       Text(
                         _electionPeriod,
-                        style: TextStyle(
-                          color: const Color(0xFF747474),
-                          fontSize: 16,
-                          fontFamily: 'Geist',
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: const TextStyle(color: Color(0xFF747474), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Container(
-                            width: 12,
-                            height: 12,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF76D675),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
+                          Container(width: 12, height: 12, decoration: const BoxDecoration(color: Color(0xFF76D675), shape: BoxShape.circle)),
                           const SizedBox(width: 8),
-                          Text(
-                            'Ongoing',
-                            style: TextStyle(
-                              color: const Color(0xFF747474),
-                              fontSize: 14,
-                              fontFamily: 'Geist',
-                            ),
-                          ),
+                          const Text('Ongoing', style: TextStyle(color: Color(0xFF747474), fontSize: 14, fontFamily: 'Geist')),
                         ],
                       ),
                     ],
                   ),
                 ),
+                
+                if (_isProposal)
+                  _buildProposalBody()
+                else
+                  StreamBuilder<QuerySnapshot>(
+                    stream: candidateStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) return const Text("Error loading candidates");
+                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-                // List of PositionVoteItems with error states
-                ..._positions.map((positionTitle) {
-                  final hasError =
-                      _showErrors && _selectedCandidates[positionTitle] == null;
+                      final allCandidates = _mapFirestoreToCandidates(snapshot.data!.docs);
 
-                  return PositionVoteItem(
-                    positionTitle: positionTitle,
-                    selectedCandidate: _selectedCandidates[positionTitle],
-                    onSelectCandidate: () =>
-                        _handleSelectCandidate(positionTitle),
-                    hasError: hasError,
-                  );
-                }).toList(),
-
-                const SizedBox(height: 100),
+                      return Column(
+                        children: [
+                          ..._definedPositions.map((pos) {
+                            final candidatesForPos = allCandidates.where((c) => c.role == pos).toList();
+                            
+                            final hasError = _showErrors && _selectedCandidates[pos] == null;
+                            
+                            return PositionVoteItem(
+                              positionTitle: pos,
+                              selectedCandidate: _selectedCandidates[pos],
+                              onSelectCandidate: () => _handleSelectCandidate(pos, candidatesForPos),
+                              hasError: hasError,
+                            );
+                          }),
+                          
+                          const SizedBox(height: 100),
+                          _buildSubmitButton(() => _submitVote(_definedPositions)),
+                          const SizedBox(height: 30),
+                        ],
+                      );
+                    },
+                  ),
               ],
             ),
           ),
-
-          // "Submit Vote" button
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                onPressed: _submitVote,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5C6AA0),
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 5,
-                ),
-                child: const Text(
-                  'Submit Vote',
-                  style: TextStyle(
-                    color: Color(0xFFF8F8F8),
-                    fontSize: 14,
-                    fontFamily: 'Geist',
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProposalBody() {
+    const String question = 'Do you agree with this Proposal?';
+    final hasError = _showErrors && _selectedCandidates[question] == null;
+
+    return Column(
+      children: [
+        PositionVoteItem(
+          positionTitle: question,
+          selectedCandidate: _selectedCandidates[question],
+          onSelectCandidate: () => _handleSelectCandidate(question, _getProposalOptions()),
+          hasError: hasError,
+        ),
+        const SizedBox(height: 50),
+        _buildSubmitButton(() => _submitVote([question])),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton(VoidCallback onPressed) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF5C6AA0),
+        minimumSize: const Size(double.infinity, 55),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 5,
+      ),
+      child: const Text(
+        'Submit Vote',
+        style: TextStyle(color: Color(0xFFF8F8F8), fontSize: 14, fontFamily: 'Geist', fontWeight: FontWeight.w700),
       ),
     );
   }
