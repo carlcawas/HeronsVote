@@ -1,12 +1,9 @@
-// voting_home_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'sample_data.dart';
 import 'candidate_selection.dart';
+import 'voting_confirmation.dart';
 
-// =================================================================================
-// 1. HELPER WIDGETS
-// =================================================================================
 
 // Candidate list card
 class ChooseCandidateCard extends StatelessWidget {
@@ -364,31 +361,12 @@ class _VotingHomePageState extends State<VotingHomePage> {
       );
       return;
     }
-
-    // If complete - show success
-    final selectedNames = _selectedCandidates.entries
-        .map((entry) => '${entry.key}: ${entry.value!.name}')
-        .join('\n');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Votes submitted successfully!',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Your selections:\n$selectedNames',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
+   Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VoteConfirmationPage(
+          selectedCandidates: _selectedCandidates,
         ),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 5),
       ),
     );
   }
