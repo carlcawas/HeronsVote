@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'results.dart';
 
 // Import your page "bodies"
 import 'home_body.dart';
@@ -56,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
       VotingGateway(uid: widget.uid),
 
       // TODO: Replace with ResultsPage(uid: uid)
-      Container(color: Colors.blue[100], child: Center(child: Text("Results Page"))),
+      const ElectionResultPage(),
     ];
   }
 

@@ -45,7 +45,11 @@ class ChooseCandidateCard extends StatelessWidget {
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
               child: const Center(
-                child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                child: Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
           ],
@@ -60,7 +64,11 @@ class CandidateVoteCard extends StatelessWidget {
   final VotingCandidate candidate;
   final VoidCallback onTap;
 
-  const CandidateVoteCard({super.key, required this.candidate, required this.onTap});
+  const CandidateVoteCard({
+    super.key,
+    required this.candidate,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -78,28 +86,42 @@ class CandidateVoteCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 50, height: 50,
+                width: 50,
+                height: 50,
                 margin: const EdgeInsets.only(right: 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE7E8E9),
                   borderRadius: BorderRadius.circular(50),
                 ),
-                child: const Icon(Icons.how_to_vote_outlined, color: Color(0xFF747474)),
+                child: const Icon(
+                  Icons.how_to_vote_outlined,
+                  color: Color(0xFF747474),
+                ),
               ),
               const Expanded(
                 child: Text(
                   'Abstain',
-                  style: TextStyle(color: Color(0xFF404040), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: Color(0xFF404040),
+                    fontSize: 16,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               Container(
-                width: 39, height: 64,
+                width: 39,
+                height: 64,
                 decoration: const BoxDecoration(
                   color: Color(0xFF5C6AA0),
                   borderRadius: BorderRadius.all(Radius.circular(12)),
                 ),
                 child: const Center(
-                  child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                  child: Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
             ],
@@ -133,7 +155,8 @@ class CandidateVoteCard extends StatelessWidget {
           children: [
             // Image Placeholder
             Container(
-              width: 50, height: 50,
+              width: 50,
+              height: 50,
               margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFE7E8E9),
@@ -157,15 +180,24 @@ class CandidateVoteCard extends StatelessWidget {
                 children: [
                   Text(
                     candidate.name,
-                    style: const TextStyle(color: Color(0xFF404040), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      color: Color(0xFF404040),
+                      fontSize: 16,
+                      fontFamily: 'Geist',
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  if(candidate.partylist.isNotEmpty) ...[
+                  if (candidate.partylist.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       candidate.partylist,
-                      style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist'),
+                      style: const TextStyle(
+                        color: Color(0xFF747474),
+                        fontSize: 12,
+                        fontFamily: 'Geist',
+                      ),
                     ),
-                  ]
+                  ],
                 ],
               ),
             ),
@@ -174,21 +206,40 @@ class CandidateVoteCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if(candidate.year.isNotEmpty)
-                  Text('${candidate.year} Year', style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist')),
-                if(candidate.college.isNotEmpty)
-                  Text(candidate.college, style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist')),
+                if (candidate.year.isNotEmpty)
+                  Text(
+                    '${candidate.year} Year',
+                    style: const TextStyle(
+                      color: Color(0xFF747474),
+                      fontSize: 12,
+                      fontFamily: 'Geist',
+                    ),
+                  ),
+                if (candidate.college.isNotEmpty)
+                  Text(
+                    candidate.college,
+                    style: const TextStyle(
+                      color: Color(0xFF747474),
+                      fontSize: 12,
+                      fontFamily: 'Geist',
+                    ),
+                  ),
               ],
             ),
             const SizedBox(width: 12),
             Container(
-              width: 39, height: 64,
+              width: 39,
+              height: 64,
               decoration: const BoxDecoration(
                 color: Color(0xFF5C6AA0),
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
               child: const Center(
-                child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                child: Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
           ],
@@ -238,10 +289,14 @@ class PositionVoteItem extends StatelessWidget {
                   children: [
                     const Text(
                       'No Chosen Candidate',
-                      style: TextStyle(color: Color(0xFFED6C6A), fontSize: 12, fontFamily: 'Geist'),
+                      style: TextStyle(
+                        color: Color(0xFFED6C6A),
+                        fontSize: 12,
+                        fontFamily: 'Geist',
+                      ),
                     ),
                     const SizedBox(width: 6),
-                    SvgPicture.asset('assets/error.svg', height: 20, width: 20)
+                    SvgPicture.asset('assets/error.svg', height: 20, width: 20),
                   ],
                 ),
             ],
@@ -249,7 +304,10 @@ class PositionVoteItem extends StatelessWidget {
         ),
         selectedCandidate == null
             ? ChooseCandidateCard(onTap: onSelectCandidate)
-            : CandidateVoteCard(candidate: selectedCandidate!, onTap: onSelectCandidate),
+            : CandidateVoteCard(
+                candidate: selectedCandidate!,
+                onTap: onSelectCandidate,
+              ),
       ],
     );
   }
@@ -296,7 +354,8 @@ class _VotingHomePageState extends State<VotingHomePage> {
     _isProposal = widget.electionData['type'] == 'proposal';
 
     // Date Handling
-    if (widget.electionData['start'] != null && widget.electionData['end'] != null) {
+    if (widget.electionData['start'] != null &&
+        widget.electionData['end'] != null) {
       try {
         Timestamp startTs = widget.electionData['start'];
         Timestamp endTs = widget.electionData['end'];
@@ -309,7 +368,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
     } else {
       _electionPeriod = '(Ongoing)';
     }
-    
+
     for (var pos in _definedPositions) {
       _selectedCandidates[pos] = null;
     }
@@ -317,7 +376,10 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
   List<VotingCandidate> _mapFirestoreToCandidates(List<DocumentSnapshot> docs) {
     return docs.map((doc) {
-      return VotingCandidate.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+      return VotingCandidate.fromMap(
+        doc.data() as Map<String, dynamic>,
+        doc.id,
+      );
     }).toList();
   }
 
@@ -328,7 +390,10 @@ class _VotingHomePageState extends State<VotingHomePage> {
     ];
   }
 
-  void _handleSelectCandidate(String positionTitle, List<VotingCandidate> candidates) async {
+  void _handleSelectCandidate(
+    String positionTitle,
+    List<VotingCandidate> candidates,
+  ) async {
     final VotingCandidate? result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -349,11 +414,15 @@ class _VotingHomePageState extends State<VotingHomePage> {
   }
 
   void _submitVote(List<String> positionsToCheck) {
-    final hasEmpty = positionsToCheck.any((pos) => _selectedCandidates[pos] == null);
+    final hasEmpty = positionsToCheck.any(
+      (pos) => _selectedCandidates[pos] == null,
+    );
 
     if (hasEmpty) {
       setState(() => _showErrors = true);
-      final missing = positionsToCheck.where((pos) => _selectedCandidates[pos] == null).toList();
+      final missing = positionsToCheck
+          .where((pos) => _selectedCandidates[pos] == null)
+          .toList();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Missing: ${missing.join(', ')}'),
@@ -367,7 +436,8 @@ class _VotingHomePageState extends State<VotingHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VoteConfirmationPage(selectedCandidates: _selectedCandidates),
+        builder: (context) =>
+            VoteConfirmationPage(selectedCandidates: _selectedCandidates),
       ),
     );
   }
@@ -376,102 +446,184 @@ class _VotingHomePageState extends State<VotingHomePage> {
   Widget build(BuildContext context) {
     Stream<QuerySnapshot> candidateStream = _isProposal
         ? const Stream.empty()
-        : FirebaseService().getCandidatesByElectionId(widget.electionData['id']);
+        : FirebaseService().getCandidatesByElectionId(
+            widget.electionData['id'],
+          );
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 25.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
-                if (widget.onBack != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: GestureDetector(
-                      onTap: widget.onBack,
-                      child: const Row(
-                        children: [
-                          Icon(Icons.arrow_back_ios, size: 14, color: Color(0xFF5C6AA0)),
-                          Text(" Switch Election", style: TextStyle(color: Color(0xFF5C6AA0), fontWeight: FontWeight.bold, fontSize: 14)),
-                        ],
-                      ),
+          Positioned.fill(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(
+                left: 25.0,
+                right: 25.0,
+                bottom: 120.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  // Election Info Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(15),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F7F7),
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 2,
+                          blurRadius: 5,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _electionTitle,
+                          style: const TextStyle(
+                            color: Color(0xFF404040),
+                            fontSize: 24,
+                            fontFamily: 'Geist',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _electionPeriod,
+                          style: const TextStyle(
+                            color: Color(0xFF747474),
+                            fontSize: 16,
+                            fontFamily: 'Geist',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF76D675),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Ongoing',
+                              style: TextStyle(
+                                color: Color(0xFF747474),
+                                fontSize: 14,
+                                fontFamily: 'Geist',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
 
-                // Election Info Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F7F7),
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 5, offset: const Offset(0, 3)),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _electionTitle,
-                        style: const TextStyle(color: Color(0xFF404040), fontSize: 24, fontFamily: 'Geist', fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        _electionPeriod,
-                        style: const TextStyle(color: Color(0xFF747474), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Container(width: 12, height: 12, decoration: const BoxDecoration(color: Color(0xFF76D675), shape: BoxShape.circle)),
-                          const SizedBox(width: 8),
-                          const Text('Ongoing', style: TextStyle(color: Color(0xFF747474), fontSize: 14, fontFamily: 'Geist')),
-                        ],
-                      ),
-                    ],
-                  ),
+                  if (_isProposal)
+                    _buildProposalBody(includeButton: false)
+                  else
+                    StreamBuilder<QuerySnapshot>(
+                      stream: candidateStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError)
+                          return const Text("Error loading candidates");
+                        if (!snapshot.hasData)
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+
+                        final allCandidates = _mapFirestoreToCandidates(
+                          snapshot.data!.docs,
+                        );
+
+                        return Column(
+                          children: [
+                            ..._definedPositions.map((pos) {
+                              final candidatesForPos = allCandidates
+                                  .where((c) => c.role == pos)
+                                  .toList();
+
+                              final hasError =
+                                  _showErrors &&
+                                  _selectedCandidates[pos] == null;
+
+                              return PositionVoteItem(
+                                positionTitle: pos,
+                                selectedCandidate: _selectedCandidates[pos],
+                                onSelectCandidate: () => _handleSelectCandidate(
+                                  pos,
+                                  candidatesForPos,
+                                ),
+                                hasError: hasError,
+                              );
+                            }),
+                          ],
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Sticky Submit Button
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.only(left: 25, right: 25, bottom: 25, top: 40),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.white.withOpacity(0.0), 
+                    Colors.white.withOpacity(0.8), 
+                    Colors.white,                  
+                  ],
+                  stops: const [0.0, 0.6, 1.0], 
                 ),
-                
-                if (_isProposal)
-                  _buildProposalBody()
-                else
-                  StreamBuilder<QuerySnapshot>(
-                    stream: candidateStream,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) return const Text("Error loading candidates");
-                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              ),
+              child: Row(
+                children: [
+                  if (widget.onBack != null) ...[
+                    SizedBox(
+                      height: 53, 
+                      width: 53, 
+                      child: ElevatedButton(
+                        onPressed: widget.onBack,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5C6AA0),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 21),
+                      ),
+                    ),
+                    const SizedBox(width: 12), 
+                  ],
 
-                      final allCandidates = _mapFirestoreToCandidates(snapshot.data!.docs);
-
-                      return Column(
-                        children: [
-                          ..._definedPositions.map((pos) {
-                            final candidatesForPos = allCandidates.where((c) => c.role == pos).toList();
-                            
-                            final hasError = _showErrors && _selectedCandidates[pos] == null;
-                            
-                            return PositionVoteItem(
-                              positionTitle: pos,
-                              selectedCandidate: _selectedCandidates[pos],
-                              onSelectCandidate: () => _handleSelectCandidate(pos, candidatesForPos),
-                              hasError: hasError,
-                            );
-                          }),
-                          
-                          const SizedBox(height: 100),
-                          _buildSubmitButton(() => _submitVote(_definedPositions)),
-                          const SizedBox(height: 30),
-                        ],
-                      );
-                    },
+                  Expanded(
+                    child: _buildSubmitButton(() => _submitVote(
+                        _isProposal ? ['Do you agree with this Proposal?'] : _definedPositions)),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -479,7 +631,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
     );
   }
 
-  Widget _buildProposalBody() {
+  Widget _buildProposalBody({bool includeButton = true}) {
     const String question = 'Do you agree with this Proposal?';
     final hasError = _showErrors && _selectedCandidates[question] == null;
 
@@ -488,11 +640,14 @@ class _VotingHomePageState extends State<VotingHomePage> {
         PositionVoteItem(
           positionTitle: question,
           selectedCandidate: _selectedCandidates[question],
-          onSelectCandidate: () => _handleSelectCandidate(question, _getProposalOptions()),
+          onSelectCandidate: () =>
+              _handleSelectCandidate(question, _getProposalOptions()),
           hasError: hasError,
         ),
-        const SizedBox(height: 50),
-        _buildSubmitButton(() => _submitVote([question])),
+        if (includeButton) ...[
+          const SizedBox(height: 50),
+          _buildSubmitButton(() => _submitVote([question])),
+        ],
       ],
     );
   }
@@ -504,11 +659,16 @@ class _VotingHomePageState extends State<VotingHomePage> {
         backgroundColor: const Color(0xFF5C6AA0),
         minimumSize: const Size(double.infinity, 55),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        elevation: 5,
+        elevation: 2,
       ),
       child: const Text(
         'Submit Vote',
-        style: TextStyle(color: Color(0xFFF8F8F8), fontSize: 14, fontFamily: 'Geist', fontWeight: FontWeight.w700),
+        style: TextStyle(
+          color: Color(0xFFF8F8F8),
+          fontSize: 14,
+          fontFamily: 'Geist',
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
