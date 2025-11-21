@@ -378,4 +378,66 @@ class FirebaseService {
         .where('election_id', isEqualTo: electionId)
         .snapshots();
   }
+
+  Future<List<String>> getReadAnnouncementIds(String userId) async {
+    final readDocRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('read_status')
+        .doc('read_announcements');
+
+    final readDocSnapshot = await readDocRef.get();
+
+    if (!readDocSnapshot.exists) {
+      // Create the document if it doesn't exist
+      await readDocRef.set({
+        'announcement_ids': [],
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      return [];
+    } else {
+      // Fetch the IDs
+      return List<String>.from(
+        readDocSnapshot.get('announcement_ids') ?? [],
+      );
+    }
+  }
+
+  /// Atomically adds an announcement ID to the user's read list using a transaction.
+  Future<void> markAnnouncementAsRead({
+    required String userId,
+    required String announcementId,
+  }) async {
+    final readDocRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('read_status')
+        .doc('read_announcements');
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(readDocRef);
+
+      if (!snapshot.exists) {
+        // If the doc doesn't exist (edge case, but handled here for safety)
+        transaction.set(readDocRef, {
+          'announcement_ids': [announcementId],
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      } else {
+        final currentIds = snapshot.get('announcement_ids') ?? [];
+        final idsList = currentIds is List
+            ? List<String>.from(currentIds)
+            : [];
+
+        // Only update if the ID is not already present
+        if (!idsList.contains(announcementId)) {
+          transaction.update(readDocRef, {
+            'announcement_ids': FieldValue.arrayUnion([announcementId]),
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    });
+  }
 }
