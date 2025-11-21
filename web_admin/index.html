@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+        h1 { color: #02569B; margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 30px; display: block;}
+        
+        .menu-btn { display: block; width: 100%; padding: 15px 0; margin: 10px 0; background: white; border: 2px solid #02569B; color: #02569B; text-decoration: none; border-radius: 6px; font-weight: bold; transition: 0.2s; box-sizing: border-box;}
+        .menu-btn:hover { background: #02569B; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Heron's Vote</h1>
+    <span class="subtitle">Administrator Panel</span>
+    
+    <a href="candidate_manager.html" class="menu-btn">Manage Candidates</a>
+    <a href="college_manager.html" class="menu-btn">Manage Colleges</a>
+    <a href="election_manager.html" class="menu-btn">Manage Elections</a>
+    <a href="slate_manager.html" class="menu-btn">Manage Slates</a>
+</div>
+
+</body>
+</html>

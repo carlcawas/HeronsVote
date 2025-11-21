@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Election Manager</title>
+    <style>
+        :root { --primary: #02569B; --bg: #f0f2f5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .nav-bar { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .nav-link { text-decoration: none; color: #666; font-weight: bold; font-size: 14px; padding-bottom: 2px; }
+        .nav-link:hover { color: var(--primary); }
+        .nav-link.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        .nav-title { margin-right: auto; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+        .container { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #333; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+        .checkbox-group input { width: auto; }
+        .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; }
+        #btnSave { background: var(--primary); }
+        #btnClear { background: #757575; }
+        .list-item { border-bottom: 1px solid #eee; padding: 10px; background: #fff; margin-bottom: 5px; border-radius: 4px; }
+        .actions { margin-top: 8px; display: flex; justify-content: flex-end; gap: 5px; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; width: auto; }
+        .btn-edit { background: #f57c00; }
+        .btn-del { background: #d32f2f; }
+    </style>
+</head>
+<body>
+
+<div class="nav-bar">
+    <div class="nav-title">Admin Panel</div>
+    <a href="index.html" class="nav-link">Dashboard</a>
+    <a href="candidate_manager.html" class="nav-link">Candidates</a>
+    <a href="college_manager.html" class="nav-link">Colleges</a>
+    <a href="election_manager.html" class="nav-link active">Elections</a>
+    <a href="slate_manager.html" class="nav-link">Slates</a>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h2>Manage Election</h2>
+        <input type="hidden" id="docId">
+        
+        <div class="form-group"><label>Election Name</label><input type="text" id="name" placeholder="e.g. CCIS CSC Election 2025"></div>
+        <div class="form-group">
+            <label>Type</label>
+            <select id="type" onchange="toggleCollegeDropdown()">
+                <option value="college">College Level</option>
+                <option value="university">University Level</option>
+            </select>
+        </div>
+        <div class="form-group" id="college_group">
+            <label>College Context</label>
+            <select id="college_id"><option value="">Loading Colleges...</option></select>
+        </div>
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div><label>Start Date/Time</label><input type="datetime-local" id="start"></div>
+            <div><label>End Date/Time</label><input type="datetime-local" id="end"></div>
+        </div>
+        <div class="checkbox-group">
+            <input type="checkbox" id="ongoing">
+            <label for="ongoing">Election is Ongoing (Active)</label>
+        </div>
+        <div class="btn-row">
+            <button id="btnClear" onclick="clearForm()">Clear</button>
+            <button id="btnSave" onclick="saveElection()">Save Election</button>
+        </div>
+
+        <div id="slateManager" style="display:none; margin-top: 20px; border-top: 2px solid #eee; padding-top: 15px;">
+            <h3 style="font-size: 14px; margin-bottom: 5px;">Participating Slates</h3>
+            <p style="font-size: 11px; color: #666;">Manage slates in this election.</p>
+            
+            <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                <select id="newSlateSelect" style="flex: 1;"><option value="">Loading Global Slates...</option></select>
+                <button onclick="addSlate()" style="width: auto; background: #2e7d32; padding: 0 15px;">Add</button>
+            </div>
+            <div id="slatesList" style="background: #fafafa; padding: 10px; border-radius: 4px; max-height: 150px; overflow-y: auto; border: 1px solid #eee;"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Existing Elections</h2>
+        <button onclick="loadElections()" style="width:100%; background:#00897b; margin-bottom:15px;">Refresh List</button>
+        <div id="listArea">Loading...</div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, addDoc, getDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCbOXynjC4MVIwbpz67DsJLdWS0RCXk7bY",
+        authDomain: "heronsvote.firebaseapp.com",
+        projectId: "heronsvote",
+        storageBucket: "heronsvote.firebasestorage.app",
+        messagingSenderId: "510958334373",
+        appId: "1:510958334373:web:30058b8235281b084cf84c",
+        measurementId: "G-2VFRY4RN46"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const COL_ELECTIONS = "elections";
+    const COL_COLLEGES = "colleges";
+    const COL_ROOT_SLATES = "slates"; 
+
+    async function loadColleges() {
+        const select = document.getElementById('college_id');
+        const snap = await getDocs(collection(db, COL_COLLEGES));
+        select.innerHTML = '<option value="">-- Select College --</option>';
+        snap.forEach(d => select.innerHTML += `<option value="${d.id}">${d.data().name || d.id}</option>`);
+    }
+
+    async function loadGlobalSlates() {
+        const select = document.getElementById('newSlateSelect');
+        const snap = await getDocs(collection(db, COL_ROOT_SLATES));
+        select.innerHTML = '<option value="">-- Select Slate to Add --</option>';
+        snap.forEach(d => select.innerHTML += `<option value="${d.id}">${d.data().name || d.id}</option>`);
+    }
+
+    async function loadElections() {
+        const listDiv = document.getElementById('listArea');
+        const snap = await getDocs(collection(db, COL_ELECTIONS));
+        listDiv.innerHTML = "";
+        if(snap.empty) { listDiv.innerHTML = "No elections."; return; }
+
+        const docs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => (b.start?.seconds||0) - (a.start?.seconds||0));
+        docs.forEach(data => {
+            const startStr = data.start ? new Date(data.start.seconds * 1000).toLocaleString() : "N/A";
+            const el = document.createElement('div');
+            el.className = 'list-item';
+            el.innerHTML = `
+                <h3>${data.name} <span style="font-size:10px; background:${data.ongoing?'#e8f5e9':'#eee'}; padding:2px 5px;">${data.ongoing?'ONGOING':'CLOSED'}</span></h3>
+                <div style="font-size:11px; color:#666">Starts: ${startStr}</div>
+                <div class="actions">
+                    <button class="btn-sm btn-edit" onclick="window.editElection('${data.id}')">Edit</button>
+                    <button class="btn-sm btn-del" onclick="window.delElection('${data.id}')">Delete</button>
+                </div>
+            `;
+            listDiv.appendChild(el);
+        });
+        window.allElections = docs;
+    }
+
+    async function saveElection() {
+        const docId = document.getElementById('docId').value;
+        const name = document.getElementById('name').value;
+        const type = document.getElementById('type').value;
+        const collegeId = document.getElementById('college_id').value;
+        const start = document.getElementById('start').value;
+        const end = document.getElementById('end').value;
+        
+        if(!name || !start || !end) return alert("Missing fields.");
+
+        try {
+            const data = {
+                name, type, 
+                college_id: type === 'college' ? collegeId : "",
+                start: Timestamp.fromDate(new Date(start)),
+                end: Timestamp.fromDate(new Date(end)),
+                ongoing: document.getElementById('ongoing').checked
+            };
+
+            let ref = docId ? doc(db, COL_ELECTIONS, docId) : doc(collection(db, COL_ELECTIONS));
+            data.election_id = ref.id;
+            await setDoc(ref, data, { merge: true });
+            
+            alert("Saved!");
+            if(!docId) clearForm();
+            loadElections();
+        } catch(e) { alert(e.message); }
+    }
+
+    async function delElection(id) {
+        if(confirm("Delete election?")) {
+            await deleteDoc(doc(db, COL_ELECTIONS, id));
+            loadElections();
+        }
+    }
+
+    function editElection(id) {
+        const data = window.allElections.find(e => e.id === id);
+        if(!data) return;
+        document.getElementById('docId').value = id;
+        document.getElementById('name').value = data.name;
+        document.getElementById('type').value = data.type || 'college';
+        document.getElementById('college_id').value = data.college_id || "";
+        document.getElementById('ongoing').checked = data.ongoing || false;
+        if(data.start) document.getElementById('start').value = toLocalIso(data.start);
+        if(data.end) document.getElementById('end').value = toLocalIso(data.end);
+        toggleCollegeDropdown();
+        
+        document.getElementById('slateManager').style.display = 'block';
+        loadParticipatingSlates(id);
+    }
+
+    // --- PARTICIPATING SLATES ---
+    // Now using 'slates' subcollection to match Slate Manager
+    async function loadParticipatingSlates(electionId) {
+        const listDiv = document.getElementById('slatesList');
+        listDiv.innerHTML = "Loading...";
+        const snap = await getDocs(collection(db, COL_ELECTIONS, electionId, "slates"));
+        listDiv.innerHTML = "";
+        if(snap.empty) listDiv.innerHTML = "No slates added.";
+        
+        snap.forEach(d => {
+            listDiv.innerHTML += `
+                <div style="display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #eee;">
+                    <span>${d.data().name}</span>
+                    <button onclick="window.deleteSlate('${electionId}', '${d.id}')" style="background:#d32f2f; color:white; border:none; width:20px;">×</button>
+                </div>`;
+        });
+    }
+
+    async function addSlate() {
+        const electionId = document.getElementById('docId').value;
+        const slateId = document.getElementById('newSlateSelect').value;
+        if(!electionId || !slateId) return alert("Select election and slate.");
+
+        const slateDoc = await getDoc(doc(db, COL_ROOT_SLATES, slateId));
+        if(!slateDoc.exists()) return alert("Slate not found in database.");
+        const sData = slateDoc.data();
+
+        // Add to subcollection 'slates' (matching Slate Manager)
+        await setDoc(doc(db, COL_ELECTIONS, electionId, "slates", slateId), {
+            name: sData.name,
+            img: sData.img || "",
+            slogan: sData.slogan || "",
+            platform: sData.platform || "",
+            advocacy: sData.advocacy || "",
+            slate_id: slateId
+        });
+        loadParticipatingSlates(electionId);
+    }
+
+    async function deleteSlate(eId, sId) {
+        if(confirm("Remove slate from this election?")) {
+            await deleteDoc(doc(db, COL_ELECTIONS, eId, "slates", sId));
+            loadParticipatingSlates(eId);
+        }
+    }
+
+    function toLocalIso(ts) {
+        const d = ts.toDate(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0,16);
+    }
+
+    function toggleCollegeDropdown() {
+        const type = document.getElementById('type').value;
+        const grp = document.getElementById('college_group');
+        grp.style.opacity = type === 'university' ? '0.5' : '1';
+        grp.style.pointerEvents = type === 'university' ? 'none' : 'auto';
+        if(type === 'university') document.getElementById('college_id').value = "";
+    }
+
+    function clearForm() {
+        document.getElementById('docId').value = "";
+        document.querySelectorAll('input').forEach(i=>i.value="");
+        document.getElementById('slateManager').style.display = 'none';
+    }
+
+    window.saveElection = saveElection;
+    window.loadElections = loadElections;
+    window.delElection = delElection;
+    window.editElection = editElection;
+    window.clearForm = clearForm;
+    window.toggleCollegeDropdown = toggleCollegeDropdown;
+    window.addSlate = addSlate;
+    window.deleteSlate = deleteSlate;
+
+    window.onload = async () => {
+        await loadColleges();
+        await loadGlobalSlates();
+        await loadElections();
+    };
+</script>
+</body>
+</html>
