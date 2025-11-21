@@ -8,12 +8,14 @@ class CandidateSelectionPage extends StatefulWidget {
   final String positionTitle;
   final List<VotingCandidate> candidates;
   final VotingCandidate? initialSelection;
+  final bool isProposal; 
 
   const CandidateSelectionPage({
     super.key,
     required this.positionTitle,
     required this.candidates,
     this.initialSelection,
+    this.isProposal = false, 
   });
 
   @override
@@ -53,7 +55,6 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Instructions Text
                   Padding(
                     padding: const EdgeInsets.only(bottom: 20.0, left: 5),
                     child: RichText(
@@ -62,11 +63,11 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                           fontSize: 14,
                           fontFamily: 'Geist',
                           color: Color(0xFF404040),
-                          height: 1.5, // Adds a little spacing between lines
+                          height: 1.5,
                         ),
                         children: [
                           const TextSpan(
-                            text: 'Please select one candidate per position.\nRead the full ',
+                            text: 'Please select one option fromt the list. Read the full ', 
                           ),
                           TextSpan(
                             text: 'Voting Rules',
@@ -76,48 +77,50 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                             ),
                             recognizer: TapGestureRecognizer()
                               ..onTap = () {
-                                // Handle Voting Rules Click
-                                print('Voting Rules Clicked'); 
-                                // Navigator.push(context, MaterialPageRoute(...));
+                                print('Voting Rules Clicked');
                               },
                           ),
-                          const TextSpan(
-                            text: '. Vote wisely.',
-                          ),
+                          const TextSpan(text: '. Vote wisely.'),
                         ],
                       ),
                     ),
                   ),
 
-                  // Candidate List 
                   widget.candidates.isEmpty
-                  ? const Center(
-                      child: Padding(
-                          padding: EdgeInsets.only(top: 50),
-                          child: Text("No candidates found")))
-                  : Column(
-                      children: [
-                        ...widget.candidates.map((candidate) {
-                          final bool isSelected =
-                              _selectedCandidate != null &&
-                                  _selectedCandidate!.name ==
-                                      candidate.name;
-                          return _buildCandidateTile(candidate, isSelected);
-                        }),
-
-                        // ABSTAIN OPTION
-                        const SizedBox(height: 10),
-                        const Divider(),
-                        const SizedBox(height: 10),
-                        _buildAbstainTile(),
-                      ],
-                    ),
+                      ? const Center(
+                          child: Padding(
+                              padding: EdgeInsets.only(top: 50),
+                              child: Text("No options found")))
+                      : Column(
+                          children: [
+                            if (widget.isProposal) ...[
+                              ...widget.candidates.map((option) {
+                                final bool isSelected = _selectedCandidate != null &&
+                                    _selectedCandidate!.name == option.name;
+                                return _buildProposalOption(option, isSelected);
+                              }),
+                              
+                              _buildProposalAbstainOption(), 
+                            ] else ...[
+                              ...widget.candidates.map((candidate) {
+                                final bool isSelected =
+                                    _selectedCandidate != null &&
+                                        _selectedCandidate!.name == candidate.name;
+                                return _buildCandidateTile(candidate, isSelected);
+                              }),
+                              const SizedBox(height: 10),
+                              const Divider(),
+                              const SizedBox(height: 10),
+                              _buildAbstainTile(),
+                            ]
+                          ],
+                        ),
                 ],
               ),
             ),
           ),
 
-          //header
+          // Header
           Positioned(
             top: 0,
             left: 0,
@@ -127,14 +130,13 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                 Container(height: topPadding, color: Colors.white),
                 CustomHeader(
                   title: truncatedTitle,
-                  onBack: () =>
-                      Navigator.pop(context, widget.initialSelection),
+                  onBack: () => Navigator.pop(context, widget.initialSelection),
                 ),
               ],
             ),
           ),
 
-          //Select button
+          // Select button
           Positioned(
             bottom: 0,
             left: 0,
@@ -168,6 +170,57 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProposalOption(VotingCandidate option, bool isSelected) {
+    final colorBg = isSelected ? const Color(0xFFDFE3F0) : const Color(0xFFF7F7F7);
+    final colorBorder = isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFE7E8E9);
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCandidate = option),
+      child: Container(
+        width: double.infinity, 
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: colorBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorBorder, width: 1.5),
+        ),
+        constraints: const BoxConstraints(minHeight: 60), 
+        child: Stack(
+          children: [
+             Padding(
+               padding: const EdgeInsets.fromLTRB(20, 18, 50, 18), 
+               child: Text(
+                option.name,
+                style: const TextStyle(
+                  color: Color(0xFF404040),
+                  fontSize: 16,
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+             ),
+             Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFDFDFE1),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9),
+                    width: 2,
+                  ),
+                ),
+              ),
+             ),
+          ],
+        ),
       ),
     );
   }
@@ -221,15 +274,10 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                               : null,
                         ),
                         child: (publicUrl == null)
-                            ? const Icon(
-                                Icons.person,
-                                size: 30,
-                                color: Colors.grey,
-                              )
+                            ? const Icon(Icons.person, size: 30, color: Colors.grey)
                             : null,
                       ),
                       const SizedBox(width: 12),
-
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -237,57 +285,30 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                           const SizedBox(height: 4),
                           Text(
                             candidate.college.isEmpty ? 'College' : candidate.college,
-                            style: const TextStyle(
-                              color: Color(0xFF747474),
-                              fontSize: 12,
-                              fontFamily: 'Geist',
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist', fontWeight: FontWeight.w500),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             candidate.year.isEmpty ? 'Year' : '${candidate.year} Year',
-                            style: const TextStyle(
-                              color: Color(0xFF747474),
-                              fontSize: 12,
-                              fontFamily: 'Geist',
-                            ),
+                            style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist'),
                           ),
                         ],
                       ),
                     ],
                   ),
-                  
                   const SizedBox(height: 12),
-
-                  // Slate Name
                   Text(
                     candidate.partylist.isEmpty ? 'Independent' : candidate.partylist,
-                    style: const TextStyle(
-                      color: Color(0xFF747474),
-                      fontSize: 12,
-                      fontFamily: 'Geist',
-                      fontWeight: FontWeight.normal,
-                    ),
+                    style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist', fontWeight: FontWeight.normal),
                   ),
-                  
                   const SizedBox(height: 4),
-
-                  // Candidate Name
                   Text(
                     candidate.name,
-                    style: const TextStyle(
-                      color: Color(0xFF404040),
-                      fontSize: 18,
-                      fontFamily: 'Geist',
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(color: Color(0xFF404040), fontSize: 18, fontFamily: 'Geist', fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
             ),
-
-            // selection
             Container(
               margin: const EdgeInsets.only(left: 10, top: 15),
               width: 24,
@@ -295,16 +316,8 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFDFDFE1),
-                border: Border.all(
-                  color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9),
-                  width: 2,
-                ),
+                border: Border.all(color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9), width: 2),
               ),
-              child: isSelected 
-                ? const Center(
-                    child: Icon(Icons.check, size: 14, color: Colors.white),
-                  ) 
-                : null,
             ),
           ],
         ),
@@ -320,55 +333,99 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
     return GestureDetector(
       onTap: () => setState(() => _selectedCandidate = VotingCandidate.abstain()),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: colorBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: colorBorder, width: 1.5),
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                  color: const Color(0xFFE7E8E9),
-                  borderRadius: BorderRadius.circular(50)),
-              child: const Icon(Icons.how_to_vote_outlined,
-                  color: Color(0xFF747474)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(color: const Color(0xFFE7E8E9), borderRadius: BorderRadius.circular(50)),
+                    child: const Icon(Icons.how_to_vote_outlined, color: Color(0xFF747474)),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Abstain',
+                    style: TextStyle(color: Color(0xFF404040), fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Abstain',
+
+            Positioned(
+              top: 12, 
+              right: 12,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFDFDFE1),
+                  border: Border.all(color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9), width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+ Widget _buildProposalAbstainOption() {
+    final bool isSelected = _selectedCandidate != null && _selectedCandidate!.isAbstain;
+    final colorBg = isSelected ? const Color(0xFFDFE3F0) : const Color(0xFFF7F7F7);
+    final colorBorder = isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFE7E8E9);
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCandidate = VotingCandidate.abstain()),
+      child: Container(
+        width: double.infinity, 
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: colorBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorBorder, width: 1.5),
+        ),
+        constraints: const BoxConstraints(minHeight: 60),
+        child: Stack(
+          children: [
+             // Content
+             const Padding(
+               padding: EdgeInsets.fromLTRB(20, 18, 50, 18),
+               child: Text(
+                "Abstain",
                 style: TextStyle(
-                    color: Color(0xFF404040),
-                    fontSize: 16,
-                    fontFamily: 'Geist',
-                    fontWeight: FontWeight.w500),
+                  color: Color(0xFF404040),
+                  fontSize: 16,
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected
-                    ? const Color(0xFF5C6AA0)
-                    : const Color(0xFFDFDFE1),
-                border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFFAAB3D0)
-                        : const Color(0xFFD9D9D9),
-                    width: 2),
+             ),
+             // Radio Button
+             Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFDFDFE1),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9),
+                    width: 2,
+                  ),
+                ),
               ),
-              child: isSelected 
-                ? const Center(
-                    child: Icon(Icons.check, size: 14, color: Colors.white),
-                  ) 
-                : null,
-            ),
+             ),
           ],
         ),
       ),

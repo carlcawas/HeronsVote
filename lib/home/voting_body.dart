@@ -154,24 +154,28 @@ class CandidateVoteCard extends StatelessWidget {
         child: Row(
           children: [
             // Image Placeholder
-            Container(
-              width: 50,
-              height: 50,
-              margin: const EdgeInsets.only(right: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE7E8E9),
-                borderRadius: BorderRadius.circular(50),
-                image: (publicUrl != null)
-                    ? DecorationImage(
-                        image: NetworkImage(publicUrl),
-                        fit: BoxFit.cover,
-                      )
+            if (!candidate.isProposalOption) ...[
+              Container(
+                width: 50,
+                height: 50,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE7E8E9),
+                  borderRadius: BorderRadius.circular(50),
+                  image: (publicUrl != null)
+                      ? DecorationImage(
+                          image: NetworkImage(publicUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: (publicUrl == null)
+                    ? const Icon(Icons.person, color: Colors.grey)
                     : null,
               ),
-              child: (publicUrl == null)
-                  ? const Icon(Icons.person, color: Colors.grey)
-                  : null,
-            ),
+            ] else ...[
+              const SizedBox(width: 8), 
+            ],
             // Candidate Name and Partylist
             Expanded(
               child: Column(
@@ -248,13 +252,60 @@ class CandidateVoteCard extends StatelessWidget {
     );
   }
 }
+class CastVoteCard extends StatelessWidget {
+  final VoidCallback onTap;
+  const CastVoteCard({super.key, required this.onTap});
 
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 78,
+        padding: const EdgeInsets.only(left: 32, right: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE7E8E9), width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Cast your vote', 
+              style: TextStyle(
+                color: Color(0xFF404040),
+                fontSize: 16,
+                fontFamily: 'Geist',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Container(
+              width: 39,
+              height: 64,
+              decoration: const BoxDecoration(
+                color: Color(0xFF5C6AA0),
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+              ),
+              child: const Center(
+                child: Icon(  Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 18,), 
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 // PositionVoteItem with error state
 class PositionVoteItem extends StatelessWidget {
   final String positionTitle;
   final VotingCandidate? selectedCandidate;
   final VoidCallback onSelectCandidate;
   final bool hasError;
+  final bool isProposal;
 
   const PositionVoteItem({
     super.key,
@@ -262,6 +313,7 @@ class PositionVoteItem extends StatelessWidget {
     this.selectedCandidate,
     required this.onSelectCandidate,
     this.hasError = false,
+    this.isProposal = false,
   });
 
   @override
@@ -302,12 +354,11 @@ class PositionVoteItem extends StatelessWidget {
             ],
           ),
         ),
-        selectedCandidate == null
-            ? ChooseCandidateCard(onTap: onSelectCandidate)
-            : CandidateVoteCard(
-                candidate: selectedCandidate!,
-                onTap: onSelectCandidate,
-              ),
+       selectedCandidate == null
+            ? (isProposal 
+                ? CastVoteCard(onTap: onSelectCandidate) 
+                : ChooseCandidateCard(onTap: onSelectCandidate))
+            : CandidateVoteCard(candidate: selectedCandidate!, onTap: onSelectCandidate),
       ],
     );
   }
@@ -342,9 +393,6 @@ class _VotingHomePageState extends State<VotingHomePage> {
   final List<String> _definedPositions = [
     'Chairperson',
     'Vice Chairperson',
-    'Secretary',
-    'Treasurer',
-    'Auditor',
   ];
 
   @override
@@ -401,6 +449,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
           positionTitle: positionTitle,
           candidates: candidates,
           initialSelection: _selectedCandidates[positionTitle],
+          isProposal: _isProposal,
         ),
       ),
     );
@@ -577,7 +626,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
             ),
           ),
 
-          // Sticky Submit Button
+          //Submit Button
           Positioned(
             bottom: 0,
             left: 0,
@@ -620,7 +669,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
                   Expanded(
                     child: _buildSubmitButton(() => _submitVote(
-                        _isProposal ? ['Do you agree with this Proposal?'] : _definedPositions)),
+                        _isProposal ? [_electionTitle] : _definedPositions)),
                   ),
                 ],
               ),
@@ -631,22 +680,24 @@ class _VotingHomePageState extends State<VotingHomePage> {
     );
   }
 
-  Widget _buildProposalBody({bool includeButton = true}) {
-    const String question = 'Do you agree with this Proposal?';
-    final hasError = _showErrors && _selectedCandidates[question] == null;
+ Widget _buildProposalBody({bool includeButton = true}) {
+    final String proposalTitle = _electionTitle; 
+    
+    final hasError = _showErrors && _selectedCandidates[proposalTitle] == null;
 
     return Column(
       children: [
         PositionVoteItem(
-          positionTitle: question,
-          selectedCandidate: _selectedCandidates[question],
+          positionTitle: proposalTitle, 
+          selectedCandidate: _selectedCandidates[proposalTitle],
           onSelectCandidate: () =>
-              _handleSelectCandidate(question, _getProposalOptions()),
+              _handleSelectCandidate(proposalTitle, _getProposalOptions()),
           hasError: hasError,
+          isProposal: true,
         ),
         if (includeButton) ...[
           const SizedBox(height: 50),
-          _buildSubmitButton(() => _submitVote([question])),
+          _buildSubmitButton(() => _submitVote([proposalTitle])),
         ],
       ],
     );
@@ -672,4 +723,5 @@ class _VotingHomePageState extends State<VotingHomePage> {
       ),
     );
   }
+
 }
