@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candidate Manager</title>
+    <style>
+        :root { --primary: #02569B; --bg: #f0f2f5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        
+        /* NAV BAR STYLES */
+        .nav-bar { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .nav-link { text-decoration: none; color: #666; font-weight: bold; font-size: 14px; padding-bottom: 2px; }
+        .nav-link:hover { color: var(--primary); }
+        .nav-link.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        .nav-title { margin-right: auto; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+
+        .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #333; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px; }
+        
+        /* Form Styling */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px; text-transform: uppercase; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        textarea { height: 60px; resize: vertical; }
+        
+        /* Buttons */
+        .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        #btnSave { background: var(--primary); }
+        #btnClear { background: #757575; }
+        #btnRefresh { background: #00897b; margin-bottom: 15px; width: 100%; }
+
+        /* List Styling */
+        .candidate-item { border-bottom: 1px solid #eee; padding: 10px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+        .candidate-item:hover { background-color: #fafafa; }
+        .candidate-info h3 { margin: 0 0 5px 0; font-size: 16px; }
+        .candidate-info p { margin: 0; font-size: 12px; color: #666; }
+        .candidate-actions { display: flex; flex-direction: column; gap: 5px; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; width: 70px; }
+        .btn-edit { background: #f57c00; }
+        .btn-del { background: #d32f2f; }
+
+        #status { margin-bottom: 10px; padding: 10px; border-radius: 4px; text-align: center; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="nav-bar">
+    <div class="nav-title">Admin Panel</div>
+    <a href="index.html" class="nav-link">Dashboard</a>
+    <a href="candidate_manager.html" class="nav-link active">Candidates</a>
+    <a href="college_manager.html" class="nav-link">Colleges</a>
+    <a href="election_manager.html" class="nav-link">Elections</a>
+    <a href="slate_manager.html" class="nav-link">Slates</a>
+</div>
+
+<div id="status"></div>
+
+<div class="container">
+    <!-- LEFT COLUMN: FORM -->
+    <div class="card">
+        <h2>Manage Candidate</h2>
+        <input type="hidden" id="docId"> <!-- Hidden ID for updates -->
+        <input type="hidden" id="originalSlateId"> <!-- Track old slate for moving logic -->
+        <input type="hidden" id="originalElectionId"> <!-- Track old election for moving logic -->
+        
+        <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="name" placeholder="e.g. Special Week">
+        </div>
+
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+                <label>Age</label>
+                <input type="number" id="age" placeholder="18">
+            </div>
+            <div>
+                <label>Year Level</label>
+                <select id="year">
+                    <option value="1st">1st Year</option>
+                    <option value="2nd">2nd Year</option>
+                    <option value="3rd">3rd Year</option>
+                    <option value="4th">4th Year</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Election Context</label>
+            <select id="election_id">
+                <option value="">Loading Elections...</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Slate / Team</label>
+            <select id="slate_id">
+                <option value="">Loading Slates...</option>
+            </select>
+            <!-- Hidden input to store the Slate Name string -->
+            <input type="hidden" id="slate_name"> 
+        </div>
+
+        <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+            <div>
+                <label>Position</label>
+                <select id="position">
+                    <option value="Chairperson">Chairperson</option>
+                    <option value="Vice Chairperson">Vice Chairperson</option>
+                    <option value="Secretary">Secretary</option>
+                    <option value="Treasurer">Treasurer</option>
+                    <option value="Auditor">Auditor</option>
+                </select>
+            </div>
+            <div>
+                <label>Pos Rank (Order)</label>
+                <input type="number" id="pos_rank" value="1">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>College ID</label>
+            <input type="text" id="college_id" value="CCIS">
+        </div>
+
+        <div class="form-group">
+            <label>Platform</label>
+            <textarea id="platform" placeholder="Brief platform..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Advocacy</label>
+            <textarea id="advocacy" placeholder="Advocacy details..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Candidate Photo</label>
+            <input type="file" id="imgFile" accept="image/*">
+            <input type="hidden" id="img">
+            <div style="margin-top: 10px; min-height: 20px;">
+                <img id="preview" src="" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; display: none; border: 1px solid #ddd;">
+                <div id="uploadStatus" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Vote Count (Start)</label>
+            <input type="number" id="vote_count" value="0">
+        </div>
+
+        <div class="btn-row">
+            <button id="btnClear">Clear Form</button>
+            <button id="btnSave">Save Candidate</button>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: LIST -->
+    <div class="card">
+        <h2>Existing Candidates</h2>
+        <button id="btnRefresh">Refresh List</button>
+        <div id="candidatesList">
+            <div style="text-align: center; color: #999;">Click Refresh to load...</div>
+        </div>
+    </div>
+</div>
+
+<!-- SUPABASE SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- FIREBASE SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // ============================================================
+    // CONFIG
+    // ============================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyCbOXynjC4MVIwbpz67DsJLdWS0RCXk7bY",
+        authDomain: "heronsvote.firebaseapp.com",
+        projectId: "heronsvote",
+        storageBucket: "heronsvote.firebasestorage.app",
+        messagingSenderId: "510958334373",
+        appId: "1:510958334373:web:30058b8235281b084cf84c",
+        measurementId: "G-2VFRY4RN46"
+    };
+
+    // Initialize
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // --- SUPABASE CONFIG ---
+    const supabaseUrl = "https://gbmfnuhporizglpzeeji.supabase.co"; 
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdibWZudWhwb3JpemdscHplZWppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NTk1MjAsImV4cCI6MjA3ODUzNTUyMH0.cCI7u2uJLDh6WKQWev3bWIv3lt2OrbBWsS_PQiHHcEM";
+    let supabase = null;
+    try {
+        if (supabaseUrl && supabaseUrl.startsWith("http")) {
+             supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        }
+    } catch (err) { console.error(err); }
+
+    let selectedFile = null;
+
+    // UPLOAD/PREVIEW LOGIC
+    const fileInput = document.getElementById('imgFile');
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = document.getElementById('preview');
+            img.src = e.target.result;
+            img.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+        document.getElementById('uploadStatus').innerText = "Image selected (will be uploaded on Save)";
+    });
+    
+    // COLLECTIONS
+    const COL_CANDIDATES = "candidates"; 
+    const COL_ELECTIONS = "elections";
+    const COL_SLATES = "slates";
+
+    // --- INITIALIZATION ---
+    window.onload = async () => {
+        await loadDropdowns();
+        await loadCandidates();
+    };
+
+    // --- 1. LOAD DROPDOWNS (Foreign Keys) ---
+    async function loadDropdowns() {
+        try {
+            // Fetch Elections
+            const electionSelect = document.getElementById('election_id');
+            const electionsSnap = await getDocs(collection(db, COL_ELECTIONS));
+            
+            electionSelect.innerHTML = '<option value="">-- Select Election --</option>';
+            electionsSnap.forEach(doc => {
+                const d = doc.data();
+                const name = d.title || d.name || doc.id; 
+                electionSelect.innerHTML += `<option value="${doc.id}">${name}</option>`;
+            });
+
+            // Fetch Slates
+            const slateSelect = document.getElementById('slate_id');
+            const slatesSnap = await getDocs(collection(db, COL_SLATES));
+            
+            slateSelect.innerHTML = '<option value="">-- Select Slate (Or Independent) --</option>';
+            slatesSnap.forEach(doc => {
+                const d = doc.data();
+                const name = d.name || d.team_name || doc.id;
+                slateSelect.innerHTML += `<option value="${doc.id}" data-name="${name}">${name}</option>`;
+            });
+
+        } catch (e) { console.error("Error loading dropdowns:", e); }
+    }
+
+    document.getElementById('slate_id').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const name = selectedOption.getAttribute('data-name') || "";
+        document.getElementById('slate_name').value = name;
+    });
+
+    // --- 2. SAVE CANDIDATE (ATOMIC BATCH & SYNC) ---
+    document.getElementById('btnSave').addEventListener('click', async () => {
+        const docId = document.getElementById('docId').value;
+        const oldSlateId = document.getElementById('originalSlateId').value;
+        const oldElectionId = document.getElementById('originalElectionId').value;
+        
+        const electionId = document.getElementById('election_id').value;
+        if (!electionId) return alert("Please select an Election");
+
+        let imgPath = document.getElementById('img').value;
+
+        try {
+            // 1. Handle Image Upload
+            if (selectedFile && supabase) {
+                const statusEl = document.getElementById('uploadStatus');
+                statusEl.innerText = "Uploading image...";
+                
+                // Delete old image if replacing
+                if (imgPath) await supabase.storage.from('images').remove([imgPath]);
+
+                const fileName = `${Date.now()}_${selectedFile.name.replace(/\s+/g, '-')}`;
+                const fullPath = `candidate_pics/${fileName}`;
+                const { error: upErr } = await supabase.storage.from('images').upload(fullPath, selectedFile);
+                if (upErr) throw upErr;
+                imgPath = fullPath;
+            }
+
+            // 2. Prepare Data
+            const newData = {
+                name: document.getElementById('name').value,
+                age: Number(document.getElementById('age').value),
+                year: document.getElementById('year').value,
+                election_id: electionId,
+                slate_id: document.getElementById('slate_id').value,
+                slate: document.getElementById('slate_name').value, 
+                position: document.getElementById('position').value,
+                pos_rank: Number(document.getElementById('pos_rank').value),
+                college_id: document.getElementById('college_id').value,
+                platform: document.getElementById('platform').value,
+                advocacy: document.getElementById('advocacy').value,
+                img: imgPath,
+                vote_count: Number(document.getElementById('vote_count').value),
+            };
+
+            // 3. START BATCH WRITE
+            const batch = writeBatch(db);
+            
+            // A. Main Candidate Document
+            let candRef;
+            if (docId) {
+                candRef = doc(db, COL_CANDIDATES, docId);
+                newData.candidate_id = docId;
+            } else {
+                candRef = doc(collection(db, COL_CANDIDATES));
+                newData.candidate_id = candRef.id;
+            }
+            batch.set(candRef, newData, { merge: true });
+
+            // B. Election Subcollection Sync
+            // Remove from old election if ID changed
+            if (oldElectionId && oldElectionId !== electionId) {
+                const oldElecRef = doc(db, COL_ELECTIONS, oldElectionId, "candidates", newData.candidate_id);
+                batch.delete(oldElecRef);
+            }
+            // Add/Update in new election
+            const elecRef = doc(db, COL_ELECTIONS, electionId, "candidates", newData.candidate_id);
+            batch.set(elecRef, {
+                name: newData.name,
+                position: newData.position,
+                img: newData.img,
+                slate: newData.slate || "Independent",
+                candidate_id: newData.candidate_id,
+                vote_count: newData.vote_count
+            });
+
+            // C. Slate Subcollection Sync
+            // Remove from old slate if ID changed (or if slate removed)
+            if (oldSlateId && oldSlateId !== newData.slate_id) {
+                const oldMemberRef = doc(db, COL_SLATES, oldSlateId, "candidates", newData.candidate_id);
+                batch.delete(oldMemberRef);
+            }
+            // Add/Update in new slate (only if not Independent)
+            if (newData.slate_id) {
+                const slateRef = doc(db, COL_SLATES, newData.slate_id, "candidates", newData.candidate_id);
+                batch.set(slateRef, {
+                    name: newData.name,
+                    position: newData.position,
+                    candidate_id: newData.candidate_id,
+                    img: newData.img,
+                    vote_count: newData.vote_count 
+                });
+            }
+
+            // 4. Commit
+            await batch.commit();
+
+            showMessage("Candidate Saved & Synced!");
+            clearForm();
+            loadCandidates();
+        } catch (e) {
+            console.error(e);
+            showMessage("Error: " + e.message, true);
+        }
+    });
+
+    // --- 3. LIST CANDIDATES ---
+    document.getElementById('btnRefresh').addEventListener('click', loadCandidates);
+
+    async function loadCandidates() {
+        const listDiv = document.getElementById('candidatesList');
+        listDiv.innerHTML = "Loading...";
+        try {
+            const q = query(collection(db, COL_CANDIDATES));
+            const snap = await getDocs(q);
+            listDiv.innerHTML = "";
+            
+            if(snap.empty) {
+                listDiv.innerHTML = "<p style='text-align:center'>No candidates found.</p>";
+                return;
+            }
+
+            snap.forEach(docSnap => {
+                const d = docSnap.data();
+                
+                // Build Public URL for List View
+                let imgUrl = "";
+                if(d.img && supabase) {
+                    const { data: pub } = supabase.storage.from('images').getPublicUrl(d.img);
+                    imgUrl = pub.publicUrl;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'candidate-item';
+                item.innerHTML = `
+                    <div style="margin-right: 10px;">
+                       ${imgUrl ? `<img src="${imgUrl}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">` : '<div style="width:40px; height:40px; background:#eee; border-radius:50%;"></div>'}
+                    </div>
+                    <div class="candidate-info" style="flex: 1;">
+                        <h3>${d.name || "Unnamed"} <span style="font-size:12px; color: #888">(${d.position || "?"})</span></h3>
+                        <p>${d.slate || "Independent"} | ${d.year}</p>
+                    </div>
+                    <div class="candidate-actions">
+                        <button class="btn-sm btn-edit" onclick="window.editCandidate('${docSnap.id}')">Edit</button>
+                        <button class="btn-sm btn-del" onclick="window.deleteCandidate('${docSnap.id}')">Delete</button>
+                    </div>
+                `;
+                listDiv.appendChild(item);
+            });
+            window.allCandidates = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (e) {
+            listDiv.innerHTML = `<p style="color:red; text-align:center;">Error: ${e.message}</p>`;
+            console.error(e);
+        }
+    }
+
+    // --- 4. EDIT & DELETE HELPERS ---
+    window.editCandidate = (id) => {
+        const c = window.allCandidates.find(x => x.id === id);
+        if (!c) return;
+
+        document.getElementById('docId').value = c.id;
+        document.getElementById('originalSlateId').value = c.slate_id || ""; 
+        document.getElementById('originalElectionId').value = c.election_id || ""; 
+        
+        document.getElementById('name').value = c.name || "";
+        document.getElementById('age').value = c.age || "";
+        document.getElementById('year').value = c.year || "1st";
+        document.getElementById('election_id').value = c.election_id || "";
+        document.getElementById('slate_id').value = c.slate_id || "";
+        document.getElementById('slate_name').value = c.slate || ""; 
+        document.getElementById('position').value = c.position || "";
+        document.getElementById('pos_rank').value = c.pos_rank || 1;
+        document.getElementById('college_id').value = c.college_id || "";
+        document.getElementById('platform').value = c.platform || "";
+        document.getElementById('advocacy').value = c.advocacy || "";
+        document.getElementById('img').value = c.img || ""; 
+        document.getElementById('vote_count').value = c.vote_count || 0;
+        
+        // Preview
+        const preview = document.getElementById('preview');
+        if (c.img && supabase) {
+            const { data: pub } = supabase.storage.from('images').getPublicUrl(c.img);
+            preview.src = pub.publicUrl;
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+
+        selectedFile = null;
+        document.getElementById('imgFile').value = "";
+        showMessage("Loaded candidate details.");
+        window.scrollTo(0,0);
+    };
+
+    window.deleteCandidate = async (id) => {
+        if (!confirm("Delete this candidate? This will remove them from Elections and Slates.")) return;
+        
+        // Find current candidate to know where to delete from
+        const c = window.allCandidates.find(x => x.id === id);
+
+        try {
+            const batch = writeBatch(db);
+            
+            // 1. Main Doc
+            batch.delete(doc(db, COL_CANDIDATES, id));
+            
+            // 2. Slate Subcollection
+            if (c && c.slate_id) {
+                batch.delete(doc(db, COL_SLATES, c.slate_id, "candidates", id));
+            }
+
+            // 3. Election Subcollection
+            if (c && c.election_id) {
+                batch.delete(doc(db, COL_ELECTIONS, c.election_id, "candidates", id));
+            }
+
+            await batch.commit();
+
+            // 4. Delete Image
+            if (c && c.img && supabase) {
+                await supabase.storage.from('images').remove([c.img]);
+            }
+
+            loadCandidates();
+            if(document.getElementById('docId').value === id) clearForm();
+        } catch (e) {
+            alert("Error deleting: " + e.message);
+        }
+    };
+
+    document.getElementById('btnClear').addEventListener('click', clearForm);
+    
+    function clearForm() {
+        document.getElementById('docId').value = "";
+        document.getElementById('originalSlateId').value = "";
+        document.getElementById('originalElectionId').value = "";
+        const inputs = document.querySelectorAll('input:not([type="hidden"]), textarea, select');
+        inputs.forEach(i => i.value = "");
+        
+        // Clear image fields
+        document.getElementById('img').value = "";
+        document.getElementById('imgFile').value = "";
+        document.getElementById('preview').style.display = 'none';
+        document.getElementById('uploadStatus').innerText = "";
+        selectedFile = null;
+
+        document.getElementById('year').value = "1st";
+        document.getElementById('position').value = "Chairperson";
+        document.getElementById('pos_rank').value = 1;
+        document.getElementById('vote_count').value = 0;
+        document.getElementById('college_id').value = "CCIS";
+    }
+
+    function showMessage(msg, isError = false) {
+        const el = document.getElementById('status');
+        el.style.display = 'block';
+        el.style.backgroundColor = isError ? '#ffebee' : '#e8f5e9';
+        el.style.color = isError ? '#c62828' : '#2e7d32';
+        el.textContent = msg;
+        setTimeout(() => el.style.display = 'none', 3000);
+    }
+</script>
+
+</body>
+</html>
