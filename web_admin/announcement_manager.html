@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Announcements Manager</title>
+    <style>
+        :root { --primary: #02569B; --bg: #f0f2f5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        
+        /* NAV BAR */
+        .nav-bar { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .nav-link { text-decoration: none; color: #666; font-weight: bold; font-size: 14px; padding-bottom: 2px; }
+        .nav-link:hover { color: var(--primary); }
+        .nav-link.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        .nav-title { margin-right: auto; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+
+        .container { max-width: 800px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 20px; }
+        
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #333; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px; }
+        
+        /* Form Elements */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px; text-transform: uppercase; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        textarea { height: 100px; resize: vertical; }
+
+        .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        #btnSave { background: var(--primary); }
+        #btnClear { background: #757575; }
+        
+        /* List Items */
+        .announcement-item { border-bottom: 1px solid #eee; padding: 15px; background: #fff; margin-bottom: 10px; border-radius: 4px; border-left: 4px solid #ddd; }
+        .announcement-item:hover { background: #fafafa; border-left-color: var(--primary); }
+        .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+        .item-header h3 { margin: 0; font-size: 18px; color: #333; }
+        .date-badge { font-size: 11px; background: #e3f2fd; color: #02569B; padding: 3px 8px; border-radius: 12px; }
+        .message-preview { color: #666; font-size: 14px; white-space: pre-wrap; }
+        
+        .actions { margin-top: 10px; display: flex; justify-content: flex-end; gap: 5px; }
+        .btn-sm { padding: 5px 12px; font-size: 12px; width: auto; flex: none; }
+        .btn-edit { background: #f57c00; }
+        .btn-del { background: #d32f2f; }
+    </style>
+</head>
+<body>
+
+<!-- NAVIGATION BAR -->
+<div class="nav-bar">
+    <div class="nav-title">Admin Panel</div>
+    <a href="index.html" class="nav-link">Dashboard</a>
+    <a href="candidate_manager.html" class="nav-link">Candidates</a>
+        <a href="college_manager.html" class="nav-link">Colleges</a>
+
+    <a href="election_manager.html" class="nav-link">Elections</a>
+        <a href="slate_manager.html" class="nav-link">Slates</a>
+            <a href="results.html" class="nav-link">Results</a>
+
+    <a href="proposal_manager.html" class="nav-link">Proposals</a>
+    <a href="announcements_manager.html" class="nav-link active">Announcements</a>
+</div>
+
+<div class="container">
+    <!-- FORM SECTION -->
+    <div class="card">
+        <h2>Post Announcement</h2>
+        <input type="hidden" id="docId">
+        
+        <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="title" placeholder="e.g. Ako si Sierra Madre">
+        </div>
+
+        <div class="form-group">
+            <label>Message</label>
+            <textarea id="message" placeholder="Enter the announcement content..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Date Posted (Optional - Defaults to Now)</label>
+            <input type="datetime-local" id="posted_at">
+        </div>
+
+        <div class="btn-row">
+            <button id="btnClear" onclick="clearForm()">Clear</button>
+            <button id="btnSave" onclick="saveAnnouncement()">Publish Announcement</button>
+        </div>
+    </div>
+
+    <!-- LIST SECTION -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px;">
+            <h2 style="margin:0; border:none; padding:0; width:675px;">History</h2>
+            <button onclick="loadAnnouncements()" style="width: auto; background: #00897b; padding: 8px 15px;">Refresh</button>
+        </div>
+        <div id="listArea">Loading...</div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, Timestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCbOXynjC4MVIwbpz67DsJLdWS0RCXk7bY",
+        authDomain: "heronsvote.firebaseapp.com",
+        projectId: "heronsvote",
+        storageBucket: "heronsvote.firebasestorage.app",
+        messagingSenderId: "510958334373",
+        appId: "1:510958334373:web:30058b8235281b084cf84c",
+        measurementId: "G-2VFRY4RN46"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const COL_ANNOUNCEMENTS = "announcements";
+
+    window.onload = loadAnnouncements;
+
+    // 1. LOAD
+    async function loadAnnouncements() {
+        const listDiv = document.getElementById('listArea');
+        listDiv.innerHTML = "Loading...";
+        try {
+            // Query ordered by posted_at descending
+            const q = query(collection(db, COL_ANNOUNCEMENTS));
+            const snap = await getDocs(q);
+            listDiv.innerHTML = "";
+            
+            if(snap.empty) {
+                listDiv.innerHTML = "<p style='text-align:center; color:#999'>No announcements posted yet.</p>";
+                return;
+            }
+
+            // Sort locally (safer fallback)
+            const docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            docs.sort((a,b) => (b.posted_at?.seconds || 0) - (a.posted_at?.seconds || 0));
+
+            docs.forEach(data => {
+                const dateStr = data.posted_at ? new Date(data.posted_at.seconds * 1000).toLocaleString() : "N/A";
+                
+                const el = document.createElement('div');
+                el.className = 'announcement-item';
+                el.innerHTML = `
+                    <div class="item-header">
+                        <h3>${data.title}</h3>
+                        <span class="date-badge">${dateStr}</span>
+                    </div>
+                    <div class="message-preview">${data.message}</div>
+                    <div class="actions">
+                        <button class="btn-sm btn-edit" onclick="window.editAnnouncement('${data.id}')">Edit</button>
+                        <button class="btn-sm btn-del" onclick="window.delAnnouncement('${data.id}')">Delete</button>
+                    </div>
+                `;
+                listDiv.appendChild(el);
+            });
+
+            window.allAnnouncements = docs; 
+        } catch(e) {
+            listDiv.innerHTML = "Error loading list.";
+            console.error(e);
+        }
+    }
+
+    // 2. SAVE
+    async function saveAnnouncement() {
+        const docId = document.getElementById('docId').value;
+        const title = document.getElementById('title').value.trim();
+        const message = document.getElementById('message').value.trim();
+        const dateVal = document.getElementById('posted_at').value;
+
+        if(!title || !message) return alert("Title and Message are required.");
+
+        try {
+            // Use selected date OR current date if empty
+            const postDate = dateVal ? new Date(dateVal) : new Date();
+
+            const data = {
+                title: title,
+                message: message,
+                posted_at: Timestamp.fromDate(postDate)
+            };
+
+            let ref;
+            if(docId) {
+                ref = doc(db, COL_ANNOUNCEMENTS, docId);
+                data.announcement_id = docId;
+            } else {
+                ref = doc(collection(db, COL_ANNOUNCEMENTS));
+                data.announcement_id = ref.id;
+            }
+
+            await setDoc(ref, data, { merge: true });
+            alert("Announcement Published!");
+            clearForm();
+            loadAnnouncements();
+        } catch(e) {
+            alert("Error saving: " + e.message);
+        }
+    }
+
+    // 3. DELETE
+    async function delAnnouncement(id) {
+        if(confirm("Delete this announcement?")) {
+            try {
+                await deleteDoc(doc(db, COL_ANNOUNCEMENTS, id));
+                loadAnnouncements();
+                if(document.getElementById('docId').value === id) clearForm();
+            } catch(e) { alert(e.message); }
+        }
+    }
+
+    // 4. EDIT
+    function editAnnouncement(id) {
+        const data = window.allAnnouncements.find(e => e.id === id);
+        if(!data) return;
+
+        document.getElementById('docId').value = id;
+        document.getElementById('title').value = data.title || "";
+        document.getElementById('message').value = data.message || "";
+        
+        if(data.posted_at) {
+            document.getElementById('posted_at').value = toLocalIso(data.posted_at);
+        }
+
+        window.scrollTo(0,0);
+    }
+
+    // UTILS
+    function toLocalIso(ts) {
+        const d = ts.toDate(); 
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0,16);
+    }
+
+    function clearForm() {
+        document.getElementById('docId').value = "";
+        document.getElementById('title').value = "";
+        document.getElementById('message').value = "";
+        document.getElementById('posted_at').value = "";
+    }
+
+    // Expose
+    window.saveAnnouncement = saveAnnouncement;
+    window.loadAnnouncements = loadAnnouncements;
+    window.delAnnouncement = delAnnouncement;
+    window.editAnnouncement = editAnnouncement;
+    window.clearForm = clearForm;
+</script>
+
+</body>
+</html>

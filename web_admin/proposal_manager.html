@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proposal Manager</title>
+    <style>
+        :root { --primary: #02569B; --bg: #f0f2f5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        
+        /* NAV BAR */
+        .nav-bar { background: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .nav-link { text-decoration: none; color: #666; font-weight: bold; font-size: 14px; padding-bottom: 2px; }
+        .nav-link:hover { color: var(--primary); }
+        .nav-link.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        .nav-title { margin-right: auto; font-weight: 900; color: #333; text-transform: uppercase; letter-spacing: 1px; }
+
+        .container { max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #333; border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px; }
+        
+        /* Form Elements */
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 5px; text-transform: uppercase; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        textarea { height: 80px; resize: vertical; }
+        
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+        .checkbox-group input { width: auto; }
+        .checkbox-group label { margin: 0; cursor: pointer; }
+
+        .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        #btnSave { background: var(--primary); }
+        #btnClear { background: #757575; }
+        
+        /* List Items */
+        .list-item { border-bottom: 1px solid #eee; padding: 15px; background: #fff; margin-bottom: 5px; border-radius: 4px; }
+        .list-header { display: flex; justify-content: space-between; align-items: center; }
+        .list-item h3 { margin: 0; font-size: 16px; color: #333; }
+        .dates { font-size: 11px; color: #666; margin-top: 4px; }
+        .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #eee; color: #555; text-transform: uppercase; font-weight: bold; }
+        .badge.active { background: #e8f5e9; color: #2e7d32; }
+        
+        .actions { margin-top: 8px; display: flex; justify-content: flex-end; gap: 5px; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; width: auto; }
+        .btn-edit { background: #f57c00; }
+        .btn-del { background: #d32f2f; }
+    </style>
+</head>
+<body>
+
+<!-- NAVIGATION BAR -->
+<div class="nav-bar">
+    <div class="nav-title">Admin Panel</div>
+    <a href="index.html" class="nav-link">Dashboard</a>
+    <a href="candidate_manager.html" class="nav-link">Candidates</a>
+    <a href="college_manager.html" class="nav-link">Colleges</a>
+    <a href="election_manager.html" class="nav-link">Elections</a>
+    <a href="slate_manager.html" class="nav-link">Slates</a>
+        <a href="results.html" class="nav-link">Results</a>
+    <a href="proposal_manager.html" class="nav-link active">Proposals</a>
+    <a href="announcement_manager.html" class="nav-link">Announcements</a>
+</div>
+
+<div class="container">
+    <!-- FORM COLUMN -->
+    <div class="card">
+        <h2>Manage Proposal</h2>
+        <input type="hidden" id="docId">
+        <input type="hidden" id="vote_count" value="0">
+        
+        <div class="form-group">
+            <label>Proposal Name</label>
+            <input type="text" id="name" placeholder="e.g. UMak WiFi Proposal">
+        </div>
+
+        <div class="form-group">
+            <label>Summary</label>
+            <textarea id="summary" placeholder="Short summary..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Rationale</label>
+            <textarea id="rationale" placeholder="Why is this needed?"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Resources Needed</label>
+            <textarea id="resources" placeholder="Budget, manpower, etc..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Comparison (Current vs Proposed)</label>
+            <textarea id="comparison" placeholder="Difference from status quo..."></textarea>
+        </div>
+
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+                <label>Start Date/Time</label>
+                <input type="datetime-local" id="start">
+            </div>
+            <div>
+                <label>End Date/Time</label>
+                <input type="datetime-local" id="end">
+            </div>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="ongoing">
+            <label for="ongoing">Proposal Voting is Ongoing</label>
+        </div>
+
+        <div class="btn-row">
+            <button id="btnClear" onclick="clearForm()">Clear</button>
+            <button id="btnSave" onclick="saveProposal()">Save Proposal</button>
+        </div>
+    </div>
+
+    <!-- LIST COLUMN -->
+    <div class="card">
+        <h2>Existing Proposals</h2>
+        <button onclick="loadProposals()" style="width:100%; background:#00897b; margin-bottom:15px;">Refresh List</button>
+        <div id="listArea">Loading...</div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCbOXynjC4MVIwbpz67DsJLdWS0RCXk7bY",
+        authDomain: "heronsvote.firebaseapp.com",
+        projectId: "heronsvote",
+        storageBucket: "heronsvote.firebasestorage.app",
+        messagingSenderId: "510958334373",
+        appId: "1:510958334373:web:30058b8235281b084cf84c",
+        measurementId: "G-2VFRY4RN46"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const COL_PROPOSALS = "proposals";
+
+    window.onload = loadProposals;
+
+    // 1. LOAD PROPOSALS
+    async function loadProposals() {
+        const listDiv = document.getElementById('listArea');
+        listDiv.innerHTML = "Loading...";
+        try {
+            const snap = await getDocs(collection(db, COL_PROPOSALS));
+            listDiv.innerHTML = "";
+            
+            if(snap.empty) {
+                listDiv.innerHTML = "No proposals found.";
+                return;
+            }
+
+            // Sort by newest start date
+            const docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
+            docs.sort((a,b) => (b.start?.seconds || 0) - (a.start?.seconds || 0));
+
+            docs.forEach(data => {
+                const startStr = data.start ? new Date(data.start.seconds * 1000).toLocaleString() : "N/A";
+                const endStr = data.end ? new Date(data.end.seconds * 1000).toLocaleString() : "N/A";
+                const statusClass = data.ongoing ? "active" : "";
+                const statusText = data.ongoing ? "ONGOING" : "CLOSED";
+
+                const el = document.createElement('div');
+                el.className = 'list-item';
+                el.innerHTML = `
+                    <div class="list-header">
+                        <h3>${data.name}</h3>
+                        <span class="badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div style="font-size: 12px; color: #555; margin: 5px 0;">${data.summary || "No summary"}</div>
+                    <div class="dates">
+                        Start: ${startStr} <br>
+                        End: ${endStr} <br>
+                        Votes: <strong>${data.vote_count || 0}</strong>
+                    </div>
+                    <div class="actions">
+                        <button class="btn-sm btn-edit" onclick="window.editProposal('${data.id}')">Edit</button>
+                        <button class="btn-sm btn-del" onclick="window.delProposal('${data.id}')">Delete</button>
+                    </div>
+                `;
+                listDiv.appendChild(el);
+            });
+
+            window.allProposals = docs; // Store for editing
+        } catch(e) {
+            listDiv.innerHTML = "Error loading proposals.";
+            console.error(e);
+        }
+    }
+
+    // 2. SAVE PROPOSAL
+    async function saveProposal() {
+        const docId = document.getElementById('docId').value;
+        
+        // Get Values
+        const name = document.getElementById('name').value;
+        const summary = document.getElementById('summary').value;
+        const rationale = document.getElementById('rationale').value;
+        const resources = document.getElementById('resources').value;
+        const comparison = document.getElementById('comparison').value;
+        const startVal = document.getElementById('start').value;
+        const endVal = document.getElementById('end').value;
+        const ongoing = document.getElementById('ongoing').checked;
+        const voteCount = document.getElementById('vote_count').value;
+
+        if(!name || !startVal || !endVal) return alert("Name, Start Date, and End Date are required.");
+
+        try {
+            const startDate = new Date(startVal);
+            const endDate = new Date(endVal);
+
+            const data = {
+                name: name,
+                summary: summary,
+                rationale: rationale,
+                resources: resources,
+                comparison: comparison,
+                type: "proposal", // Fixed type
+                start: Timestamp.fromDate(startDate),
+                end: Timestamp.fromDate(endDate),
+                ongoing: ongoing,
+                vote_count: Number(voteCount)
+            };
+
+            let ref;
+            if(docId) {
+                ref = doc(db, COL_PROPOSALS, docId);
+                data.proposal_id = docId;
+            } else {
+                ref = doc(collection(db, COL_PROPOSALS));
+                data.proposal_id = ref.id;
+            }
+
+            await setDoc(ref, data, { merge: true });
+            alert("Proposal Saved!");
+            clearForm();
+            loadProposals();
+        } catch(e) {
+            alert("Error saving: " + e.message);
+        }
+    }
+
+    // 3. DELETE
+    async function delProposal(id) {
+        if(confirm("Delete this proposal?")) {
+            await deleteDoc(doc(db, COL_PROPOSALS, id));
+            loadProposals();
+            if(document.getElementById('docId').value === id) clearForm();
+        }
+    }
+
+    // 4. EDIT
+    function editProposal(id) {
+        const data = window.allProposals.find(e => e.id === id);
+        if(!data) return;
+
+        document.getElementById('docId').value = id;
+        document.getElementById('vote_count').value = data.vote_count || 0;
+        
+        document.getElementById('name').value = data.name || "";
+        document.getElementById('summary').value = data.summary || "";
+        document.getElementById('rationale').value = data.rationale || "";
+        document.getElementById('resources').value = data.resources || "";
+        document.getElementById('comparison').value = data.comparison || "";
+        
+        document.getElementById('ongoing').checked = data.ongoing || false;
+
+        if(data.start) document.getElementById('start').value = toLocalIso(data.start);
+        if(data.end) document.getElementById('end').value = toLocalIso(data.end);
+
+        window.scrollTo(0,0);
+    }
+
+    // UTILS
+    function toLocalIso(timestamp) {
+        const d = timestamp.toDate(); 
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0,16);
+    }
+
+    function clearForm() {
+        document.getElementById('docId').value = "";
+        document.getElementById('vote_count').value = "0";
+        document.querySelectorAll('input[type=text], textarea').forEach(el => el.value = "");
+        document.getElementById('start').value = "";
+        document.getElementById('end').value = "";
+        document.getElementById('ongoing').checked = false;
+    }
+
+    // Expose to Global Scope
+    window.saveProposal = saveProposal;
+    window.loadProposals = loadProposals;
+    window.delProposal = delProposal;
+    window.editProposal = editProposal;
+    window.clearForm = clearForm;
+</script>
+
+</body>
+</html>
