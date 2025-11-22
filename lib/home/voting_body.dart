@@ -384,6 +384,8 @@ class VotingHomePage extends StatefulWidget {
 class _VotingHomePageState extends State<VotingHomePage> {
   final Map<String, VotingCandidate?> _selectedCandidates = {};
   bool _showErrors = false;
+  // CHECKER IF NAG-VOTE NA USER  
+  bool _hasVoted = false;
 
   late String _electionTitle;
   late String _electionPeriod;
@@ -393,6 +395,9 @@ class _VotingHomePageState extends State<VotingHomePage> {
   final List<String> _definedPositions = [
     'Chairperson',
     'Vice Chairperson',
+    'Secretary',
+    'Treasurer',
+    'Auditor',
   ];
 
   @override
@@ -420,6 +425,31 @@ class _VotingHomePageState extends State<VotingHomePage> {
     for (var pos in _definedPositions) {
       _selectedCandidates[pos] = null;
     }
+
+    // Check if nag-vote na user
+    _checkIfUserVoted();
+  }
+
+  Future<void> _checkIfUserVoted() async {
+    try {
+      final String collectionPath = _isProposal ? 'proposals' : 'elections';
+      final String docId = widget.electionData['id'];
+      
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection(collectionPath)
+          .doc(docId)
+          .collection('votes')
+          .doc(widget.uid)
+          .get();
+
+      if (docSnapshot.exists && mounted) {
+        setState(() {
+          _hasVoted = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error checking vote status: $e");
+    }
   }
 
   List<VotingCandidate> _mapFirestoreToCandidates(List<DocumentSnapshot> docs) {
@@ -442,6 +472,9 @@ class _VotingHomePageState extends State<VotingHomePage> {
     String positionTitle,
     List<VotingCandidate> candidates,
   ) async {
+    // disable yung selection if true yung _hasVoted
+    if (_hasVoted) return;
+
     final VotingCandidate? result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -485,8 +518,11 @@ class _VotingHomePageState extends State<VotingHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            VoteConfirmationPage(selectedCandidates: _selectedCandidates),
+        builder: (context) => VoteConfirmationPage(
+          selectedCandidates: _selectedCandidates,
+          electionId: widget.electionData['id'],
+          electionType: widget.electionData['type'] ?? 'college',
+        ),
       ),
     );
   }
@@ -554,6 +590,22 @@ class _VotingHomePageState extends State<VotingHomePage> {
                           ),
                         ),
                         const SizedBox(height: 10),
+                        
+                        // check if _hasVoted, if true lalabs yung text (babaguhin mo)
+                        if (_hasVoted) ...[
+                          const SizedBox(height: 5),
+                          const Text(
+                            '(You have successfully cast your vote for this election. Thank you for participating.)',
+                            style: TextStyle(
+                              color: Color(0xFF4CAF50),
+                              fontSize: 14,
+                              fontFamily: 'Geist',
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+
                         Row(
                           children: [
                             Container(

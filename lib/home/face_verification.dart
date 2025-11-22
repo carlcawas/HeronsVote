@@ -13,8 +13,15 @@ import 'header.dart';
 
 class FaceVerificationPage extends StatefulWidget {
   final Map<String, VotingCandidate?> selectedCandidates;
+  final String electionId;
+  final String electionType;
 
-  const FaceVerificationPage({super.key, required this.selectedCandidates});
+  const FaceVerificationPage({
+    super.key, 
+    required this.selectedCandidates, 
+    required this.electionId,
+    required this.electionType,
+  });
 
   @override
   State<FaceVerificationPage> createState() => _FaceVerificationPageState();
@@ -77,10 +84,11 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     );
   }
 
-  //Quality Checks copy pasted from regis lng
+  // CAPTURE AND PROCESS FACE
   Future<void> _onCapturePressed() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized)
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
+    }
     if (_processing) return;
 
     setState(() => _processing = true);
@@ -90,6 +98,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       await _cameraController!.pausePreview();
       final File file = File(raw.path);
 
+      // Quality Checks
       if (await _isImageTooDark(file)) {
         throw "Surrounding is too dark. Please move to a brighter area.";
       }
@@ -101,6 +110,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
         throw "Image is blurry. Please keep the camera stable.";
       }
 
+      // Detect Face Mesh
       final inputImage = InputImage.fromFile(file);
       final meshes = await _meshDetector.processImage(inputImage);
 
@@ -111,6 +121,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
       if (points.length < 300) throw "Face mesh incomplete.";
 
+      // Geometric Checks
       final leftEye = points[33];
       final rightEye = points[263];
 
@@ -122,11 +133,9 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
       if (eyeDist < 15) throw "Face is too far. Please move closer.";
 
-      // Glasses/Obstruction Check
       final eyesBrightness = await _regionBrightness(file, leftEye, rightEye);
       if (eyesBrightness < 55) throw "Remove obstructions (mask/sunglasses).";
 
-      // Centering Check
       final double imageWidth = decoded!.width.toDouble();
       final double imageHeight = decoded.height.toDouble();
       final double cx = (leftEye.x + rightEye.x) / 2.0;
@@ -138,7 +147,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
         throw "Please center your face.";
       }
 
-      // Head Turn Check
       final noseTip = points[1];
       final double distLeft = (noseTip.x - leftEye.x).abs();
       final double distRight = (noseTip.x - rightEye.x).abs();
@@ -146,6 +154,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           min(distLeft, distRight) / max(distLeft, distRight);
       if (yawRatio < 0.80) throw "Please face the camera straight.";
 
+      // Generate Embedding
       final List<double> currentEmbedding = [];
       for (final p in points) {
         final double nx = (p.x - cx) / eyeDist;
@@ -159,11 +168,12 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           ? currentEmbedding
           : currentEmbedding.map((e) => e / norm).toList();
 
+      // Verify
       await _verifyUser(normalizedCurrent);
 
-      try {
-        await file.delete();
-      } catch (_) {}
+      // Cleanup
+      try { await file.delete(); } catch (_) {}
+
     } catch (e) {
       _showError(e.toString().replaceAll("Exception: ", ""));
       await _cameraController!.resumePreview();
@@ -171,6 +181,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     }
   }
 
+  // VERIFY WITH STORED IN FIRESTORE 
   Future<void> _verifyUser(List<double> currentEmbedding) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw "User not logged in.";
@@ -179,6 +190,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
         .collection('users')
         .doc(user.uid)
         .get();
+        
     if (!doc.exists || !doc.data()!.containsKey('faceEmbedding')) {
       throw "No registered face found. Please contact admin.";
     }
@@ -193,28 +205,155 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     }
     distance = sqrt(distance);
 
-    // Threshold for verification (Adjust based on testing)
-    // Lower = Stricter match. Higher = Looser match.
     const double verificationThreshold = 0.8;
 
     if (distance <= verificationThreshold) {
       if (!mounted) return;
-      _submitFinalVote();
+      await _submitFinalVote();
     } else {
       throw "Face does not match our records. Verification failed.";
     }
   }
 
-  void _submitFinalVote() {
-    // TODO: Vote logic dine
+  // SUBMIT VOTE AFTER VERIFICATION
+  Future<void> _submitFinalVote() async {
     final user = FirebaseAuth.instance.currentUser;
-    final String currentUid = user?.uid ?? '';
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => VoteSubmittedPage(uid: currentUid),
-      ),
-    );
+    if (user == null) return;
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      
+      // Determine if elections or proposals
+      final bool isProposal = widget.electionType == 'proposal';
+      final String collectionPath = isProposal ? 'proposals' : 'elections';
+
+      // Get User Profile
+      final userDoc = await firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) throw "User profile not found.";
+      
+      final userData = userDoc.data()!;
+      final String userYear = userData['year_level'] ?? 'Unknown'; 
+      final String userCollege = userData['college_id'] ?? 'Unknown';
+
+      // Run Transaction
+      await firestore.runTransaction((transaction) async {
+        
+        // ONE-VOTE ENFORCEMENT CHECK
+        final ballotRef = firestore
+            .collection(collectionPath) // Dynamic Path
+            .doc(widget.electionId)
+            .collection('votes')
+            .doc(user.uid);
+            
+        final ballotSnapshot = await transaction.get(ballotRef);
+        if (ballotSnapshot.exists) {
+          throw "You have already voted in this election.";
+        }
+
+        // WRITE VOTE/BALLOT
+        Map<String, dynamic> selectionsMap = {};
+        widget.selectedCandidates.forEach((pos, candidate) {
+          if (candidate != null) {
+             // For proposals, candidate.id might be null if created on the fly, fallback to name
+             String id = candidate.id ?? candidate.name; 
+             if (candidate.isAbstain) id = "ABSTAIN";
+             selectionsMap[pos] = id;
+          }
+        });
+
+        transaction.set(ballotRef, {
+          'votedAt': FieldValue.serverTimestamp(),
+          'user_year_level': userYear,
+          'user_college_id': userCollege,
+          'selections': selectionsMap,
+        });
+
+        // UPDATE GENERAL STATS
+        final generalStatsRef = firestore
+            .collection(collectionPath)
+            .doc(widget.electionId)
+            .collection('stats')
+            .doc('general');
+
+        transaction.set(generalStatsRef, {
+          'total_votes_cast': FieldValue.increment(1),
+          'by_year_level': { userYear: FieldValue.increment(1) }
+        }, SetOptions(merge: true));
+
+        // UPDATE PROPOSAL MAIN VOTE COUNT
+        if (isProposal) {
+          final proposalRef = firestore.collection('proposals').doc(widget.electionId);
+          transaction.update(proposalRef, {
+            'vote_count': FieldValue.increment(1)
+          });
+        }
+
+        // UPDATE CANDIDATE/OPTION STATS
+        widget.selectedCandidates.forEach((position, candidate) {
+          if (candidate != null) {
+             DocumentReference statsRef;
+             String name;
+             bool isAbstain = candidate.isAbstain;
+
+             // Logic for ID generation
+             String docId;
+             if (isAbstain) {
+                 final String safePos = position.replaceAll(RegExp(r'\s+'), '_');
+                 docId = 'abstain_$safePos';
+                 name = "Abstain";
+             } else if (isProposal) {
+                 // For proposals, use "Yes" or "No" as ID
+                 docId = candidate.name; 
+                 name = candidate.name;
+             } else if (candidate.id != null) {
+                 docId = candidate.id!;
+                 name = candidate.name;
+             } else {
+                 return; // Skip invalid
+             }
+
+             statsRef = firestore
+                 .collection(collectionPath)
+                 .doc(widget.electionId)
+                 .collection('stats')
+                 .doc(docId);
+
+             // Atomic Increment
+             transaction.set(statsRef, {
+               'name': name,
+               'position': position,
+               'is_abstain': isAbstain,
+               'total_votes': FieldValue.increment(1),
+               'by_year_level': { userYear: FieldValue.increment(1) }
+             }, SetOptions(merge: true));
+          }
+        });
+      });
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VoteSubmittedPage(uid: user.uid),
+        ),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+      String msg = e.toString();
+      if (msg.contains("FirebaseException")) msg = "Network error. Please try again.";
+      if (msg.contains("already voted")) msg = "Vote already recorded.";
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Submission Failed: $msg"),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      setState(() => _processing = false);
+    }
   }
 
   Future<bool> _isImageTooDark(File file) async {
@@ -386,138 +525,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-//Step indicator
-class StepProgressIndicator extends StatelessWidget {
-  final int currentStep;
-  final int totalSteps;
-
-  const StepProgressIndicator({
-    super.key,
-    required this.currentStep,
-    this.totalSteps = 4,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const double innerCircleSize = 32.0;
-    const double gapSize = 4.0;
-    const double outerCircleSize = innerCircleSize + (gapSize * 2);
-
-    const Color activeColor = Color(0xFF354372);
-    const Color inactiveColor = Color(0xFFD6DAE5);
-    const Color checkIconColor = Colors.white;
-
-    // Calculate the total number of gaps
-    int totalIntervals = totalSteps - 1;
-
-    // Calculate current progress
-    double progressValue;
-    if (currentStep >= totalSteps) {
-      progressValue = 1.0;
-    } else {
-      // Logic: Fill to current step PLUS half of the next gap
-      progressValue = ((currentStep - 1) + 0.5) / totalIntervals;
-    }
-
-    // Safety check to prevent division by zero if totalSteps is 1
-    if (totalIntervals <= 0) progressValue = 0;
-
-    return SizedBox(
-      width: 200,
-      height: outerCircleSize,
-      child: Stack(
-        children: [
-          // LAYER 1: The Outer Containers (Bottom)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(totalSteps, (index) {
-              return Container(
-                width: outerCircleSize,
-                height: outerCircleSize,
-                decoration: const BoxDecoration(
-                  color: inactiveColor,
-                  shape: BoxShape.circle,
-                ),
-              );
-            }),
-          ),
-
-          // LAYER 2: The Continuous Line (Middle)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: outerCircleSize / 2,
-            ),
-            child: Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(1),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: inactiveColor, width: 2.0),
-                  ),
-                  child: LinearProgressIndicator(
-                    value: progressValue,
-                    backgroundColor: inactiveColor,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      activeColor,
-                    ),
-                    minHeight: 2,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // LAYER 3: The Inner Circles (Top)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(totalSteps, (index) {
-              int stepNumber = index + 1;
-              bool isCompleted = stepNumber < currentStep;
-              bool isActive = stepNumber == currentStep;
-
-              return SizedBox(
-                width: outerCircleSize,
-                height: outerCircleSize,
-                child: Center(
-                  child: Container(
-                    width: innerCircleSize,
-                    height: innerCircleSize,
-                    decoration: BoxDecoration(
-                      color: (isActive || isCompleted)
-                          ? activeColor
-                          : inactiveColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: isCompleted
-                          ? const Icon(
-                              Icons.check,
-                              size: 12,
-                              color: checkIconColor,
-                            )
-                          : Text(
-                              '$stepNumber',
-                              style: TextStyle(
-                                color: (isActive)
-                                    ? Colors.white
-                                    : const Color(0xFF404040),
-                                fontWeight: FontWeight.w100,
-                                fontSize: 14,
-                                fontFamily: 'Geist',
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
       ),
     );
   }

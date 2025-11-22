@@ -5,8 +5,15 @@ import 'header.dart';
 
 class VoteConfirmationPage extends StatelessWidget {
   final Map<String, VotingCandidate?> selectedCandidates;
+  final String electionId;
+  final String electionType; 
 
-  const VoteConfirmationPage({super.key, required this.selectedCandidates});
+  const VoteConfirmationPage({
+    super.key, 
+    required this.selectedCandidates,
+    required this.electionId,
+    required this.electionType, 
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +64,8 @@ class VoteConfirmationPage extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (context) => FaceVerificationPage(
                         selectedCandidates: selectedCandidates,
+                        electionId: electionId,
+                        electionType: electionType,
                       ),
                     ),
                   );

@@ -409,8 +409,7 @@ class _LoginScreenState extends State<LoginScreen>
           switch (registrationStep) {
             case 1:
               Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => RegistrationStep3(uid: uid)),
+                context, MaterialPageRoute(builder: (_) => RegistrationStep1(uid: uid)),
               );
             case 2:
               String nameCap = userData['name'];
