@@ -75,8 +75,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return SvgPicture.asset(assetPath, width: 21, height: 19);
   }
   
-  // 2 backs swipe to exit app function
-  Future<bool> _onWillPop() async {
+  // 2 backs swipe to exit app function - hindi to nagana ewan baket, kinuha koto sa luma eh pinaste kolang here
+  Future<bool> _onWillPop() async { //saka ko nalang ayusin - rik
     DateTime now = DateTime.now();
     if (_selectedIndex != 0) {
       setState(() {
@@ -157,9 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 // GOTO: ANNOUNCEMENT
                 Navigator.push(
                   context,
-                  PageRouteBuilder(
+                  /*PageRouteBuilder(
                     transitionDuration: const Duration(milliseconds: 0),
                     pageBuilder: (_, __, ___) => AnnouncementsPage(userId: widget.uid),
+                  ),*/
+                  MaterialPageRoute(
+                    builder: (context) => AnnouncementsPage(userId: widget.uid),
                   ),
                 );
               },

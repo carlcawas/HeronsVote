@@ -8,7 +8,7 @@ import '../services/firebase_service.dart';
 import './Privacy&Terms/privacyPolicy.dart';
 import './Privacy&Terms/termsCondition.dart';
 import 'package:flutter/gestures.dart';
-import 'registration_step1.dart';
+//import 'registration_step1.dart';
 import 'registration_step2.dart';
 import 'registration_step3.dart';
 import 'registration_verified.dart';

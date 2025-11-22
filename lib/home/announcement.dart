@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:heronsvote/services/firebase_service.dart';
 
+import 'header.dart';
+
 // Announcement model
 class Announcement {
   final String id;
@@ -200,7 +202,21 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
     });
   }
 
-  void moveToRead(String announcementId) {
+  /*void moveToRead(String announcementId) {
+    setState(() {
+      _announcements = _announcements.map((a) {
+        if (a.id == announcementId) return a.copyWith(isNew: false);
+        return a;
+      }).toList();
+    });
+  }*/
+
+  //replaced version:
+  Future<void> moveToRead(String announcementId) async {
+    provider.markAsRead(
+      userId: widget.userId, 
+      announcementId: announcementId
+    );
     setState(() {
       _announcements = _announcements.map((a) {
         if (a.id == announcementId) return a.copyWith(isNew: false);
@@ -239,52 +255,18 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             // Header
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 25,
-                bottom: 9,
-                top: 25,
-                right: 16,
-              ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      height: 40,
-                      width: 40,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF5C6AA0),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SvgPicture.asset(
-                          'assets/back.svg',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  const Text(
-                    'Announcements',
-                    style: TextStyle(
-                      color: Color(0xFF404040),
-                      fontFamily: 'Geist',
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+            CustomHeader(
+              title: 'Announcements',
+              onBack: () => Navigator.pop(context),
             ),
+            
             // Body
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -296,6 +278,8 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
                         totalCount: newAnnouncements.length,
                         userId: widget.userId,
                         onMarkAsRead: moveToRead,
+                        
+                        //initiallyExpanded: false,
                       ),
                       const SizedBox(height: 16),
                       _AnnouncementSection(
@@ -305,6 +289,8 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
                         totalCount: readAnnouncements.length,
                         userId: widget.userId,
                         onMarkAsRead: moveToRead,
+                        
+                        //initiallyExpanded: false,
                       ),
                       const SizedBox(height: 32),
                     ],
@@ -378,72 +364,81 @@ class _AnnouncementSectionState extends State<_AnnouncementSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             setState(() {
               _isExpanded = !_isExpanded;
             });
           },
-          child: Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: widget.color,
-                  shape: BoxShape.circle,
+
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 0.0),//gap ni new and card
+
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '${widget.title} (${widget.totalCount})',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF404040),
+                const SizedBox(width: 9), //gap ni new text sa dot
+                Text(
+                  '${widget.title} (${widget.totalCount})',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF404040),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  height: 2,
-                  color: const Color(0xFFEEEEEE),
-                  margin: const EdgeInsets.only(right: 8),
+                const SizedBox(width: 9),//gap ni line sa new text
+                Expanded(
+                  child: Container(
+                    height: 2, //line height
+                    color: const Color(0xFFEEEEEE),
+                    margin: const EdgeInsets.only(right: 14), // gap ni  line sa expand btn
+                  ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEEEEE),
-                  borderRadius: BorderRadius.circular(50),
+                Container(
+                  padding: const EdgeInsets.all(6), //expand icon padding relative to container
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEEEEE),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: Icon(
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: const Color(0xFF747474),
+                    size: 20,//expand icon size
+                  ),
                 ),
-                child: Icon(
-                  _isExpanded
-                      ? Icons.keyboard_arrow_up
-                      : Icons.keyboard_arrow_down,
-                  color: const Color(0xFF747474),
-                  size: 20,
-                ),
-              ),
-            ],
+              ],
+            ),
+            
           ),
         ),
 
-        if (_isExpanded)
+        //if (_isExpanded)
           ...widget.dateGroups.asMap().entries.map((entry) {
             final index = entry.key;
             final dateGroup = entry.value;
             final isLast = index == widget.dateGroups.length - 1;
 
-            final keyString =
-                '${dateGroup.dateMonth}-${dateGroup.dateDay}-${dateGroup.announcements.length}';
+            final keyString = '${dateGroup.dateMonth}-${dateGroup.dateDay}';
 
             return _DateGroupWidget(
               key: ValueKey(keyString),
               dateGroup: dateGroup,
               isLast: isLast,
-              initiallyExpanded: true,
-              showOnlyFirstAnnouncement: false,
+              //initiallyExpanded: true,
               userId: widget.userId,
+
+              showOnlyFirstAnnouncement: !_isExpanded,
+              onMarkAsRead: widget.onMarkAsRead!, //bagong lagay
+              
             );
           }).toList(),
       ],
@@ -456,16 +451,20 @@ class _DateGroupWidget extends StatefulWidget {
   final DateGroup dateGroup;
   final bool isLast;
   final bool initiallyExpanded;
-  final bool showOnlyFirstAnnouncement;
+  final bool showOnlyFirstAnnouncement; //pra sa stack daw to
   final String userId;
+
+  final void Function(String) onMarkAsRead;//bagong dagdag
 
   const _DateGroupWidget({
     Key? key,
     required this.dateGroup,
     required this.isLast,
     this.initiallyExpanded = true,
-    this.showOnlyFirstAnnouncement = false,
+    //this.showOnlyFirstAnnouncement = false,
+    required this.showOnlyFirstAnnouncement,
     required this.userId,
+    required this.onMarkAsRead,
   }) : super(key: key);
 
   @override
@@ -473,21 +472,66 @@ class _DateGroupWidget extends StatefulWidget {
 }
 
 class _DateGroupWidgetState extends State<_DateGroupWidget> {
-  late bool _isExpanded;
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  final Map<int, double> _measuredHeights = {};
+  //late bool _isExpanded;
+  //final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  //final Map<int, double> _measuredHeights = {};
   late List<Announcement> _visibleAnnouncements;
+
+  final Map<String, double> _cardHeights = {};
+
+  final Set<String> _exitingItemIds = {}; //remove animation ito
 
   @override
   void initState() {
     super.initState();
-    _isExpanded = widget.initiallyExpanded;
-    _visibleAnnouncements = widget.showOnlyFirstAnnouncement
+    //_isExpanded = widget.initiallyExpanded;
+    /*_visibleAnnouncements = widget.showOnlyFirstAnnouncement
         ? [widget.dateGroup.announcements.first]
-        : List.from(widget.dateGroup.announcements);
+        : List.from(widget.dateGroup.announcements);*/
+    _visibleAnnouncements = List.from(widget.dateGroup.announcements);
   }
 
-  void removeAnnouncement(int index) {
+  @override
+  void didUpdateWidget(_DateGroupWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.dateGroup.announcements.length != oldWidget.dateGroup.announcements.length) {
+       if (mounted) {
+         setState(() {
+          List<Announcement> newSyncedList = List.from(widget.dateGroup.announcements);
+          for (String exitingId in _exitingItemIds) {
+            bool isPresentInNewList = newSyncedList.any((a) => a.id == exitingId);
+            if (!isPresentInNewList) {
+              try {
+                final ghostItem = _visibleAnnouncements.firstWhere((a) => a.id == exitingId);
+                newSyncedList.add(ghostItem);
+              } catch (e) {}
+            }
+          }
+          _visibleAnnouncements = newSyncedList;
+         });
+       }
+    }
+  }
+
+  void _handleLocalRemoval(String id) {
+    //widget.onMarkAsRead(id);
+    setState(() {
+      //_visibleAnnouncements.removeWhere((item) => item.id == id);
+      _exitingItemIds.add(id);
+    });
+
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        widget.onMarkAsRead(id);
+        setState(() {
+          _exitingItemIds.remove(id); 
+          _visibleAnnouncements.removeWhere((item) => item.id == id);
+        });
+      }
+    });
+  }
+
+  /*void removeAnnouncement(int index) {
     final removedItem = _visibleAnnouncements[index];
     _visibleAnnouncements.removeAt(index);
 
@@ -521,28 +565,147 @@ class _DateGroupWidgetState extends State<_DateGroupWidget> {
   double get totalCardsHeight {
     final cardsTotal = _measuredHeights.values.fold(0.0, (sum, h) => sum + h);
     return cardsTotal + 3.0;
-  }
+  }*/
 
   @override
   Widget build(BuildContext context) {
+
+    //added from here
+    final announcements = _visibleAnnouncements;
+    // isCollapsed means "Stack Mode"
+    final bool isCollapsed = widget.showOnlyFirstAnnouncement;
+
+    if (announcements.isEmpty) return const SizedBox();
+    if (announcements.isEmpty && _exitingItemIds.isEmpty) return const SizedBox();
+
+    // --- Height Calculation ---
+    double topCardHeight = 0;
+    if (announcements.isNotEmpty) {
+      // Default to 100 if we haven't measured it yet
+      topCardHeight = _cardHeights[announcements.first.id] ?? 100.0;
+    }
+
+    double totalContainerHeight = 0;
+
+    if (isCollapsed) {
+      // STACK HEIGHT: Top Card + small visible lips of cards behind
+      totalContainerHeight = topCardHeight;
+      if (announcements.length > 1) {
+        // Show max 2 cards behind the main one
+        int visibleLips = (announcements.length - 1).clamp(0, 2);
+        totalContainerHeight += (visibleLips * 10.0); 
+      }
+    } else {
+      // LIST HEIGHT: Sum of all cards + spacing
+      for (var a in announcements) {
+        totalContainerHeight += (_cardHeights[a.id] ?? 100.0);
+      }
+      if (announcements.isNotEmpty) {
+        totalContainerHeight += (announcements.length - 1) * 16.0; 
+      }
+    }//to here
+
+    final timelineHeight = totalContainerHeight;
+
     return Padding(
       padding: const EdgeInsets.only(top: 16.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+
+          //date line i2 daw
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
             child: _TimelineIndicator(
               month: widget.dateGroup.dateMonth,
               day: widget.dateGroup.dateDay,
               color: widget.dateGroup.timelineColor,
-              showVerticalLine: !widget.isLast,
-              totalCardsHeight: totalCardsHeight,
+              showVerticalLine: true,
+              //totalCardsHeight: totalCardsHeight,
+              totalCardsHeight: timelineHeight,
             ),
           ),
           const SizedBox(width: 12),
+
+          //card stack i2
           Expanded(
-            child: AnimatedList(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutBack, // animation of stack
+              height: totalContainerHeight + 8,
+
+              child: Stack(
+                clipBehavior: Clip.none,
+                // Reversed so the FIRST item in the list renders LAST (on top visually)
+                children: List.generate(announcements.length, (index) {
+                  final item = announcements[index];
+                  final isExiting = _exitingItemIds.contains(item.id);
+
+                  // 1. Calculate List Position (Expanded)
+                  double expandedTop = 0;
+                  for (int i = 0; i < index; i++) {
+                    expandedTop += (_cardHeights[announcements[i].id] ?? 0) + 16.0; 
+                  }
+
+                  // 2. Calculate Stack Position (Collapsed)
+                  // Limit the stack effect to the first 3 items visually
+                  int effectiveStackIndex = (index > 2) ? 2 : index;
+                  double collapsedTop = effectiveStackIndex * 5.0; //stach peek size
+
+                  // 3. Force Height for background cards in Stack Mode
+                  // so they hide neatly behind the top card
+                  bool forceHeight = isCollapsed && index > 0;
+
+                  return AnimatedPositioned(
+                    key: ValueKey(item.id), // Crucial for animation
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.fastOutSlowIn,
+
+                    //remove animation
+                    left: isExiting ? MediaQuery.of(context).size.width : 0,
+                    right: isExiting ? -MediaQuery.of(context).size.width : 0,
+                    
+                    // The Trigger Logic:
+                    top: isCollapsed ? collapsedTop : expandedTop,
+
+                    child: AnimatedOpacity(
+                      // If exiting: Fade to 0
+                      opacity: isExiting ? 0.0 : 1.0,
+                      duration: const Duration(milliseconds: 300),
+                    
+
+                    //left: 0,
+                    //right: 0,
+                      child: MeasureSize(
+                        onChange: (size) {
+                          bool shouldMeasure = !isCollapsed || (isCollapsed && index == 0);
+                          if (shouldMeasure && _cardHeights[item.id] != size.height) {
+                            setState(() {
+                              _cardHeights[item.id] = size.height;
+                            });
+                          }                          
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 400),
+                          // If stacking, force background cards to match top card height
+                          height: forceHeight ? topCardHeight : null,
+                          child: _buildCard(
+                            item, 
+                            index, 
+                            isCollapsed, 
+                            announcements.length
+                          ),
+                        ),
+                      ),
+                    )
+                  );
+                }).reversed.toList(), 
+              ),
+            ), 
+          ),
+
+            /*child: AnimatedList(
               key: _listKey,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -602,12 +765,28 @@ class _DateGroupWidgetState extends State<_DateGroupWidget> {
                   ),
                 );
               },
-            ),
-          ),
+            ),*/
+          
         ],
       ),
     );
   }
+
+  Widget _buildCard(Announcement item, int index, bool isCollapsed, int totalLength) {
+    return _AnnouncementCard(
+      key: ValueKey(item.id),
+      announcement: item,
+      isVisible: true,
+      userId: widget.userId,
+      // Logic to show "+2" badge only on the top card when stacked
+      hiddenCount: (index == 0 && isCollapsed) ? totalLength - 1 : 0,
+      isGroupCollapsed: isCollapsed,
+      onMarkAsRead: () {
+        _handleLocalRemoval(item.id);
+      },
+    );
+  }
+
 }
 
 class _TimelineIndicator extends StatelessWidget {
@@ -691,9 +870,12 @@ class _AnnouncementCard extends StatefulWidget {
   final bool isVisible;
   final VoidCallback onMarkAsRead;
   final String userId;
-  final bool showDropdown;
-  final bool isExpanded;
-  final VoidCallback onToggle;
+  //final bool showDropdown;
+  //final bool isExpanded;
+  //final VoidCallback onToggle;
+
+  final bool isGroupCollapsed; //added
+  final int hiddenCount;
 
   const _AnnouncementCard({
     Key? key,
@@ -701,27 +883,204 @@ class _AnnouncementCard extends StatefulWidget {
     required this.isVisible,
     required this.onMarkAsRead,
     required this.userId,
-    required this.showDropdown,
-    required this.isExpanded,
-    required this.onToggle,
+    //required this.showDropdown,
+    //required this.isExpanded,
+    //required this.onToggle,
+
+    this.hiddenCount = 0,
+    this.isGroupCollapsed = false,
+
   }) : super(key: key);
 
   @override
   State<_AnnouncementCard> createState() => _AnnouncementCardState();
 }
 
-class _AnnouncementCardState extends State<_AnnouncementCard>
+/*class _AnnouncementCardState extends State<_AnnouncementCard>
     with TickerProviderStateMixin {
   bool _isCardExpanded = false;
   final GlobalKey _heightKey = GlobalKey();
 
   void _toggleExpansion() {
     setState(() => _isCardExpanded = !_isCardExpanded);
-  }
+  }*/
+
+  //replaced from here
+  class _AnnouncementCardState extends State<_AnnouncementCard> {
+  bool _isContentExpanded = false;
+
+  @override
+  void didUpdateWidget(_AnnouncementCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset "See More" if group collapses
+    if (widget.isGroupCollapsed && !oldWidget.isGroupCollapsed) {
+      if (_isContentExpanded) {
+        setState(() {
+          _isContentExpanded = false;
+        });
+      }
+    }
+  }//to here
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSize(
+
+    final isStack = widget.hiddenCount > 0;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 250),
+      opacity: widget.isVisible ? 1.0 : 0.0,
+      child: Container(
+        margin: const EdgeInsets.only(right: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE7E8E9), width: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 2,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 8, left: 14, right: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.announcement.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2D2D2D),
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  
+                  if (isStack)
+                    Container(
+                      width: 46,
+                      height: 32,
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFECECEC),
+                          borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            "+${widget.hiddenCount}",
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.layers, size: 14, color: Color(0xFF2D2D2D)),
+                        ],
+                      ),
+                    )
+                  else
+                    Opacity(
+                      opacity: widget.announcement.isNew ? 1.0 : 0.0,
+                      child: GestureDetector(
+                        onTap: widget.announcement.isNew 
+                            ? widget.onMarkAsRead 
+                            : null,
+                        
+                        child: Container(
+                          width: 36,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFECECEC),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            size: 24,
+                            color: Color(0xFF404040),
+                          ),
+                        ),
+                      ),
+                    )
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // card Description  
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topLeft,
+                child: Text(
+                  key: ValueKey(_isContentExpanded),
+                  widget.announcement.description,
+                  maxLines: _isContentExpanded ? null : 3,
+                  overflow: _isContentExpanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 14, color: Colors.grey[700], height: 1.4),
+                ),
+              ),
+              
+              /*AnimatedCrossFade(
+                duration: const Duration(milliseconds: 200),
+                crossFadeState: _isContentExpanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                firstChild: Text(
+                  widget.announcement.description,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                secondChild: Text(
+                  widget.announcement.description,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
+                ),
+              ),*/
+              
+              const SizedBox(height: 12),
+              
+              // See More
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: () => setState(() => _isContentExpanded = !_isContentExpanded),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEEEEE),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      _isContentExpanded ? "See less" : "See more",
+                      style: const TextStyle(
+                        color: Color(0xFF404040),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+
+    /*return AnimatedSize(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
       child: AnimatedOpacity(
@@ -858,7 +1217,7 @@ class _AnnouncementCardState extends State<_AnnouncementCard>
           ),
         ),
       ),
-    );
+    );*/
   }
 }
 
