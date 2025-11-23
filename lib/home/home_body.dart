@@ -8,7 +8,7 @@ import 'slates_list.dart';
 import 'elected_official_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'candidates_view_body.dart';
-
+import 'profile.dart';
 class HomeBody extends StatefulWidget {
   final String uid;
   final Function(int) onTabChange;
@@ -444,7 +444,7 @@ class _HomeBodyState extends State<HomeBody> {
             style: TextStyle(
               color: Color(0xFF404040),
               fontSize: 20,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               fontFamily: 'Geist',
             ),
           ),
@@ -455,7 +455,8 @@ class _HomeBodyState extends State<HomeBody> {
               color: Color(0xFF747474),
               fontSize: 14,
               fontFamily: 'Geist',
-              height: 1.4,
+              height: 1.5,
+              fontWeight: FontWeight.w400,
             ),
           ),
           const SizedBox(height: 13),
@@ -470,7 +471,10 @@ class _HomeBodyState extends State<HomeBody> {
                 ),
               ),
               onPressed: () {
-                //TODO: Navigate to profile settings
+               Navigator.push(
+                   context, 
+                   MaterialPageRoute(builder: (context) => ProfilePage(uid: widget.uid))
+                 );
               },
               child: const Text(
                 "Go to Profile settings",

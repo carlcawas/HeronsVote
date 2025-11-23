@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'reverify/reverify_step1.dart';
+import 'package:heronsvote/screens/splash_screen.dart';
 class ProfilePage extends StatefulWidget {
   final String uid;
 
@@ -22,11 +23,107 @@ class _ProfilePageState extends State<ProfilePage> {
     return FirebaseFirestore.instance.collection('users').doc(widget.uid).get();
   }
 
-  void _handleLogout() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-    }
+  void _handleLogout() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Log out",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF404040),
+                    fontFamily: 'Geist',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Are you sure you want to log out?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF747474),
+                    fontFamily: 'Geist',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    // Cancel Button
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF858FB8)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text(
+                          "Cancel",
+                          style: TextStyle(
+                            color: Color(0xFF747474), 
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Geist',
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Yes Button
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          Navigator.pop(context); 
+                          await FirebaseAuth.instance.signOut();                        
+                          if (mounted) {
+                             Navigator.of(context).pushAndRemoveUntil(
+                               MaterialPageRoute(
+                                 builder: (context) => const SplashScreen(),
+                               ), 
+                               (route) => false,
+                             );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5C6AA0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text(
+                          "Yes",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Geist',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -45,14 +142,24 @@ class _ProfilePageState extends State<ProfilePage> {
               return const Center(child: Text("Error loading profile"));
             }
 
-            // Extract data
             final data = snapshot.data!.data() as Map<String, dynamic>;
             
             final String name = data['fullName'] ?? data['name'] ?? 'Unknown';
             final String college = data['college_id'] ?? data['college'] ?? 'N/A';
             final String yearLevel = data['year_level'] ?? 'N/A';
-            final String semester = data['semester'] ?? 'N/A';
+            final String section = data['section'] ?? 'N/A';
+            final String studNum = data['student_number'] ?? 'N/A';
             final String academicYear = data['academicYear'] ?? 'A.Y. 2025-2026';
+            String rawSemester = data['semester'] ?? 'N/A';
+            String semester = rawSemester;
+            
+            if (rawSemester.toLowerCase().contains('first') || rawSemester.contains('1st')) {
+              semester = "1st Semester";
+            } else if (rawSemester.toLowerCase().contains('second') || rawSemester.contains('2nd')) {
+              semester = "2nd Semester";
+            } else if (rawSemester.toLowerCase().contains('summer')) {
+              semester = "Summer Term";
+            }
             
             // CHECK VERIFICATION STATUS
             final bool isVerified = data['isVerified'] ?? false;
@@ -64,9 +171,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   const SizedBox(height: 20),
 
-                  // 1. HEADER
+                  //HEADER
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
@@ -80,6 +186,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
                         ),
                       ),
+                      const SizedBox(width: 20),
                       Text(
                         "Profile",
                         style: TextStyle(
@@ -89,6 +196,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const Spacer(),
                       ElevatedButton(
                         onPressed: _handleLogout,
                         style: ElevatedButton.styleFrom(
@@ -107,22 +215,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
                   const SizedBox(height: 30),
 
-                  // 2. CONDITIONAL WARNING CARD
                   if (!isVerified) ...[
                     _buildNotVerifiedWarning(),
                     const SizedBox(height: 20),
                   ],
 
-                  // 3. STATUS & INFO SECTION
+                  // STATUS & INFO SECTION
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Left: Verification Status Card
+                      // Verification Status Card
                       Expanded(
                         flex: 5,
                         child: Container(
-                          height: 190,
-                          padding: const EdgeInsets.all(20),
+                          height: 170,
+                          padding: const EdgeInsets.only(top: 19, left: 20, right: 20, bottom: 19),
                           decoration: BoxDecoration(
                             color: _cardColor,
                             borderRadius: BorderRadius.circular(20),
@@ -136,8 +243,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 15),
-                              
-                              // DYNAMIC ICON
+                            
                               isVerified 
                                 ? SvgPicture.asset(
                                     'assets/check.svg',
@@ -145,14 +251,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                     width: 60,
                                   )
                                 : SvgPicture.asset(
-                                    'assets/UnverifiedIcon.svg', 
+                                    'assets/unverifiedIcon.svg', 
                                     height: 60,
                                     width: 60,
                                   ),
                                   
                               const SizedBox(height: 10),
-                              
-                              // DYNAMIC TEXT
                               Text(
                                 isVerified ? "Verified" : "Not Verified",
                                 style: TextStyle(
@@ -168,7 +272,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       
                       const SizedBox(width: 12),
 
-                      // Right: Info
+                      //Info
                       Expanded(
                         flex: 4, 
                         child: Column(
@@ -188,7 +292,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
                   // Name
                   _buildWideInfoCard(name),
-
+                  const SizedBox(height: 12),
+                  // section
+                  _buildWideInfoCard(studNum),
+                  const SizedBox(height: 12),
+                  // studen num
+                  _buildWideInfoCard(section),
                   const SizedBox(height: 12),
 
                   // Academic Year
@@ -204,7 +313,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- NEW WIDGET: WARNING CARD ---
+  //unverified
   Widget _buildNotVerifiedWarning() {
     return Container(
       width: double.infinity,
@@ -235,14 +344,18 @@ class _ProfilePageState extends State<ProfilePage> {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 13),
           SizedBox(
             width: double.infinity,
             height: 45,
             child: ElevatedButton(
               onPressed: () {
-                // TODO: Navigate to re-verification page
-                print("Navigate to Verification");
+               Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RegistrationStep1(uid: widget.uid),
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _blueColor,
@@ -252,11 +365,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 elevation: 0,
               ),
               child: const Text(
-                "Go to Profile settings",
+                "Re-verify now",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFFF8F8F8),
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   fontFamily: 'Geist',
                 ),
               ),
@@ -270,7 +383,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildSmallInfoCard(String text) {
     return Container(
       width: double.infinity,
-      height: 56,
+      height: 50,
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(20),
@@ -286,7 +399,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildWideInfoCard(String text) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 16),
       decoration: BoxDecoration(
         color: _cardColor,
         borderRadius: BorderRadius.circular(20),

@@ -175,7 +175,7 @@ class CandidateVoteCard extends StatelessWidget {
                     : null,
               ),
             ] else ...[
-              const SizedBox(width: 8), 
+              const SizedBox(width: 8),
             ],
             // Candidate Name and Partylist
             Expanded(
@@ -253,6 +253,7 @@ class CandidateVoteCard extends StatelessWidget {
     );
   }
 }
+
 class CastVoteCard extends StatelessWidget {
   final VoidCallback onTap;
   const CastVoteCard({super.key, required this.onTap});
@@ -273,7 +274,7 @@ class CastVoteCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Cast your vote', 
+              'Cast your vote',
               style: TextStyle(
                 color: Color(0xFF404040),
                 fontSize: 16,
@@ -289,9 +290,11 @@ class CastVoteCard extends StatelessWidget {
                 borderRadius: BorderRadius.all(Radius.circular(12)),
               ),
               child: const Center(
-                child: Icon(  Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 18,), 
+                child: Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
           ],
@@ -300,6 +303,7 @@ class CastVoteCard extends StatelessWidget {
     );
   }
 }
+
 // PositionVoteItem with error state
 class PositionVoteItem extends StatelessWidget {
   final String positionTitle;
@@ -355,12 +359,65 @@ class PositionVoteItem extends StatelessWidget {
             ],
           ),
         ),
-       selectedCandidate == null
-            ? (isProposal 
-                ? CastVoteCard(onTap: onSelectCandidate) 
-                : ChooseCandidateCard(onTap: onSelectCandidate))
-            : CandidateVoteCard(candidate: selectedCandidate!, onTap: onSelectCandidate),
+        selectedCandidate == null
+            ? (isProposal
+                  ? CastVoteCard(onTap: onSelectCandidate)
+                  : ChooseCandidateCard(onTap: onSelectCandidate))
+            : CandidateVoteCard(
+                candidate: selectedCandidate!,
+                onTap: onSelectCandidate,
+              ),
       ],
+    );
+  }
+}
+
+class VotingCompletePageBody extends StatelessWidget {
+  const VotingCompletePageBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  "Voting Complete",
+                  style: TextStyle(
+                    color: Color(0xFF404040),
+                    fontSize: 24,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SvgPicture.asset('assets/check.svg', width: 28),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "You have successfully cast your vote for this election. Thank you for participating.",
+              style: TextStyle(
+                color: Color(0xFF747474),
+                fontSize: 14,
+                fontFamily: 'Geist',
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -370,7 +427,6 @@ class VotingHomePage extends StatefulWidget {
   final String uid;
   final Map<String, dynamic> electionData;
   final VoidCallback? onBack;
-  
 
   const VotingHomePage({
     super.key,
@@ -386,9 +442,9 @@ class VotingHomePage extends StatefulWidget {
 class _VotingHomePageState extends State<VotingHomePage> {
   final Map<String, VotingCandidate?> _selectedCandidates = {};
   bool _showErrors = false;
-  // CHECKER IF NAG-VOTE NA USER  
+  // CHECKER IF NAG-VOTE NA USER
   bool _hasVoted = false;
-  bool _isVerified = true; 
+  bool _isVerified = true;
   bool _isLoadingVerification = true;
 
   late String _electionTitle;
@@ -409,7 +465,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
     super.initState();
     _electionTitle = widget.electionData['title'] ?? 'Election Voting';
     _isProposal = widget.electionData['type'] == 'proposal';
-    
+
     // Date Handling
     if (widget.electionData['start'] != null &&
         widget.electionData['end'] != null) {
@@ -439,7 +495,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
     try {
       final String collectionPath = _isProposal ? 'proposals' : 'elections';
       final String docId = widget.electionData['id'];
-      
+
       final docSnapshot = await FirebaseFirestore.instance
           .collection(collectionPath)
           .doc(docId)
@@ -456,13 +512,14 @@ class _VotingHomePageState extends State<VotingHomePage> {
       debugPrint("Error checking vote status: $e");
     }
   }
+
   Future<void> _checkUserStatus() async {
     try {
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.uid)
           .get();
-          
+
       bool verified = true;
       if (userDoc.exists) {
         verified = userDoc.data()?['isVerified'] ?? false;
@@ -470,7 +527,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
       final String collectionPath = _isProposal ? 'proposals' : 'elections';
       final String docId = widget.electionData['id'];
-      
+
       final voteDoc = await FirebaseFirestore.instance
           .collection(collectionPath)
           .doc(docId)
@@ -574,13 +631,19 @@ class _VotingHomePageState extends State<VotingHomePage> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-
-    if (!_isVerified) {
+     if (!_isVerified) {
       return Scaffold(
         backgroundColor: Colors.white,
         body: _buildNotVerifiedCard(),
       );
     }
+    if (_hasVoted) {
+       return Scaffold(
+        backgroundColor: Colors.white,
+        body: const VotingCompletePageBody(), 
+      );
+    }
+   
     Stream<QuerySnapshot> candidateStream = _isProposal
         ? const Stream.empty()
         : FirebaseService().getCandidatesByElectionId(
@@ -642,7 +705,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        
+
                         // check if _hasVoted, if true lalabs yung text (babaguhin mo)
                         if (_hasVoted) ...[
                           const SizedBox(height: 5),
@@ -736,25 +799,30 @@ class _VotingHomePageState extends State<VotingHomePage> {
             left: 0,
             right: 0,
             child: Container(
-              padding: const EdgeInsets.only(left: 25, right: 25, bottom: 25, top: 40),
+              padding: const EdgeInsets.only(
+                left: 25,
+                right: 25,
+                bottom: 25,
+                top: 40,
+              ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withOpacity(0.0), 
-                    Colors.white.withOpacity(0.8), 
-                    Colors.white,                  
+                    Colors.white.withOpacity(0.0),
+                    Colors.white.withOpacity(0.8),
+                    Colors.white,
                   ],
-                  stops: const [0.0, 0.6, 1.0], 
+                  stops: const [0.0, 0.6, 1.0],
                 ),
               ),
               child: Row(
                 children: [
                   if (widget.onBack != null) ...[
                     SizedBox(
-                      height: 53, 
-                      width: 53, 
+                      height: 53,
+                      width: 53,
                       child: ElevatedButton(
                         onPressed: widget.onBack,
                         style: ElevatedButton.styleFrom(
@@ -765,15 +833,22 @@ class _VotingHomePageState extends State<VotingHomePage> {
                           ),
                           elevation: 2,
                         ),
-                        child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 21),
+                        child: const Icon(
+                          Icons.arrow_back_ios_new,
+                          color: Colors.white,
+                          size: 21,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12), 
+                    const SizedBox(width: 12),
                   ],
 
                   Expanded(
-                    child: _buildSubmitButton(() => _submitVote(
-                        _isProposal ? [_electionTitle] : _definedPositions)),
+                    child: _buildSubmitButton(
+                      () => _submitVote(
+                        _isProposal ? [_electionTitle] : _definedPositions,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -784,15 +859,15 @@ class _VotingHomePageState extends State<VotingHomePage> {
     );
   }
 
- Widget _buildProposalBody({bool includeButton = true}) {
-    final String proposalTitle = _electionTitle; 
-    
+  Widget _buildProposalBody({bool includeButton = true}) {
+    final String proposalTitle = _electionTitle;
+
     final hasError = _showErrors && _selectedCandidates[proposalTitle] == null;
 
     return Column(
       children: [
         PositionVoteItem(
-          positionTitle: proposalTitle, 
+          positionTitle: proposalTitle,
           selectedCandidate: _selectedCandidates[proposalTitle],
           onSelectCandidate: () =>
               _handleSelectCandidate(proposalTitle, _getProposalOptions()),
@@ -829,27 +904,20 @@ class _VotingHomePageState extends State<VotingHomePage> {
   }
 
   Widget _buildNotVerifiedCard() {
+    double screenWidth = MediaQuery.of(context).size.width;
+    double imageSize = (screenWidth * 0.60).clamp(150.0, 350.0);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(height: 40), 
+          // Icon Container
           Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFF7F7F7),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                )
-              ],
+            width: imageSize,
+            height: imageSize,
+            child: SvgPicture.asset(
+              'assets/circle_unverif.svg',
+              fit: BoxFit.contain,
             ),
-            padding: const EdgeInsets.all(25),
-            child: SvgPicture.asset('assets/UnverifiedIcon.svg'), 
           ),
           const SizedBox(height: 24),
           const Text(
@@ -857,11 +925,11 @@ class _VotingHomePageState extends State<VotingHomePage> {
             style: TextStyle(
               color: Color(0xFF404040),
               fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               fontFamily: 'Geist',
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
           const Text(
             "It seems like your semester has ended,\nPlease re-verify your account",
             textAlign: TextAlign.center,
@@ -870,41 +938,45 @@ class _VotingHomePageState extends State<VotingHomePage> {
               fontSize: 14,
               height: 1.5,
               fontFamily: 'Geist',
+              fontWeight: FontWeight.w400,
             ),
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 200,
-            height: 45,
-            child: ElevatedButton(
-              onPressed: () {
-                 Navigator.push(
-                   context, 
-                   MaterialPageRoute(builder: (context) => ProfilePage(uid: widget.uid))
-                 );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5C6AA0),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProfilePage(uid: widget.uid),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 45,
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    "Go to Profile settings",
+                    style: TextStyle(
+                      color: Color(0xFFF8F8F8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Geist',
+                    ),
+                  ),
                 ),
               ),
-              child: const Text(
-                "Go to Profile settings",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Geist',
-                ),
-              ),
-            ),
+            ],
           ),
-          const SizedBox(height: 100), // Bottom spacing
         ],
       ),
     );
   }
-
 }

@@ -20,7 +20,8 @@ class ElectionSelectionPage extends StatefulWidget {
 }
 
 class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
-  bool _isVerified = true; 
+  bool _isVerified = true;
+  bool _allVoted = false;
   bool _isLoading = true;
 
   @override
@@ -36,9 +37,21 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
           .doc(widget.uid)
           .get();
 
+      int votedCount = 0;
+      if (widget.activeElections.isNotEmpty) {
+        for (var election in widget.activeElections) {
+          final String id = election['id'];
+          final String type = election['type'] ?? 'election';
+          final hasVoted = await _hasUserVoted(id, type);
+          if (hasVoted) {
+            votedCount++;
+          }
+        }
+      }
       if (userDoc.exists && mounted) {
         setState(() {
           _isVerified = userDoc.data()?['isVerified'] ?? false;
+          _allVoted = widget.activeElections.isNotEmpty && votedCount == widget.activeElections.length;
           _isLoading = false;
         });
       }
@@ -47,7 +60,21 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
+  Future<bool> _hasUserVoted(String electionId, String type) async {
+    try {
+      final collection = (type == 'proposal') ? 'proposals' : 'elections';
+      final doc = await FirebaseFirestore.instance
+          .collection(collection)
+          .doc(electionId)
+          .collection('votes')
+          .doc(widget.uid)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      return false;
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -63,7 +90,12 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
         body: _buildNotVerifiedCard(),
       );
     }
-
+    if (_allVoted) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(child: VotingCompletePageBody()), 
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -158,32 +190,67 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     ),
                     itemBuilder: (context, index) {
                       final election = widget.activeElections[index];
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            widget.onElectionSelected(election);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 24, horizontal: 24),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    election['title'] ?? 'Election',
-                                    style: const TextStyle(
-                                      color: Color(0xFF404040),
-                                      fontSize: 16,
-                                      fontFamily: 'Geist',
-                                      fontWeight: FontWeight.w600,
+                      final String electionId = election['id'] ?? '';
+                      final String type = election['type'] ?? 'election';
+
+                      return FutureBuilder<bool>(
+                        future: _hasUserVoted(electionId, type),
+                        builder: (context, snapshot) {
+                          final bool hasVoted = snapshot.data ?? false;
+                          final bool isChecking =
+                              snapshot.connectionState == ConnectionState.waiting;
+
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: (hasVoted || isChecking)
+                                  ? null
+                                  : () {
+                                      widget.onElectionSelected(election);
+                                    },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 24, horizontal: 24),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        election['title'] ?? 'Election',
+                                        style: TextStyle(
+                                          // Grey out text if voted
+                                          color: hasVoted
+                                              ? Colors.grey
+                                              : const Color(0xFF404040),
+                                          fontSize: 16,
+                                          fontFamily: 'Geist',
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (hasVoted)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFBBEDBB),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Text(
+                                          "Voted",
+                                          style: TextStyle(
+                                            color: Color(0xFF76D675),
+                                            fontSize: 12,
+                                            fontFamily: 'Geist',
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -197,30 +264,22 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
     );
   }
 
-  //NOT VERIFIED 
+  //NOT VERIFIED
   Widget _buildNotVerifiedCard() {
+    double screenWidth = MediaQuery.of(context).size.width;
+    double imageSize = (screenWidth * 0.60).clamp(150.0, 350.0);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Icon Container
           Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFF7F7F7),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                )
-              ],
+            width: imageSize,
+            height: imageSize,
+            child: SvgPicture.asset(
+              'assets/circle_unverif.svg',
+              fit: BoxFit.contain,
             ),
-            padding: const EdgeInsets.all(25),
-            // Using placeholder Icon - Replace with SvgPicture.asset('assets/not_verified.svg')
-            child: const Icon(Icons.unpublished, size: 50, color: Color(0xFFED6C6A)),
           ),
           const SizedBox(height: 24),
           const Text(
@@ -228,11 +287,11 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
             style: TextStyle(
               color: Color(0xFF404040),
               fontSize: 20,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               fontFamily: 'Geist',
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 18),
           const Text(
             "It seems like your semester has ended,\nPlease re-verify your account",
             textAlign: TextAlign.center,
@@ -241,35 +300,94 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
               fontSize: 14,
               height: 1.5,
               fontFamily: 'Geist',
+              fontWeight: FontWeight.w400,
             ),
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 200,
-            height: 45,
-            child: ElevatedButton(
-              onPressed: () {
-                 Navigator.push(
-                   context, 
-                   MaterialPageRoute(builder: (context) => ProfilePage(uid: widget.uid))
-                 );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5C6AA0),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment:MainAxisAlignment.center, 
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProfilePage(uid: widget.uid),
+                    ),
+                  );
+                },
+                child: Container(
+                  height: 45,
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    "Go to Profile settings",
+                    style: TextStyle(
+                      color: Color(0xFFF8F8F8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Geist',
+                    ),
+                  ),
                 ),
               ),
-              child: const Text(
-                "Go to Profile settings",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Geist',
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+class VotingCompletePageBody extends StatelessWidget {
+  const VotingCompletePageBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView( 
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F7F7),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      "Voting Complete",
+                      style: TextStyle(
+                        color: Color(0xFF404040),
+                        fontSize: 24,
+                        fontFamily: 'Geist',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    SvgPicture.asset('assets/check.svg', width: 28),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 12),
+                const Text(
+                  "You have successfully cast your vote for this election. Thank you for participating.",
+                  style: TextStyle(
+                    color: Color(0xFF747474),
+                    fontSize: 14,
+                    fontFamily: 'Geist',
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
