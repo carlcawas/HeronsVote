@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'header.dart';
-import 'slates_list.dart' show Slate, Candidate;
+import 'slates_list.dart' show Slate, Candidate; 
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'slates_list.dart';
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;
   const SlateDetailsPage({super.key, required this.slate});
+
   @override
   State<SlateDetailsPage> createState() => _SlateDetailsPageState();
 }
@@ -28,9 +33,11 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    String truncatedTitle = widget.slate.name.length > 15
-        ? '${widget.slate.name.substring(0, 15)}...'
-        : widget.slate.name;
+    
+    // Reference to the specific slate document
+    final DocumentReference slateDocRef = FirebaseFirestore.instance
+        .collection('slates')
+        .doc(widget.slate.id);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -48,21 +55,62 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Slate Advocacy Section
-                  DetailsCard(
-                    title: 'Slate Advocacy',
-                    content: widget.slate.advocacy,
+                  
+                  StreamBuilder<QuerySnapshot>(
+                    stream: slateDocRef.collection('slatePlatvocacy').snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) return const Text("Error loading info");
+                      if (!snapshot.hasData) return const CircularProgressIndicator();
+
+                      String advocacy = "No advocacy details provided.";
+                      String platform = "No platform details provided.";
+
+                      if (snapshot.data!.docs.isNotEmpty) {
+                        final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                        advocacy = data['advocacy'] ?? advocacy;
+                        platform = data['platform'] ?? platform;
+                      }
+
+                      return Column(
+                        children: [
+                          DetailsCard(
+                            title: 'Slate Advocacy',
+                            description: advocacy,
+                          ),
+                          const SizedBox(height: 17),
+                          DetailsCard(
+                            title: 'Slate Platform',
+                            description: platform,
+                          ),
+                        ],
+                      );
+                    },
                   ),
+
                   const SizedBox(height: 17),
-                  // Platform
-                  DetailsCard(
-                    title: 'Slate Platform',
-                    content: widget.slate.platform,
-                  ),
-                  const SizedBox(height: 17),
-                  // Candidates
-                  ...widget.slate.candidates.map(
-                    (candidate) => CandidateListItem(candidate: candidate),
+
+                  StreamBuilder<QuerySnapshot>(
+                    stream: slateDocRef.collection('candidates').snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) return const Text("Error loading candidates");
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final docs = snapshot.data!.docs;
+                      if (docs.isEmpty) {
+                        return const Text("No candidates found in this slate.");
+                      }
+
+                      return Column(
+                        children: docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final candidate = Candidate.fromMap(data);
+
+                          return CandidateListItem(candidate: candidate);
+                        }).toList(),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 30),
@@ -70,9 +118,8 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
               ),
             ),
           ),
-
-          // Header 
-          Positioned(
+          
+          Positioned( //header with fade effect
             top: 0,
             left: 0,
             right: 0,
@@ -82,123 +129,155 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
                   height: MediaQuery.of(context).padding.top,
                   color: Colors.white,
                 ),
-
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.white.withOpacity(1.0), 
+                        Colors.white.withOpacity(1.0),
                         Colors.white.withOpacity(0.8),
-                        Colors.white.withOpacity(0.0,), 
+                        Colors.white.withOpacity(0.0),
                       ],
                       stops: const [0.0, 0.5, 1.0],
                     ),
                   ),
                   child: CustomHeader(
-                    title: truncatedTitle,
+                    title: widget.slate.name.length > 15
+                        ? '${widget.slate.name.substring(0, 15)}...'
+                        : widget.slate.name,
                     onBack: () => Navigator.pop(context),
                   ),
                 ),
               ],
             ),
           ),
+
         ],
       ),
     );
   }
 }
 
-// Widget for Advocacy and Platform sections
-class DetailsCard extends StatefulWidget {
+class DetailsCard extends StatefulWidget { //collapsible cards (advocacy/platform)
   final String title;
-  final String content;
+  final String description;
 
-  const DetailsCard({super.key, required this.title, required this.content});
+  const DetailsCard({
+    super.key,
+    required this.title,
+    required this.description,
+  });
+
   @override
   State<DetailsCard> createState() => _DetailsCardState();
 }
 
 class _DetailsCardState extends State<DetailsCard> {
-  bool _isExpanded = false;
-  final int collapsedMaxLines = 5;
+  bool _isContentExpanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final int? currentMaxLines = _isExpanded ? null : collapsedMaxLines;
-    final TextOverflow currentOverflow = _isExpanded
-        ? TextOverflow.clip
-        : TextOverflow.ellipsis;
-
     return Container(
-      padding: const EdgeInsets.only(top: 16, bottom: 13, left: 20, right: 20),
+      margin: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F7F7),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7E8E9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.07),
+            blurRadius: 2,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF404040),
-              height: 20 / 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          Text(
-            widget.content,
-            style: const TextStyle(
-              fontSize: 14,
-              height: 19 / 14,
-              fontFamily: 'Geist',
-              color: Color(0xFF747474),
-            ),
-            maxLines: currentMaxLines,
-            overflow: currentOverflow,
-          ),
-          const SizedBox(height: 11),
-
-          Align(
-            alignment: Alignment.bottomRight,
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 3,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 22, bottom: 8, left: 16, right: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- HEADER ROW ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2D2D2D),
+                      height: 1.1,
+                    ),
+                  ),
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEEEEE),
-                  borderRadius: BorderRadius.circular(100),
-                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // description
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: double.infinity, // Forces layout width calculation
                 child: Text(
-                  _isExpanded ? 'See less' : 'See more',
-                  style: const TextStyle(
-                    color: Color(0xFF404040),
-                    fontSize: 12,
+                  key: ValueKey("desc_${widget.title}_$_isContentExpanded"),
+                  widget.description,
+                  maxLines: _isContentExpanded ? null : 3,
+                  overflow: _isContentExpanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    height: 1.4,
+                    fontFamily: 'Geist',
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 12),
+
+            Align( //see more
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isContentExpanded = !_isContentExpanded;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEEEEE),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Text(
+                    _isContentExpanded ? "See less" : "See more",
+                    style: const TextStyle(
+                      color: Color(0xFF404040),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// Widget for Candidate List Items
-class CandidateListItem extends StatelessWidget {
+class CandidateListItem extends StatelessWidget { //candidate list
   final Candidate candidate;
 
   const CandidateListItem({super.key, required this.candidate});
@@ -206,27 +285,35 @@ class CandidateListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Container(
-        padding: EdgeInsets.all(7),
         height: 114,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F8FC),
-          borderRadius: BorderRadius.circular(15),
+          color: const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
-            //image
             Container(
               width: 100,
-              height: 100,
               decoration: BoxDecoration(
-                color: Color(0xFFD9D9D9), //imahe
+                color: const Color(0xFFD9D9D9),
                 borderRadius: const BorderRadius.all(Radius.circular(16)),
+                image: candidate.imgPath != null && candidate.imgPath!.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(
+                          Supabase.instance.client.storage
+                              .from('images')
+                              .getPublicUrl(candidate.imgPath!),
+                        ),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
             ),
             const SizedBox(width: 15),
-            // Candidate Details
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,33 +323,43 @@ class CandidateListItem extends StatelessWidget {
                     candidate.role,
                     style: const TextStyle(
                       color: Color(0xFF404040),
-                      fontSize: 20,
+                      fontSize: 18,
                       fontFamily: 'Geist',
                       fontWeight: FontWeight.w600,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  
                   Text(
                     candidate.name,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xFF747474),
                       fontSize: 12,
                       fontFamily: 'Geist',
                       height: 20 / 12,
+                      fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  
                   Text(
-                    '${candidate.details}\n',//${candidate.partylist},  //ADD CANDIDATE
-                    style: TextStyle(
+                    '${candidate.details}\n${candidate.party}',
+                    style: const TextStyle(
                       color: Color(0xFF747474),
-                      fontFamily: 'Geist',
                       fontSize: 12,
+                      fontFamily: 'Geist',
                       height: 20 / 12,
+                      fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            // Right arrow button
+
             Container(
               width: 40,
               decoration: const BoxDecoration(

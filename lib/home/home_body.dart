@@ -593,13 +593,13 @@ class _HomeBodyState extends State<HomeBody> {
     final bool showPreviousButton = _currentActiveItemPage > 0;
 
     return SizedBox(
-      height: 200, //height prev 184 to account for the 3 dots lang to 184+16
+      height: 204, //height prev 184 to account for the 3 dots lang to 184+16
       width: double.infinity,
       child: Stack(
         children: [ //ill add another card na 184
 
           SizedBox(
-            height: 184, //actual card
+            height: 186, //actual card
             child: Stack(
               children: [
                 PageView.builder(
@@ -955,7 +955,7 @@ class _HomeBodyState extends State<HomeBody> {
         const SizedBox(height: 13),
 
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24), //officials section margin
           child: StreamBuilder<QuerySnapshot>(
             stream: cscStream,
             builder: (context, cscSnapshot) {
@@ -965,7 +965,7 @@ class _HomeBodyState extends State<HomeBody> {
                   if (cscSnapshot.connectionState == ConnectionState.waiting ||
                       uscSnapshot.connectionState == ConnectionState.waiting) {
                     return const SizedBox(
-                      height: 184,
+                      height: 186,
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
@@ -978,7 +978,7 @@ class _HomeBodyState extends State<HomeBody> {
 
                   if (allOfficials.isEmpty) {
                     return Container(
-                      height: 184,
+                      height: 186,
                       alignment: Alignment.center,
                       child: const Text("No officials found."),
                     );
@@ -1070,7 +1070,7 @@ class _HomeBodyState extends State<HomeBody> {
         const SizedBox(height:13), // gap between "CCIS Officials" and see all btn - ended election ng title see all btn and img placeholder
 
         Padding(
-          padding: EdgeInsetsGeometry.symmetric(horizontal: 16), //padding ni newly elected
+          padding: EdgeInsetsGeometry.symmetric(horizontal: 24), //padding ni newly elected
 
           child: StreamBuilder<QuerySnapshot>(
             stream: stream,
@@ -1078,7 +1078,7 @@ class _HomeBodyState extends State<HomeBody> {
               if (snapshot.hasError) {
                 print("Error loading officials: ${snapshot.error}");
                 return Container(
-                  height: 184,
+                  height: 186,
                   alignment: Alignment.center,
                   child: Text("Error: Could not load officials."),
                 );
@@ -1088,7 +1088,7 @@ class _HomeBodyState extends State<HomeBody> {
               }
               if (snapshot.data!.docs.isEmpty) {
                 return Container(
-                  height: 184,
+                  height: 187,
                   alignment: Alignment.center,
                   child: Text("No ${isResults ? 'results' : 'officials'} found."),
                 );
@@ -1169,7 +1169,7 @@ class _HomeBodyState extends State<HomeBody> {
               if (snapshot.hasError) {
                 print("Error loading slates: ${snapshot.error}");
                 return Container(
-                  height: 184,
+                  height: 186,
                   alignment: Alignment.center,
                   child: Text("Error: Could not load slates."),
                 );
@@ -1185,7 +1185,7 @@ class _HomeBodyState extends State<HomeBody> {
               return Column(
                 children: [
                   SizedBox(
-                    height: 184,
+                    height: 186,
                     child: Stack(
                       children: [
                         PageView.builder(
@@ -1425,7 +1425,7 @@ class _HomeBodyState extends State<HomeBody> {
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Container(
-                  height: 184,
+                  height: 186,
                   alignment: Alignment.center,
                   child: const Text("Error: Could not load candidates."),
                 );
@@ -1435,7 +1435,7 @@ class _HomeBodyState extends State<HomeBody> {
               }
               if (snapshot.data!.docs.isEmpty) {
                 return Container(
-                  height: 184,
+                  height: 186,
                   alignment: Alignment.center,
                   child: const Text("No candidates found."),
                 );
@@ -1446,7 +1446,7 @@ class _HomeBodyState extends State<HomeBody> {
               return Column(
                 children: [
                   SizedBox(
-                    height: 184,
+                    height: 186,
                     child: Stack(
                       children: [
                         PageView.builder(
@@ -1636,10 +1636,10 @@ class _HomeBodyState extends State<HomeBody> {
   Widget _buildInfoCard(String title) {
     return Expanded(
       child: Container(
-        height: 87,        
+        height: 84,        
         decoration: BoxDecoration(
           color: Color(0xFF5C6AA0),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: Color(0xFF354372),
             width: 0.5,
@@ -1692,8 +1692,19 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        SizedBox(
-          height: 184,
+        Container(
+          height: 186,
+          margin: const EdgeInsets.symmetric(horizontal: 0.0), 
+          clipBehavior: Clip.antiAlias, 
+          decoration: BoxDecoration(
+            /*border: Border.all(
+                        color: Color(0xFF404040),
+                        width: 0.5,
+                      ),*/
+            color: const Color(0xFF354372), 
+            borderRadius: BorderRadius.circular(20)
+          ),
+
           child: Stack(
             children: [
               PageView.builder(
@@ -1708,9 +1719,11 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
                   final String name = officialDoc['name'] ?? 'Unknown';
                   final String rawPosition = officialDoc['position'] ?? 'Unknown';
+                  final String rawCollege = officialDoc['college'] ?? 'Unknown';
                   final String? filePath = officialDoc['img'] as String?;
 
                   String displayPosition = rawPosition;
+                  String displayCollege = rawCollege;
                   
                   if (widget.cscCount != null && widget.collegeAbbreviation != null) {
                     if (index < widget.cscCount!) {
@@ -1734,115 +1747,188 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
 
                   return Container( // container nun elected officials yun may trophy
 
-                  margin: const EdgeInsets.symmetric(horizontal: 8.0),
+                    margin: const EdgeInsets.symmetric(horizontal: 0.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 0.0),
+                    clipBehavior: Clip.antiAlias,
 
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade300),
+                      color: const Color(0xFF354372),
+                      borderRadius: BorderRadius.circular(0), //radius ng inside container
+                      //border: Border.all(color: Colors.grey.shade300),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+
+                    child: Row(
                       children: [
-                        if (widget.isResults)
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              CircleAvatar(
-                                radius: 35,
-                                backgroundColor: Colors.grey.shade300,
-                                backgroundImage: (publicUrl != null)
-                                    ? NetworkImage(publicUrl)
-                                    : null,
-                                child: (publicUrl == null)
-                                    ? const Icon(
-                                        Icons.person,
-                                        size: 35,
-                                        color: Colors.grey,
+
+                        Expanded( //image part, trophy and  gradient--
+                          flex: 7,
+                          child: SizedBox(
+                            height: double.infinity,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(        
+                                    image: (publicUrl != null)
+                                    ? DecorationImage(
+                                        image: NetworkImage(publicUrl),
+                                        fit: BoxFit.cover, 
                                       )
                                     : null,
-                              ),
-                              Positioned(
-                                top: -4,
-                                right: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Color.fromARGB(255, 0, 47, 90),
+                                    
                                   ),
-                                  child: const Icon(
-                                    Icons.emoji_events,
-                                    size: 16,
-                                    color: Colors.white,
+                                  child: (publicUrl == null)
+                                      ? const Icon(
+                                          Icons.person,
+                                          size: 35,
+                                          color: Colors.grey,
+                                        )
+                                      : null,
+                                ),
+
+                                if (publicUrl != null) // Gradient
+                                  Container(
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                        colors: [
+                                          Colors.transparent,// Left side
+                                          Color(0xFF354372),// Right side (Darker)
+                                        ],
+                                        stops: [0, 4.0], // Adjusts where the fading starts
+                                      ),
+                                    ),
+                                  ),
+
+                                if (widget.isResults)
+                                Positioned( //trophy overlay
+                                  top: 13,
+                                  left: 13,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Color(0xFF5C6AA0),   
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.3), // Shadow color (30% opacity)
+                                          blurRadius: 6, // Softness of the shadow
+                                          offset: const Offset(0, 3), // Horizontal and Vertical offset
+                                        ),
+                                      ],                                 
+                                    ),
+                                    child: const Icon(
+                                      Icons.emoji_events,
+                                      size: 24,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          )
-                        else
-                          CircleAvatar( //keyword:electedlayout
-                            radius: 35,
-                            backgroundColor: Colors.grey.shade300,
-                            backgroundImage: (publicUrl != null)
-                                ? NetworkImage(publicUrl)
-                                : null,
-                            child: (publicUrl == null)
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 35,
-                                    color: Colors.grey,
-                                  )
-                                : null,
+                              ],
+                            )
                           ),
+                        ),
+                        
+                        Expanded( //texts --
+                          flex: 7,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
 
-                        const SizedBox(height: 16), // loob ng layout ng elected official image place holder
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF414141),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              
+                              children: [
+                                Text(//position
+                                  displayPosition,
+
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFF8F8F8),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                Text(//name
+                                  name,
+
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w400,
+                                    color: Color(0xFFD9D9D9),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 0),
+
+                                Text(//college
+                                  displayCollege,
+
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFFD9D9D9),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          displayPosition,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
+
                       ],
                     ),
                   );
                 },
               ),
-              Positioned(
-                bottom: 12,
+              
+              Positioned( //page dots
+                bottom: 8,
                 left: 0,
                 right: 0,
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    widget.officials.length,
-                    (index) => Container(
-                      width: 7,
-                      height: 7,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: index == _currentPage
-                            ? const Color(0xFF354372)
-                            : const Color(0xFFD9D9D9),
+                  children: [
+                    const Expanded(
+                      flex: 6, //adjust if inadjust yun taas
+                      child: SizedBox(),
+                    ),
+                    Expanded(
+                      flex: 7, //adjust if inadjust yun taas
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          widget.officials.length,
+                          (index) => Container(
+                            width: 7,
+                            height: 7,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: index == _currentPage
+                                  ? const Color(0xFFF8F8F8)
+                                  : const Color(0xFFD9D9D9),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ]
+                  
                 ),
               ),
             ],
           ),
+
         ),
       ],
     );
