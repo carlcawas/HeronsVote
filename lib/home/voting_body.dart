@@ -7,6 +7,7 @@ import 'voting_models.dart';
 import 'candidate_selection.dart';
 import 'voting_confirmation.dart';
 import '../services/firebase_service.dart';
+import 'profile.dart';
 
 // Candidate list card
 class ChooseCandidateCard extends StatelessWidget {
@@ -369,6 +370,7 @@ class VotingHomePage extends StatefulWidget {
   final String uid;
   final Map<String, dynamic> electionData;
   final VoidCallback? onBack;
+  
 
   const VotingHomePage({
     super.key,
@@ -386,6 +388,8 @@ class _VotingHomePageState extends State<VotingHomePage> {
   bool _showErrors = false;
   // CHECKER IF NAG-VOTE NA USER  
   bool _hasVoted = false;
+  bool _isVerified = true; 
+  bool _isLoadingVerification = true;
 
   late String _electionTitle;
   late String _electionPeriod;
@@ -405,7 +409,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
     super.initState();
     _electionTitle = widget.electionData['title'] ?? 'Election Voting';
     _isProposal = widget.electionData['type'] == 'proposal';
-
+    
     // Date Handling
     if (widget.electionData['start'] != null &&
         widget.electionData['end'] != null) {
@@ -428,6 +432,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
     // Check if nag-vote na user
     _checkIfUserVoted();
+    _checkUserStatus();
   }
 
   Future<void> _checkIfUserVoted() async {
@@ -449,6 +454,40 @@ class _VotingHomePageState extends State<VotingHomePage> {
       }
     } catch (e) {
       debugPrint("Error checking vote status: $e");
+    }
+  }
+  Future<void> _checkUserStatus() async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.uid)
+          .get();
+          
+      bool verified = true;
+      if (userDoc.exists) {
+        verified = userDoc.data()?['isVerified'] ?? false;
+      }
+
+      final String collectionPath = _isProposal ? 'proposals' : 'elections';
+      final String docId = widget.electionData['id'];
+      
+      final voteDoc = await FirebaseFirestore.instance
+          .collection(collectionPath)
+          .doc(docId)
+          .collection('votes')
+          .doc(widget.uid)
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _isVerified = verified;
+          _hasVoted = voteDoc.exists;
+          _isLoadingVerification = false;
+        });
+      }
+    } catch (e) {
+      print("Error checking status: $e");
+      if (mounted) setState(() => _isLoadingVerification = false);
     }
   }
 
@@ -529,6 +568,19 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingVerification) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_isVerified) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: _buildNotVerifiedCard(),
+      );
+    }
     Stream<QuerySnapshot> candidateStream = _isProposal
         ? const Stream.empty()
         : FirebaseService().getCandidatesByElectionId(
@@ -772,6 +824,85 @@ class _VotingHomePageState extends State<VotingHomePage> {
           fontFamily: 'Geist',
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+
+  Widget _buildNotVerifiedCard() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40), 
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFF7F7F7),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                )
+              ],
+            ),
+            padding: const EdgeInsets.all(25),
+            child: SvgPicture.asset('assets/UnverifiedIcon.svg'), 
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "Account not Verified",
+            style: TextStyle(
+              color: Color(0xFF404040),
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "It seems like your semester has ended,\nPlease re-verify your account",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF747474),
+              fontSize: 14,
+              height: 1.5,
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: 200,
+            height: 45,
+            child: ElevatedButton(
+              onPressed: () {
+                 Navigator.push(
+                   context, 
+                   MaterialPageRoute(builder: (context) => ProfilePage(uid: widget.uid))
+                 );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5C6AA0),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                "Go to Profile settings",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Geist',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 100), // Bottom spacing
+        ],
       ),
     );
   }

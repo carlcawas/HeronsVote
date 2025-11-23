@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'results.dart';
-
+import 'profile.dart';
 // Import your page "bodies"
 import 'home_body.dart';
 import 'candidates_view_body.dart';
@@ -188,9 +188,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Material(
             color: const Color(0xFFEEEEEE),
             child: InkWell(
-              onTap: () {
-                // TODO: GOTO ACCOUNT
-                // Navigator.push(context, ... ProfilePage(uid: widget.uid));
+             onTap: () {
+                 Navigator.push(
+                   context, 
+                   MaterialPageRoute(builder: (context) => ProfilePage(uid: widget.uid))
+                 );
               },
               child: SizedBox(
                 width: 45,
