@@ -8,6 +8,8 @@ import 'candidate_selection.dart';
 import 'voting_confirmation.dart';
 import '../services/firebase_service.dart';
 import 'profile.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Candidate list card
 class ChooseCandidateCard extends StatelessWidget {
@@ -60,7 +62,7 @@ class ChooseCandidateCard extends StatelessWidget {
   }
 }
 
-// Candidate vote card (selected candidate)
+// Candidate vote card
 class CandidateVoteCard extends StatelessWidget {
   final VotingCandidate candidate;
   final VoidCallback onTap;
@@ -192,10 +194,12 @@ class CandidateVoteCard extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  if (candidate.partylist.isNotEmpty) ...[
+                  if (!candidate.isProposalOption) ...[
                     const SizedBox(height: 2),
                     Text(
-                      candidate.partylist,
+                      (candidate.partylist.isEmpty)
+                          ? 'Independent'
+                          : candidate.partylist,
                       style: const TextStyle(
                         color: Color(0xFF747474),
                         fontSize: 12,
@@ -361,8 +365,8 @@ class PositionVoteItem extends StatelessWidget {
         ),
         selectedCandidate == null
             ? (isProposal
-                  ? CastVoteCard(onTap: onSelectCandidate)
-                  : ChooseCandidateCard(onTap: onSelectCandidate))
+                ? CastVoteCard(onTap: onSelectCandidate)
+                : ChooseCandidateCard(onTap: onSelectCandidate))
             : CandidateVoteCard(
                 candidate: selectedCandidate!,
                 onTap: onSelectCandidate,
@@ -447,18 +451,14 @@ class _VotingHomePageState extends State<VotingHomePage> {
   bool _isVerified = true;
   bool _isLoadingVerification = true;
 
+  String? _userCollege;
+
   late String _electionTitle;
   late String _electionPeriod;
   bool _isProposal = false;
 
-  // STATIC POSITIONS
-  final List<String> _definedPositions = [
-    'Chairperson',
-    'Vice Chairperson',
-    'Secretary',
-    'Treasurer',
-    'Auditor',
-  ];
+  // preload information
+  late Stream<QuerySnapshot> _candidateStream;
 
   @override
   void initState() {
@@ -482,13 +482,81 @@ class _VotingHomePageState extends State<VotingHomePage> {
       _electionPeriod = '(Ongoing)';
     }
 
-    for (var pos in _definedPositions) {
-      _selectedCandidates[pos] = null;
+    if (!_isProposal) {
+      _candidateStream = FirebaseService().getCandidatesByElectionId(
+        widget.electionData['id'],
+      );
+    } else {
+      _candidateStream = const Stream.empty();
     }
 
     // Check if nag-vote na user
     _checkIfUserVoted();
     _checkUserStatus();
+
+    // load saved candidates
+    _loadSavedVotes();
+  }
+
+  Future<void> _loadSavedVotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String key = 'draft_votes_${widget.uid}_${widget.electionData['id']}';
+      final String? savedData = prefs.getString(key);
+
+      if (savedData != null) {
+        final Map<String, dynamic> decodedMap = jsonDecode(savedData);
+        
+        setState(() {
+          decodedMap.forEach((position, candidateMap) {
+            if (candidateMap != null) {
+              _selectedCandidates[position] = VotingCandidate(
+                id: candidateMap['id'],
+                name: candidateMap['name'] ?? 'Unknown',
+                role: candidateMap['role'] ?? 'Unknown',
+                partylist: candidateMap['partylist'] ?? 'Independent',
+                college: candidateMap['college'] ?? '',
+                year: candidateMap['year'] ?? '',
+                img: candidateMap['img'],
+                isAbstain: candidateMap['isAbstain'] ?? false,
+                isProposalOption: candidateMap['isProposalOption'] ?? false,
+              );
+            }
+          });
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading saved votes: $e");
+    }
+  }
+
+  Future<void> _saveVotes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String key = 'draft_votes_${widget.uid}_${widget.electionData['id']}';
+      
+      Map<String, dynamic> dataToSave = {};
+
+      _selectedCandidates.forEach((position, candidate) {
+        if (candidate != null) {
+          dataToSave[position] = {
+            'id': candidate.id,
+            'name': candidate.name,
+            'role': candidate.role,
+            'partylist': candidate.partylist,
+            'year': candidate.year,
+            'college': candidate.college,
+            'img': candidate.img,
+            'isAbstain': candidate.isAbstain,
+            'isProposalOption': candidate.isProposalOption,
+          };
+        }
+      });
+
+      await prefs.setString(key, jsonEncode(dataToSave));
+    } catch (e) {
+      debugPrint("Error saving votes: $e");
+    }
   }
 
   Future<void> _checkIfUserVoted() async {
@@ -507,6 +575,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
         setState(() {
           _hasVoted = true;
         });
+        _clearSavedVotes();
       }
     } catch (e) {
       debugPrint("Error checking vote status: $e");
@@ -522,7 +591,9 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
       bool verified = true;
       if (userDoc.exists) {
-        verified = userDoc.data()?['isVerified'] ?? false;
+        final data = userDoc.data();
+        verified = data?['isVerified'] ?? false;
+        _userCollege = data?['college_id'];
       }
 
       final String collectionPath = _isProposal ? 'proposals' : 'elections';
@@ -579,6 +650,8 @@ class _VotingHomePageState extends State<VotingHomePage> {
           candidates: candidates,
           initialSelection: _selectedCandidates[positionTitle],
           isProposal: _isProposal,
+          electionType: widget.electionData['type'],
+          userCollege: _userCollege,
         ),
       ),
     );
@@ -588,6 +661,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
         _selectedCandidates[positionTitle] = result;
         _showErrors = false;
       });
+      _saveVotes();
     }
   }
 
@@ -623,6 +697,12 @@ class _VotingHomePageState extends State<VotingHomePage> {
     );
   }
 
+  Future<void> _clearSavedVotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String key = 'draft_votes_${widget.uid}_${widget.electionData['id']}';
+    await prefs.remove(key);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoadingVerification) {
@@ -631,25 +711,51 @@ class _VotingHomePageState extends State<VotingHomePage> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-     if (!_isVerified) {
+    if (!_isVerified) {
       return Scaffold(
         backgroundColor: Colors.white,
         body: _buildNotVerifiedCard(),
       );
     }
     if (_hasVoted) {
-       return Scaffold(
+      return Scaffold(
         backgroundColor: Colors.white,
-        body: const VotingCompletePageBody(), 
+        body: const VotingCompletePageBody(),
       );
     }
-   
-    Stream<QuerySnapshot> candidateStream = _isProposal
-        ? const Stream.empty()
-        : FirebaseService().getCandidatesByElectionId(
-            widget.electionData['id'],
-          );
 
+    if (_isProposal) {
+      return _buildPageLayout(const [], isProposalMode: true);
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _candidateStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasError)
+          return const Scaffold(body: Center(child: Text("Error loading")));
+
+        // Show loading state while pre-loading
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final allCandidates = _mapFirestoreToCandidates(snapshot.data!.docs);
+
+        final List<String> dynamicPositions = allCandidates
+            .map((c) => c.role)
+            .toSet()
+            .toList();
+
+        return _buildPageLayout(allCandidates, positions: dynamicPositions);
+      },
+    );
+  }
+
+  Widget _buildPageLayout(List<VotingCandidate> allCandidates,
+      {List<String> positions = const [], bool isProposalMode = false}) {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -706,7 +812,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
                         ),
                         const SizedBox(height: 10),
 
-                        // check if _hasVoted, if true lalabs yung text (babaguhin mo)
+                        // check if _hasVoted
                         if (_hasVoted) ...[
                           const SizedBox(height: 5),
                           const Text(
@@ -746,54 +852,38 @@ class _VotingHomePageState extends State<VotingHomePage> {
                     ),
                   ),
 
-                  if (_isProposal)
+                  if (isProposalMode)
                     _buildProposalBody(includeButton: false)
                   else
-                    StreamBuilder<QuerySnapshot>(
-                      stream: candidateStream,
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError)
-                          return const Text("Error loading candidates");
-                        if (!snapshot.hasData)
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
+                    Column(
+                      children: positions.map((pos) {
+                        final candidatesForPos = allCandidates
+                            .where((c) => c.role == pos)
+                            .toList();
 
-                        final allCandidates = _mapFirestoreToCandidates(
-                          snapshot.data!.docs,
+                        if (!_selectedCandidates.containsKey(pos)) {
+                          _selectedCandidates[pos] = null;
+                        }
+
+                        final hasError = _showErrors &&
+                            _selectedCandidates[pos] == null;
+
+                        return PositionVoteItem(
+                          positionTitle: pos,
+                          selectedCandidate: _selectedCandidates[pos],
+                          onSelectCandidate: () => _handleSelectCandidate(
+                            pos,
+                            candidatesForPos,
+                          ),
+                          hasError: hasError,
                         );
-
-                        return Column(
-                          children: [
-                            ..._definedPositions.map((pos) {
-                              final candidatesForPos = allCandidates
-                                  .where((c) => c.role == pos)
-                                  .toList();
-
-                              final hasError =
-                                  _showErrors &&
-                                  _selectedCandidates[pos] == null;
-
-                              return PositionVoteItem(
-                                positionTitle: pos,
-                                selectedCandidate: _selectedCandidates[pos],
-                                onSelectCandidate: () => _handleSelectCandidate(
-                                  pos,
-                                  candidatesForPos,
-                                ),
-                                hasError: hasError,
-                              );
-                            }),
-                          ],
-                        );
-                      },
+                      }).toList(),
                     ),
                 ],
               ),
             ),
           ),
 
-          //Submit Button
           Positioned(
             bottom: 0,
             left: 0,
@@ -842,11 +932,10 @@ class _VotingHomePageState extends State<VotingHomePage> {
                     ),
                     const SizedBox(width: 12),
                   ],
-
                   Expanded(
                     child: _buildSubmitButton(
                       () => _submitVote(
-                        _isProposal ? [_electionTitle] : _definedPositions,
+                        isProposalMode ? [_electionTitle] : positions,
                       ),
                     ),
                   ),

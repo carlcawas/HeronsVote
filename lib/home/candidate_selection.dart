@@ -9,13 +9,17 @@ class CandidateSelectionPage extends StatefulWidget {
   final List<VotingCandidate> candidates;
   final VotingCandidate? initialSelection;
   final bool isProposal; 
+  final String? electionType;
+  final String? userCollege;
 
   const CandidateSelectionPage({
     super.key,
     required this.positionTitle,
     required this.candidates,
     this.initialSelection,
-    this.isProposal = false, 
+    this.isProposal = false,
+    this.electionType,
+    this.userCollege,
   });
 
   @override
@@ -39,6 +43,14 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
     String truncatedTitle = widget.positionTitle.length > 25
         ? '${widget.positionTitle.substring(0, 25)}...'
         : widget.positionTitle;
+
+    List<VotingCandidate> displayedCandidates = widget.candidates;
+    
+    if (widget.electionType == 'college' && widget.userCollege != null) {
+      displayedCandidates = widget.candidates.where((candidate) {
+        return candidate.college == widget.userCollege;
+      }).toList();
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -86,15 +98,15 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                     ),
                   ),
 
-                  widget.candidates.isEmpty
+                  displayedCandidates.isEmpty
                       ? const Center(
                           child: Padding(
                               padding: EdgeInsets.only(top: 50),
-                              child: Text("No options found")))
+                              child: Text("No options found for your college")))
                       : Column(
                           children: [
                             if (widget.isProposal) ...[
-                              ...widget.candidates.map((option) {
+                              ...displayedCandidates.map((option) {
                                 final bool isSelected = _selectedCandidate != null &&
                                     _selectedCandidate!.name == option.name;
                                 return _buildProposalOption(option, isSelected);
@@ -102,7 +114,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                               
                               _buildProposalAbstainOption(), 
                             ] else ...[
-                              ...widget.candidates.map((candidate) {
+                              ...displayedCandidates.map((candidate) {
                                 final bool isSelected =
                                     _selectedCandidate != null &&
                                         _selectedCandidate!.name == candidate.name;

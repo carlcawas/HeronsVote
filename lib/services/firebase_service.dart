@@ -160,12 +160,12 @@ class FirebaseService {
   }
 
   /// Get a live stream of newly elected officials (results) for a specific election
-  Stream<QuerySnapshot> getElectionResultsStream(String electionId) {
+  Stream<QuerySnapshot> getElectionResultsStream(String collegeId) {
     return _firestore
-        .collection('elections')
-        .doc(electionId)
-        .collection('results')
-        .orderBy('rank', descending: false)
+        .collection('colleges')
+        .doc(collegeId)
+        .collection('officials')
+        .orderBy('pos_rank', descending: false)
         .snapshots();
   }
 
@@ -290,7 +290,7 @@ class FirebaseService {
         .collection('colleges')
         .doc(collegeId)
         .collection('officials')
-        .orderBy('rank', descending: false)
+        .orderBy('pos_rank', descending: false)
         .snapshots();
   }
 
@@ -298,7 +298,7 @@ class FirebaseService {
   Stream<QuerySnapshot> getUniversityOfficialsStream() {
     return _firestore
         .collection('university_officials')
-        .orderBy('rank', descending: false)
+        .orderBy('pos_rank', descending: false)
         .snapshots();
   }
 
@@ -376,6 +376,7 @@ class FirebaseService {
     return _firestore
         .collection('candidates')
         .where('election_id', isEqualTo: electionId)
+        .orderBy('pos_rank')
         .snapshots();
   }
 

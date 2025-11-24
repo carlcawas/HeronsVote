@@ -5,7 +5,6 @@ import 'slates_details.dart';
 import 'header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-
 class SlateListPage extends StatelessWidget {
   final String electionId;
   const SlateListPage({super.key, required this.electionId});
@@ -233,12 +232,11 @@ class Slate {
   }
 }
 
-// Candidate model
 class Candidate {
   final String name;
   final String role;
   final String party;
-  final String details;    // course & year
+  final String details; 
   final String? imgPath;
 
   Candidate({
@@ -250,11 +248,30 @@ class Candidate {
   });
 
   factory Candidate.fromMap(Map<String, dynamic> map) {
+    String? college = map['college_id'] ?? map['college'];
+    String? year = map['year']?.toString();
+    
+    String fullDetails;
+    if (college != null && year != null) {
+      fullDetails = '$college - $year Year';
+    } else if (college != null) {
+      fullDetails = college;
+    } else if (year != null) {
+      fullDetails = '$year Year';
+    } else {
+      fullDetails = map['details'] ?? 'No Details';
+    }
+
+    String partyVal = map['slate'] ?? '';
+    if (partyVal.trim().isEmpty) {
+      partyVal = 'Independent';
+    }
+
     return Candidate(
       name: map['name'] ?? '',
       role: map['position'] ?? map['role'] ?? '',
-      party: map['party'] ?? 'No Party',
-      details: map['details'] ?? 'No Details',
+      party: partyVal,
+      details: fullDetails,
       imgPath: map['img'],
     );
   }

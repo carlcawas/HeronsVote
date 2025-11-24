@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'reverify/reverify_step1.dart';
 import 'package:heronsvote/screens/splash_screen.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:heronsvote/services/firebase_service.dart';
+
 class ProfilePage extends StatefulWidget {
   final String uid;
 
@@ -18,9 +21,33 @@ class _ProfilePageState extends State<ProfilePage> {
   final Color _cardColor = const Color(0xFFF7F7F7);
   final Color _blueColor = const Color(0xFF5C6AA0);
 
+  // check if offline
+  bool _isOffline = false;
 
-  Future<DocumentSnapshot> _fetchUserData() async {
-    return FirebaseFirestore.instance.collection('users').doc(widget.uid).get();
+  @override
+  void initState() {
+    super.initState();
+    _checkConnectivity();
+  }
+
+  Future<void> _checkConnectivity() async {
+    final List<ConnectivityResult> connectivityResult = await (Connectivity()
+        .checkConnectivity());
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      if (mounted) setState(() => _isOffline = true);
+    } else {
+      if (mounted) setState(() => _isOffline = false);
+    }
+
+    Connectivity().onConnectivityChanged.listen((
+      List<ConnectivityResult> result,
+    ) {
+      if (mounted) {
+        setState(() {
+          _isOffline = result.contains(ConnectivityResult.none);
+        });
+      }
+    });
   }
 
   void _handleLogout() {
@@ -73,7 +100,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: const Text(
                           "Cancel",
                           style: TextStyle(
-                            color: Color(0xFF747474), 
+                            color: Color(0xFF747474),
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             fontFamily: 'Geist',
@@ -86,15 +113,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () async {
-                          Navigator.pop(context); 
-                          await FirebaseAuth.instance.signOut();                        
+                          Navigator.pop(context);
+                          await FirebaseAuth.instance.signOut();
                           if (mounted) {
-                             Navigator.of(context).pushAndRemoveUntil(
-                               MaterialPageRoute(
-                                 builder: (context) => const SplashScreen(),
-                               ), 
-                               (route) => false,
-                             );
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (context) => const SplashScreen(),
+                              ),
+                              (route) => false,
+                            );
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -131,38 +158,41 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: FutureBuilder<DocumentSnapshot>(
-          future: _fetchUserData(),
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseService().getUserStream(widget.uid),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            String name = '...';
+            String college = '...';
+            String yearLevel = '...';
+            String semester = '...';
+            String section = '...';
+            String studNum = '...';
+            String academicYear = '...';
+            bool isVerified = false;
 
-            if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
-              return const Center(child: Text("Error loading profile"));
+            if (snapshot.hasData && snapshot.data!.exists && !_isOffline) {
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              name = data['fullName'] ?? data['name'] ?? 'Unknown';
+              college = data['college_id'] ?? data['college'] ?? 'N/A';
+              yearLevel = data['year_level'] ?? 'N/A';
+              section = data['section'] ?? 'N/A';
+              studNum = data['student_number'] ?? 'N/A';
+              academicYear = data['academicYear'] ?? 'A.Y. 2025-2026';
+              String rawSemester = data['semester'] ?? 'N/A';
+              semester = rawSemester;
+              
+              if (rawSemester.toLowerCase().contains('first') ||
+                  rawSemester.contains('1st')) {
+                semester = "1st Semester";
+              } else if (rawSemester.toLowerCase().contains('second') ||
+                  rawSemester.contains('2nd')) {
+                semester = "2nd Semester";
+              } else if (rawSemester.toLowerCase().contains('summer')) {
+                semester = "Summer Term";
+              }
+              
+              isVerified = data['isVerified'] ?? false;
             }
-
-            final data = snapshot.data!.data() as Map<String, dynamic>;
-            
-            final String name = data['fullName'] ?? data['name'] ?? 'Unknown';
-            final String college = data['college_id'] ?? data['college'] ?? 'N/A';
-            final String yearLevel = data['year_level'] ?? 'N/A';
-            final String section = data['section'] ?? 'N/A';
-            final String studNum = data['student_number'] ?? 'N/A';
-            final String academicYear = data['academicYear'] ?? 'A.Y. 2025-2026';
-            String rawSemester = data['semester'] ?? 'N/A';
-            String semester = rawSemester;
-            
-            if (rawSemester.toLowerCase().contains('first') || rawSemester.contains('1st')) {
-              semester = "1st Semester";
-            } else if (rawSemester.toLowerCase().contains('second') || rawSemester.contains('2nd')) {
-              semester = "2nd Semester";
-            } else if (rawSemester.toLowerCase().contains('summer')) {
-              semester = "Summer Term";
-            }
-            
-            // CHECK VERIFICATION STATUS
-            final bool isVerified = data['isVerified'] ?? false;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -183,7 +213,11 @@ class _ProfilePageState extends State<ProfilePage> {
                             color: _blueColor,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 20),
@@ -202,12 +236,22 @@ class _ProfilePageState extends State<ProfilePage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _blueColor,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                         ),
                         child: const Text(
                           "Log out",
-                          style: TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Geist', fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontFamily: 'Geist',
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
@@ -215,95 +259,121 @@ class _ProfilePageState extends State<ProfilePage> {
 
                   const SizedBox(height: 30),
 
-                  if (!isVerified) ...[
-                    _buildNotVerifiedWarning(),
-                    const SizedBox(height: 20),
-                  ],
+                  if (_isOffline)
+                    _buildOfflineWidget()
+                  else if (snapshot.connectionState == ConnectionState.waiting)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 100.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (snapshot.hasError ||
+                      !snapshot.hasData ||
+                      !snapshot.data!.exists)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 100.0),
+                      child: Center(child: Text("Error loading profile")),
+                    )
+                  else ...[
+                    if (!isVerified) ...[
+                      _buildNotVerifiedWarning(),
+                      const SizedBox(height: 20),
+                    ],
 
-                  // STATUS & INFO SECTION
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Verification Status Card
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          height: 170,
-                          padding: const EdgeInsets.only(top: 19, left: 20, right: 20, bottom: 19),
-                          decoration: BoxDecoration(
-                            color: _cardColor,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "Verification status:",
-                                style: TextStyle(color: _textColor, fontSize: 16, fontFamily: 'Geist', fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 15),
-                            
-                              isVerified 
-                                ? SvgPicture.asset(
-                                    'assets/check.svg',
-                                    height: 60,
-                                    width: 60,
-                                  )
-                                : SvgPicture.asset(
-                                    'assets/unverifiedIcon.svg', 
-                                    height: 60,
-                                    width: 60,
+                    // STATUS & INFO SECTION
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Verification Status Card
+                        Expanded(
+                          flex: 5,
+                          child: Container(
+                            height: 170,
+                            padding: const EdgeInsets.only(
+                              top: 19,
+                              left: 20,
+                              right: 20,
+                              bottom: 19,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _cardColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "Verification status:",
+                                  style: TextStyle(
+                                    color: _textColor,
+                                    fontSize: 16,
+                                    fontFamily: 'Geist',
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                  
-                              const SizedBox(height: 10),
-                              Text(
-                                isVerified ? "Verified" : "Not Verified",
-                                style: TextStyle(
-                                  color: const Color(0xFF747474),
-                                  fontSize: 14,
-                                  fontFamily: 'Geist',
+                                  textAlign: TextAlign.center,
                                 ),
-                              ),
+                                const SizedBox(height: 15),
+
+                                isVerified
+                                    ? SvgPicture.asset(
+                                        'assets/check.svg',
+                                        height: 60,
+                                        width: 60,
+                                      )
+                                    : SvgPicture.asset(
+                                        'assets/unverifiedIcon.svg',
+                                        height: 60,
+                                        width: 60,
+                                      ),
+
+                                const SizedBox(height: 10),
+                                Text(
+                                  isVerified ? "Verified" : "Not Verified",
+                                  style: TextStyle(
+                                    color: const Color(0xFF747474),
+                                    fontSize: 14,
+                                    fontFamily: 'Geist',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        //Info
+                        Expanded(
+                          flex: 4,
+                          child: Column(
+                            children: [
+                              _buildSmallInfoCard(college),
+                              const SizedBox(height: 10),
+                              _buildSmallInfoCard(yearLevel),
+                              const SizedBox(height: 10),
+                              _buildSmallInfoCard(semester),
                             ],
                           ),
                         ),
-                      ),
-                      
-                      const SizedBox(width: 12),
+                      ],
+                    ),
 
-                      //Info
-                      Expanded(
-                        flex: 4, 
-                        child: Column(
-                          children: [
-                            _buildSmallInfoCard(college),
-                            const SizedBox(height: 10),
-                            _buildSmallInfoCard(yearLevel),
-                            const SizedBox(height: 10),
-                            _buildSmallInfoCard(semester),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                    const SizedBox(height: 12),
 
-                  const SizedBox(height: 12),
+                    // Name
+                    _buildWideInfoCard(name),
+                    const SizedBox(height: 12),
+                    // section
+                    _buildWideInfoCard(studNum),
+                    const SizedBox(height: 12),
+                    // studen num
+                    _buildWideInfoCard(section),
+                    const SizedBox(height: 12),
 
-                  // Name
-                  _buildWideInfoCard(name),
-                  const SizedBox(height: 12),
-                  // section
-                  _buildWideInfoCard(studNum),
-                  const SizedBox(height: 12),
-                  // studen num
-                  _buildWideInfoCard(section),
-                  const SizedBox(height: 12),
+                    // Academic Year
+                    _buildWideInfoCard(academicYear),
 
-                  // Academic Year
-                  _buildWideInfoCard(academicYear),
-                  
-                  const SizedBox(height: 50),
+                    const SizedBox(height: 50),
+                  ],
                 ],
               ),
             );
@@ -350,7 +420,7 @@ class _ProfilePageState extends State<ProfilePage> {
             height: 45,
             child: ElevatedButton(
               onPressed: () {
-               Navigator.push(
+                Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => RegistrationStep1(uid: widget.uid),
@@ -391,7 +461,12 @@ class _ProfilePageState extends State<ProfilePage> {
       alignment: Alignment.center,
       child: Text(
         text,
-        style: TextStyle(color: _textColor, fontSize: 14, fontFamily: 'Geist', fontWeight: FontWeight.w500),
+        style: TextStyle(
+          color: _textColor,
+          fontSize: 14,
+          fontFamily: 'Geist',
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -406,7 +481,72 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Text(
         text,
-        style: TextStyle(color: _textColor, fontSize: 14, fontFamily: 'Geist', fontWeight: FontWeight.w500),
+        style: TextStyle(
+          color: _textColor,
+          fontSize: 14,
+          fontFamily: 'Geist',
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7F7),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                size: 50,
+                color: Color(0xFF747474),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              "You're offline",
+              style: TextStyle(
+                color: Color(0xFF404040),
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Geist',
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "Please check your internet connection\nto view your profile.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Color(0xFF747474),
+                fontSize: 14,
+                height: 1.5,
+                fontFamily: 'Geist',
+              ),
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: _checkConnectivity,
+              child: const Text(
+                "Try Again",
+                style: TextStyle(
+                  color: Color(0xFF5C6AA0),
+                  fontSize: 16,
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -9,6 +9,10 @@ import 'elected_official_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'candidates_view_body.dart';
 import 'profile.dart';
+import '../screens/Rules&Process/votingRules.dart'; 
+import '../screens/Rules&Process/votingProcess.dart';
+
+
 class HomeBody extends StatefulWidget {
   final String uid;
   final Function(int) onTabChange;
@@ -411,11 +415,9 @@ class _HomeBodyState extends State<HomeBody> {
             child: Row(
               children: [
                 // TODO: ADD REDIRECT FUNCTIONS
-                _buildInfoCard("Voting rules"),
+                _buildInfoCard("Voting rules", const VotingRules()), 
                 const SizedBox(width: 22),
-                _buildInfoCard(
-                  "Voting process",
-                ),
+                _buildInfoCard("Voting process", const VotingProcess()),
               ],
             ),
           ),
@@ -826,19 +828,12 @@ class _HomeBodyState extends State<HomeBody> {
       if (latestCollegeElectionId != null) {
         return _buildCurrentOfficialsSection(
           "$_userCollegeAbbreviation Officials",
-          _firebaseService.getElectionResultsStream(latestCollegeElectionId),
+          _firebaseService.getElectionResultsStream(_userCollegeId),
         );
-      } else if (latestUniElectionId != null) {
+      } else {
         return _buildCurrentOfficialsSection(
           "University Officials",
-          _firebaseService.getElectionResultsStream(latestUniElectionId),
-        );
-      }
-      // Absolute fallback if no college OR uni elections exist
-      else {
-        return _buildCurrentOfficialsSection(
-          "$_userCollegeAbbreviation Officials",
-          Stream.empty(), // Will show "No officials found"
+          _firebaseService.getUniversityOfficialsStream(),
         );
       }
     }
@@ -854,7 +849,7 @@ class _HomeBodyState extends State<HomeBody> {
     if (isOngoing) {
       // USC Election: Show Candidates
       if (type == 'university') {
-        return _buildCandidatesSection();
+        return _buildCandidatesSection(id);
       }
 
       // Proposal: Show USC Officials followed by CSC Officials
@@ -872,21 +867,17 @@ class _HomeBodyState extends State<HomeBody> {
 
     // Proposal State (Ongoing or Ended)
     if (type == 'proposal') {
-      if (latestUniElectionId != null) {
-        return _buildCurrentOfficialsSection(
-          "University Officials",
-          _firebaseService.getElectionResultsStream(latestUniElectionId),
-        );
-      } else {
-        return _buildCurrentOfficialsSection("University Officials", Stream.empty());
-      }
+      return _buildCurrentOfficialsSection(
+        "University Officials",
+        _firebaseService.getUniversityOfficialsStream(),
+      );
     }
 
     // Recently Ended College Election
     else if (type == 'college') {
       return _buildCurrentOfficialsSection(
         "Newly Elected $_userCollegeId Officials",
-        _firebaseService.getElectionResultsStream(id), 
+        _firebaseService.getElectionResultsStream(_userCollegeId), 
         isResults: true,
       );
     }
@@ -894,7 +885,7 @@ class _HomeBodyState extends State<HomeBody> {
     // Recently Ended University Election
     return _buildCurrentOfficialsSection(
       "Newly Elected University Officials",
-      _firebaseService.getElectionResultsStream(id), 
+      _firebaseService.getUniversityOfficialsStream(), 
       isResults: true,
     );
   }
@@ -930,7 +921,7 @@ class _HomeBodyState extends State<HomeBody> {
                       MaterialPageRoute(
                         builder: (context) => ElectedOfficialsPage(
                           uid: _userId,
-                          defaultAffiliation: _userCollegeAbbreviation, // Default to college since they are first
+                          defaultAffiliation: 'USC',
                         ),
                       ),
                     );
@@ -978,7 +969,7 @@ class _HomeBodyState extends State<HomeBody> {
                   final uscDocs = uscSnapshot.data?.docs ?? [];
 
                   // Combine lists: CSC first, then USC
-                  final List<DocumentSnapshot> allOfficials = [...cscDocs, ...uscDocs];
+                  final List<DocumentSnapshot> allOfficials = [...uscDocs, ...cscDocs];
 
                   if (allOfficials.isEmpty) {
                     return Container(
@@ -991,7 +982,7 @@ class _HomeBodyState extends State<HomeBody> {
                   return _OfficialsPageView(
                     officials: allOfficials,
                     isResults: false,
-                    cscCount: cscDocs.length, // how many are CSC
+                    uscCount: uscDocs.length, // how many are CSC
                     collegeAbbreviation: _userCollegeAbbreviation, // Pass college abbreviation
                   );
                 },
@@ -1375,7 +1366,7 @@ class _HomeBodyState extends State<HomeBody> {
   }
 
   // Section to display USC Candidates
-  Widget _buildCandidatesSection() {
+  Widget _buildCandidatesSection(String electionId) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
@@ -1425,7 +1416,7 @@ class _HomeBodyState extends State<HomeBody> {
           const SizedBox(height: 13),
           
           StreamBuilder<QuerySnapshot>(
-            stream: _firebaseService.getUSCCandidatesStream(),
+            stream: _firebaseService.getCandidatesByElectionId(electionId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Container(
@@ -1637,25 +1628,35 @@ class _HomeBodyState extends State<HomeBody> {
     );
   }
 
-  Widget _buildInfoCard(String title) {
+  Widget _buildInfoCard(String title, Widget destination) {
     return Expanded(
-      child: Container(
-        height: 84,        
-        decoration: BoxDecoration(
-          color: Color(0xFF5C6AA0),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Color(0xFF354372),
-            width: 0.5,
+      child: GestureDetector( 
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => destination),
+          );
+        },
+        
+        child: Container(
+          height: 84,        
+          decoration: BoxDecoration(
+            color: Color(0xFF5C6AA0),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Color(0xFF354372),
+              width: 0.5,
+            ),
           ),
-        ),
-        child: Center(
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFFF8F8F8),
+          
+          child: Center(
+            child: Text(              
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFF8F8F8),
+              ),
             ),
           ),
         ),
@@ -1668,13 +1669,13 @@ class _HomeBodyState extends State<HomeBody> {
 class _OfficialsPageView extends StatefulWidget {
   final List<DocumentSnapshot> officials;
   final bool isResults;
-  final int? cscCount; 
+  final int? uscCount; 
   final String? collegeAbbreviation;
   
   const _OfficialsPageView({
     required this.officials, 
     this.isResults = false,
-    this.cscCount,
+    this.uscCount,
     this.collegeAbbreviation,
   });
   
@@ -1723,17 +1724,17 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                   final officialDoc = widget.officials[index].data() as Map<String, dynamic>;
                   final String name = officialDoc['name'] ?? 'Unknown';
                   final String rawPosition = officialDoc['position'] ?? 'Unknown';
-                  final String rawCollege = officialDoc['college'] ?? 'Unknown';
+                  final String rawCollege = officialDoc['college_id'] ?? 'Unknown';
                   final String? filePath = officialDoc['img'] as String?;
 
                   String displayPosition = rawPosition;
                   String displayCollege = rawCollege;
                   
-                  if (widget.cscCount != null && widget.collegeAbbreviation != null) {
-                    if (index < widget.cscCount!) {
-                      displayPosition = "${widget.collegeAbbreviation} - $rawPosition";
-                    } else {
+                  if (widget.uscCount != null && widget.collegeAbbreviation != null) {
+                    if (index < widget.uscCount!) {
                       displayPosition = "USC - $rawPosition";
+                    } else {
+                      displayPosition = "${widget.collegeAbbreviation} - $rawPosition";
                     }
                   }
 

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'header.dart';
 import 'slates_list.dart' show Slate, Candidate; 
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'slates_list.dart';
+import 'candidate_profile.dart';
+import 'sample_data.dart' as profile_data;
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;
@@ -284,7 +285,77 @@ class CandidateListItem extends StatelessWidget { //candidate list
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return GestureDetector(
+      // --- NAVIGATION LOGIC ADDED HERE ---
+      onTap: () async {
+        // 1. Show a loading indicator while fetching
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(child: CircularProgressIndicator()),
+        );
+
+        try {
+          // 2. Fetch full details from the main 'candidates' collection
+          // We query by name and role to ensure we get the right person
+          final querySnapshot = await FirebaseFirestore.instance
+              .collection('candidates')
+              .where('name', isEqualTo: candidate.name)
+              .where('position', isEqualTo: candidate.role)
+              .limit(1)
+              .get();
+
+          // 3. Close the loading dialog
+          if (context.mounted) Navigator.pop(context);
+
+          // 4. Prepare data variables
+          String fetchedAge = 'N/A';
+          String fetchedYear = 'N/A';
+          String fetchedCollege = 'N/A';
+          String fetchedAdvocacy = 'Please refer to the Slate Advocacy above.';
+          String fetchedPlatform = 'Please refer to the Slate Platform above.';
+
+          // 5. If found, update variables with actual data
+          if (querySnapshot.docs.isNotEmpty) {
+            final data = querySnapshot.docs.first.data();
+            fetchedAge = data['age']?.toString() ?? 'N/A';
+            fetchedYear = data['year']?.toString() ?? 'N/A';
+            fetchedCollege = data['college_id'] ?? 'N/A';
+            fetchedAdvocacy = data['advocacy'] ?? fetchedAdvocacy;
+            fetchedPlatform = data['platform'] ?? fetchedPlatform;
+          }
+
+          // 6. Navigate to Profile Page
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CandidateProfilePage(
+                  candidate: profile_data.Candidate(
+                    name: candidate.name,
+                    role: candidate.role,
+                    partylist: candidate.party,
+                    img: candidate.imgPath,
+                    details: candidate.details,
+                    // Pass the fetched data
+                    age: fetchedAge,
+                    year: fetchedYear,
+                    college: fetchedCollege,
+                    advocacy: fetchedAdvocacy,
+                    platform: fetchedPlatform,
+                  ),
+                ),
+              ),
+            );
+          }
+        } catch (e) {
+          // Close loading dialog if error occurs
+          if (context.mounted) Navigator.pop(context);
+          print("Error fetching candidate details: $e");
+        }
+      },
+
+    child: Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         height: 114,
@@ -377,6 +448,7 @@ class CandidateListItem extends StatelessWidget { //candidate list
           ],
         ),
       ),
-    );
+    ),);
+
   }
 }

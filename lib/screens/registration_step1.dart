@@ -144,18 +144,46 @@ class _RegistrationStep1State extends State<RegistrationStep1>
     // Init and check storage permission
     PermissionStatus status;
     if (Platform.isAndroid) {
-      status = await Permission.manageExternalStorage.request();
+      // check for Android 11+
+      if (await Permission.manageExternalStorage.status.isGranted) {
+        status = PermissionStatus.granted;
+      } else {
+        status = await Permission.manageExternalStorage.request();
+      }
+      
+      // for older Android versions
+      if (!status.isGranted) {
+         status = await Permission.storage.request();
+      }
     } else {
       status = await Permission.storage.request();
     }
 
+    // checks if permission is not granted
     if (!status.isGranted) {
-      Fluttertoast.showToast(
-        msg: "Please enable the storage permission.",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
+      if (!mounted) return; 
+
+      // SnackBar with a button to open settings manually
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            "File access is required to upload your COR.",
+            style: TextStyle(fontFamily: 'Geist'),
+          ),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Settings',
+            onPressed: () {
+              openAppSettings();
+            },
+          ),
+        ),
       );
-      openAppSettings();
+      
+      // Reset uploading state
+      setState(() {
+        _isUploading = false;
+      });
       return;
     }
 
@@ -167,7 +195,8 @@ class _RegistrationStep1State extends State<RegistrationStep1>
     );
 
     if (result == null || result.files.single.path == null) {
-      return; // user cancelled
+      setState(() { _isUploading = false; });
+      return;
     }
 
     final filePath = result.files.single.path!;
