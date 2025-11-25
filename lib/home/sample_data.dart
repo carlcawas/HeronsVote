@@ -2,6 +2,7 @@
 // INALIS KO SA IMPORT SA IBANG DART FILES --- SAME CLASS NAME KASI GINAMIT KO PARA DI NAKAKALITO
 // In sample_data.dart
 class Candidate{
+  final String? id;
   final String name;
   final String role;
   final String details;
@@ -14,6 +15,7 @@ class Candidate{
   final String? img;
   
   Candidate({
+    this.id,
     required this.name,
     required this.role,
     required this.details,

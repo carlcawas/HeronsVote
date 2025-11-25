@@ -114,35 +114,20 @@ class SlateListItem extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 12),
         child: Container(
           height: 105,
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: const Color(0xFFF7F7F7),
             borderRadius: BorderRadius.circular(20),
-            
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.05),
-                spreadRadius: 2,
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-              
-            ],
-
-            border: Border.all( //adjust kona rin sa figma
-              color: const Color(0xFFEEEEEE),
-              width: 0.5,
-            ),
-
-
+  
+            border: Border.all(color: const Color(0xFFEEEEEE), width: 0.5),
           ),
           
           child: Row(
             children: [
               // Left placeholder image area
               Container(
-                width: 131,
-                height: 93,
+                width: 130,
+                height: 100,
                 decoration: BoxDecoration(
                   color: const Color(0xFFD9D9D9),
                   borderRadius: const BorderRadius.all(Radius.circular(16)),
@@ -233,21 +218,35 @@ class Slate {
 }
 
 class Candidate {
+  final String? id;
   final String name;
   final String role;
   final String party;
   final String details; 
   final String? imgPath;
 
+  final String age;
+  final String year;
+  final String college;
+  final String advocacy;
+  final String platform;
+
   Candidate({
+    this.id,
     required this.name,
     required this.role,
     required this.party,
     required this.details,
     this.imgPath,
+
+    this.age = '...',
+    this.year = '...',
+    this.college = '',
+    this.advocacy = '',
+    this.platform = '',
   });
 
-  factory Candidate.fromMap(Map<String, dynamic> map) {
+  factory Candidate.fromMap(Map<String, dynamic> map, [String? docId]) {
     String? college = map['college_id'] ?? map['college'];
     String? year = map['year']?.toString();
     
@@ -268,11 +267,19 @@ class Candidate {
     }
 
     return Candidate(
+      id: docId ?? map['id'] ?? map['candidateId'],
+
       name: map['name'] ?? '',
       role: map['position'] ?? map['role'] ?? '',
       party: partyVal,
       details: fullDetails,
       imgPath: map['img'],
+
+      age: map['age']?.toString() ?? '...',
+      year: map['year']?.toString() ?? '...',
+      college: map['college_id'] ?? '',
+      advocacy: map['advocacy'] ?? '',
+      platform: map['platform'] ?? '',
     );
   }
 }

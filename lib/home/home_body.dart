@@ -1365,15 +1365,17 @@ class _HomeBodyState extends State<HomeBody> {
     
   }
 
-  // Section to display USC Candidates
+  // Section to display USC Candidates need to fix
   Widget _buildCandidatesSection(String electionId) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24), //margin
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 16),
+            padding: const EdgeInsets.only(left: 4),
+            
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1415,7 +1417,7 @@ class _HomeBodyState extends State<HomeBody> {
           ),
           const SizedBox(height: 13),
           
-          StreamBuilder<QuerySnapshot>(
+          StreamBuilder<QuerySnapshot>( //start2
             stream: _firebaseService.getCandidatesByElectionId(electionId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -1439,9 +1441,23 @@ class _HomeBodyState extends State<HomeBody> {
               final candidates = snapshot.data!.docs;
               
               return Column(
+                
                 children: [
-                  SizedBox(
+                  
+
+                  Container(
                     height: 186,
+                    margin: const EdgeInsets.symmetric(horizontal: 0.0), 
+                    clipBehavior: Clip.antiAlias, 
+                    decoration: BoxDecoration(
+                      /*border: Border.all(
+                                  color: Color(0xFF404040),
+                                  width: 0.5,
+                                ),*/
+                      color: const Color(0xFF354372), 
+                      borderRadius: BorderRadius.circular(20)
+                    ),
+
                     child: Stack(
                       children: [
                         PageView.builder(
@@ -1471,44 +1487,103 @@ class _HomeBodyState extends State<HomeBody> {
                             }
 
                             return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 12),
+
+                              margin: const EdgeInsets.symmetric(horizontal: 0.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 0.0),
                               clipBehavior: Clip.antiAlias,
+
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.grey.shade300),
+                                color: const Color(0xFF354372),
+                                borderRadius: BorderRadius.circular(0), //radius ng inside container
+                                //border: Border.all(color: Colors.grey.shade300),
                               ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+
+                              child: Row(//itonatalaga
                                 children: [
-                                  CircleAvatar(
-                                    radius: 35,
-                                    backgroundColor: Colors.grey.shade300,
-                                    backgroundImage: (publicUrl != null)
-                                        ? NetworkImage(publicUrl)
-                                        : null,
-                                    child: (publicUrl == null)
-                                        ? const Icon(Icons.person,
-                                            size: 35, color: Colors.grey)
-                                        : null,
+
+                                  Expanded(
+                                    flex: 7,
+                                    child: SizedBox(
+                                      height: double.infinity,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Container(
+                                            decoration: BoxDecoration(        
+                                              image: (publicUrl != null)
+                                              ? DecorationImage(
+                                                  image: NetworkImage(publicUrl),
+                                                  fit: BoxFit.cover, 
+                                                )
+                                              : null,
+                                            ),
+
+                                            child: (publicUrl == null)
+                                              ? const Icon(
+                                                  Icons.person,
+                                                  size: 35,
+                                                  color: Colors.grey,
+                                                )
+                                              : null,
+                                          ),
+
+                                          if (publicUrl != null) // Gradient
+                                          Container(
+                                            decoration: const BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.centerLeft,
+                                                end: Alignment.centerRight,
+                                                colors: [
+                                                  Colors.transparent,// Left side
+                                                  Color(0xFF354372),// Right side (Darker)
+                                                ],
+                                                stops: [0, 4.0], // Adjusts where the fading starts
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
                                   ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF414141),
-                                    ),
+
+                                  Expanded(
+                                    flex: 7,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(left: 6),
+
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                                        children: [
+
+                                          Text(
+                                            position,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFFF8F8F8),
+                                            ),
+                                          ),
+
+                                          Text(
+                                            name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w400,
+                                              color: Color(0xFFD9D9D9),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    position,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF666666),
-                                    ),
-                                  ),
+                                  const SizedBox(height: 8),                              
                                 ],
                               ),
                             );
@@ -1517,25 +1592,36 @@ class _HomeBodyState extends State<HomeBody> {
                         
                         // Dots indicator
                         Positioned(
-                          bottom: 12,
+                          bottom: 8,
                           left: 0,
                           right: 0,
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(
-                              candidates.length,
-                              (index) => Container(
-                                width: 8,
-                                height: 8,
-                                margin: const EdgeInsets.symmetric(horizontal: 2),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: index == _currentCandidatesPage
-                                      ? const Color(0xFF354372)
-                                      : const Color(0xFFD9D9D9),
+                            children: [
+                              const Expanded(
+                                flex: 6,
+                                child: SizedBox(),
+                              ),
+                              Expanded(
+                                flex: 7,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(
+                                      candidates.length,
+                                      (index) => Container(
+                                        width: 8,
+                                        height: 8,
+                                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: index == _currentCandidatesPage
+                                              ? const Color(0xFF354372)
+                                              : const Color(0xFFD9D9D9),
+                                        ),
+                                      ),
+                                    ),
                                 ),
                               ),
-                            ),
+                            ],  
                           ),
                         ),
                       ],
@@ -1693,7 +1779,7 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
     super.dispose();
   }
 
-  @override
+  @override //my reference
   Widget build(BuildContext context) {
     return Column(
       children: [
@@ -1712,7 +1798,7 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
 
           child: Stack(
             children: [
-              PageView.builder(
+              PageView.builder(//pagebuilder
                 controller: _pageController,
                 itemCount: widget.officials.length,
                 onPageChanged: (int page) {
@@ -1780,15 +1866,15 @@ class _OfficialsPageViewState extends State<_OfficialsPageView> {
                                         fit: BoxFit.cover, 
                                       )
                                     : null,
-                                    
                                   ),
+                                  
                                   child: (publicUrl == null)
-                                      ? const Icon(
-                                          Icons.person,
-                                          size: 35,
-                                          color: Colors.grey,
-                                        )
-                                      : null,
+                                    ? const Icon(
+                                        Icons.person,
+                                        size: 35,
+                                        color: Colors.grey,
+                                      )
+                                    : null,
                                 ),
 
                                 if (publicUrl != null) // Gradient

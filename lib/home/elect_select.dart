@@ -100,7 +100,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 25.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -110,15 +110,16 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
+                  borderRadius: BorderRadius.circular(20),
+                  /*boxShadow: [
                     BoxShadow(
                       color: Colors.grey.withOpacity(0.1),
                       spreadRadius: 2,
                       blurRadius: 5,
                       offset: const Offset(0, 3),
                     ),
-                  ],
+                  ],*/
+                  border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,52 +128,56 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                       'Choose Election',
                       style: TextStyle(
                         color: Color(0xFF404040),
-                        fontSize: 20,
+                        fontSize: 24,
                         fontFamily: 'Geist',
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 16),
                     Text(
-                      'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
+                      'You have ${widget.activeElections.length} active elections. Please \nselect one to continue.',
                       style: const TextStyle(
                         color: Color(0xFF747474),
                         fontSize: 14,
                         fontFamily: 'Geist',
-                        height: 1.4,
+                        //height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 22),
 
-              const Text(
-                'Active Election',
-                style: TextStyle(
-                  color: Color(0xFF404040),
-                  fontSize: 14,
-                  fontFamily: 'Geist',
-                  fontWeight: FontWeight.w500,
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0),
+                child: const Text(
+                  'Active Election',
+                  style: TextStyle(
+                    color: Color(0xFF404040),
+                    fontSize: 14,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
 
               //list election
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
+                  borderRadius: BorderRadius.circular(20),
+                  /*boxShadow: [
                     BoxShadow(
                       color: Colors.grey.withOpacity(0.1),
                       spreadRadius: 2,
                       blurRadius: 5,
                       offset: const Offset(0, 3),
                     ),
-                  ],
+                  ],*/
+                  border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(15),

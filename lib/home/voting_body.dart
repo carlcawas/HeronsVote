@@ -26,7 +26,7 @@ class ChooseCandidateCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF7F7F7),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE7E8E9), width: 1),
+          border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -45,7 +45,7 @@ class ChooseCandidateCard extends StatelessWidget {
               height: 64,
               decoration: const BoxDecoration(
                 color: Color(0xFF5C6AA0),
-                borderRadius: BorderRadius.all(Radius.circular(12)),
+                borderRadius: BorderRadius.all(Radius.circular(10)),
               ),
               child: const Center(
                 child: Icon(
@@ -74,8 +74,8 @@ class CandidateVoteCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (candidate.isAbstain) {
+  Widget build(BuildContext context) { 
+    if (candidate.isAbstain) { //abstain card
       return GestureDetector(
         onTap: onTap,
         child: Container(
@@ -101,32 +101,36 @@ class CandidateVoteCard extends StatelessWidget {
                   color: Color(0xFF747474),
                 ),
               ),
-              const Expanded(
-                child: Text(
-                  'Abstain',
-                  style: TextStyle(
-                    color: Color(0xFF404040),
-                    fontSize: 16,
-                    fontFamily: 'Geist',
-                    fontWeight: FontWeight.w500,
-                  ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Text(
+                      'Abstain',
+                      style: TextStyle(
+                        color: Color(0xFF404040),
+                        fontSize: 16,
+                        fontFamily: 'Geist',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                 ),
               ),
               Container(
-                width: 39,
-                height: 64,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0),
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 18,
+                  width: 39,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
-              ),
+
             ],
           ),
         ),
@@ -144,7 +148,7 @@ class CandidateVoteCard extends StatelessWidget {
       }
     }
 
-    return GestureDetector(
+    return GestureDetector( //selected candidate
       onTap: onTap,
       child: Container(
         height: 78,
@@ -195,7 +199,7 @@ class CandidateVoteCard extends StatelessWidget {
                     ),
                   ),
                   if (!candidate.isProposalOption) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 0),
                     Text(
                       (candidate.partylist.isEmpty)
                           ? 'Independent'
@@ -225,6 +229,7 @@ class CandidateVoteCard extends StatelessWidget {
                     ),
                   ),
                 if (candidate.college.isNotEmpty)
+                const SizedBox(height: 2),
                   Text(
                     candidate.college,
                     style: const TextStyle(
@@ -327,51 +332,57 @@ class PositionVoteItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  positionTitle,
-                  style: const TextStyle(
-                    color: Color(0xFF404040),
-                    fontSize: 16,
-                    fontFamily: 'Geist',
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (hasError)
-                Row(
-                  children: [
-                    const Text(
-                      'No Chosen Candidate',
-                      style: TextStyle(
-                        color: Color(0xFFED6C6A),
-                        fontSize: 12,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      positionTitle,
+                      style: const TextStyle(
+                        color: Color(0xFF404040),
+                        fontSize: 16,
                         fontFamily: 'Geist',
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    SvgPicture.asset('assets/error.svg', height: 20, width: 20),
-                  ],
+                  ),
                 ),
-            ],
+                if (hasError)
+                  Row(
+                    children: [
+                      const Text(
+                        'No Chosen Candidate',
+                        style: TextStyle(
+                          color: Color(0xFFED6C6A),
+                          fontSize: 12,
+                          fontFamily: 'Geist',
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      SvgPicture.asset('assets/error.svg', height: 20, width: 20),
+                    ],
+                  ),
+              ],
+            ),
           ),
-        ),
-        selectedCandidate == null
-            ? (isProposal
-                ? CastVoteCard(onTap: onSelectCandidate)
-                : ChooseCandidateCard(onTap: onSelectCandidate))
-            : CandidateVoteCard(
-                candidate: selectedCandidate!,
-                onTap: onSelectCandidate,
-              ),
-      ],
+          selectedCandidate == null
+              ? (isProposal
+                  ? CastVoteCard(onTap: onSelectCandidate)
+                  : ChooseCandidateCard(onTap: onSelectCandidate))
+              : CandidateVoteCard(
+                  candidate: selectedCandidate!,
+                  onTap: onSelectCandidate,
+                ),
+        ],
+      ),
     );
   }
 }
@@ -472,8 +483,8 @@ class _VotingHomePageState extends State<VotingHomePage> {
       try {
         Timestamp startTs = widget.electionData['start'];
         Timestamp endTs = widget.electionData['end'];
-        String start = DateFormat('MMMM d, yyyy').format(startTs.toDate());
-        String end = DateFormat('MMMM d, yyyy').format(endTs.toDate());
+        String start = DateFormat('MMM d, yyyy').format(startTs.toDate());
+        String end = DateFormat('MMM d, yyyy').format(endTs.toDate());
         _electionPeriod = '$start - $end';
       } catch (e) {
         _electionPeriod = '(Ongoing)';
@@ -770,23 +781,24 @@ class _VotingHomePageState extends State<VotingHomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
                   // Election Info Card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(15),
+                    padding: const EdgeInsets.only(top: 16, left: 16, bottom: 16),
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF7F7F7),
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
+                      borderRadius: BorderRadius.circular(20),
+                      /*boxShadow: [
                         BoxShadow(
                           color: Colors.grey.withOpacity(0.1),
                           spreadRadius: 2,
                           blurRadius: 5,
                           offset: const Offset(0, 3),
                         ),
-                      ],
+                      ],*/
+                      border: Border.all(color: const Color(0xFFD9D9D9)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,7 +812,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 2),
                         Text(
                           _electionPeriod,
                           style: const TextStyle(
@@ -810,7 +822,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
 
                         // check if _hasVoted
                         if (_hasVoted) ...[
@@ -911,8 +923,8 @@ class _VotingHomePageState extends State<VotingHomePage> {
                 children: [
                   if (widget.onBack != null) ...[
                     SizedBox(
-                      height: 53,
-                      width: 53,
+                      height: 55,
+                      width: 55,
                       child: ElevatedButton(
                         onPressed: widget.onBack,
                         style: ElevatedButton.styleFrom(
@@ -921,7 +933,11 @@ class _VotingHomePageState extends State<VotingHomePage> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          elevation: 2,
+                          elevation: 1,
+                          side: const BorderSide(
+                            color: Color(0xFF354372),
+                            width: 1.0, 
+                          ),
                         ),
                         child: const Icon(
                           Icons.arrow_back_ios_new,
@@ -979,6 +995,10 @@ class _VotingHomePageState extends State<VotingHomePage> {
         minimumSize: const Size(double.infinity, 55),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 2,
+        side: const BorderSide(
+          color: Color(0xFF354372),
+          width: 1.0, 
+        ),
       ),
       child: const Text(
         'Submit Vote',
