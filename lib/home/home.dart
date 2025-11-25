@@ -3,6 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'results.dart';
 import 'profile.dart';
+import 'election_gateway.dart';
+
 // Import your page "bodies"
 import 'home_body.dart';
 import 'candidates_view_body.dart';
@@ -42,24 +44,58 @@ class _HomeScreenState extends State<HomeScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   
 
-  @override
-  void initState() {
-    super.initState();
-    _pages = [
+  // home.dart
 
-      // TODO: Replace with HomePage(uid: uid)
-      HomeBody(uid: widget.uid, onTabChange: _onItemTapped),
+@override
+void initState() {
+  super.initState();
+  _pages = [
 
-      // TODO: Replace with CandidatePage(uid: uid)
-      CandidatesViewBody(uid: widget.uid),
+    // 0. Home Tab
+    HomeBody(uid: widget.uid, onTabChange: _onItemTapped),
 
-      // TODO: Replace with VotingPage(uid: uid)
-      VotingGateway(uid: widget.uid),
+    // 1. Candidates Tab
+    CandidatesViewBody(uid: widget.uid),
 
-      // TODO: Replace with ResultsPage(uid: uid)
-      const ElectionResultPage(),
-    ];
-  }
+    // 2. Voting Tab (Index 2)
+    ElectionGateway(
+      uid: widget.uid,
+      emptyMessage: "No active elections to vote on.",
+      
+      // REQUIRED ARGUMENT 1: The function to fetch active election data
+      fetchElections: (uid) => _firebaseService.getActiveElectionsForUser(uid),
+      
+      // REQUIRED ARGUMENT 2: The widget to build when an election is selected (Voting Page)
+      contentBuilder: (context, electionData, onBack) {
+        // Assuming VotingHomePage is the page where the user casts their vote
+        return VotingHomePage( 
+          uid: widget.uid,
+          electionData: electionData,
+          onBack: onBack,
+        );
+      },
+    ),
+
+    // 3. Results Tab (Index 3)
+    ElectionGateway(
+      uid: widget.uid,
+      emptyMessage: "No results available yet.",
+      
+      // REQUIRED ARGUMENT 1: The function to fetch relevant (ended) results
+      fetchElections: (uid) => _firebaseService.getRelevantElectionsForUser(uid),
+      
+      // REQUIRED ARGUMENT 2: The widget to build when an election is selected (Results Page)
+      contentBuilder: (context, electionData, onBack) {
+        // Assuming ElectionResultPage displays the results and details
+        return ElectionResultPage( 
+          uid: widget.uid,
+          electionData: electionData,
+          onBack: onBack,
+        );
+      },
+    ),
+  ];
+}
 
   void _onItemTapped(int index) {
     setState(() {
@@ -356,75 +392,3 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class VotingGateway extends StatefulWidget {
-  final String uid;
-  const VotingGateway({super.key, required this.uid});
-
-  @override
-  State<VotingGateway> createState() => _VotingGatewayState();
-}
-
-class _VotingGatewayState extends State<VotingGateway> {
-  final FirebaseService _firebaseService = FirebaseService();
-  Future<List<Map<String, dynamic>>>? _electionsFuture;
-  Map<String, dynamic>? _selectedElection;
-  
-  @override
-  void initState() {
-    super.initState();
-    _electionsFuture = _firebaseService.getActiveElectionsForUser(widget.uid);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _electionsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF354372)));
-        }
-        
-        if (snapshot.hasError) {
-          return Center(child: Text("Error loading elections: ${snapshot.error}"));
-        }
-
-        final elections = snapshot.data ?? [];
-
-        if (elections.isEmpty) {
-           return const Center(child: Text("No active elections at the moment."));
-        }
-        
-        // User hasn't selected yet and there are multiple elections
-        if (elections.length > 1 && _selectedElection == null) {
-           return ElectionSelectionPage(
-             uid: widget.uid, 
-             activeElections: elections,
-             onElectionSelected: (selected) {
-               setState(() {
-                 _selectedElection = selected;
-               });
-             },
-           );
-        } 
-        
-        // Single election or user has selected one
-        else {
-           final targetElection = _selectedElection ?? elections.first;
-           
-           return VotingHomePage(
-             uid: widget.uid, 
-             electionData: targetElection,
-             // if there are multiple elections, allow going back
-             onBack: elections.length > 1 
-               ? () {
-                   setState(() {
-                     _selectedElection = null;
-                   });
-                 }
-               : null,
-           );
-        }
-      },
-    );
-  }
-}

@@ -5,13 +5,13 @@ import 'profile.dart';
 
 class ElectionSelectionPage extends StatefulWidget {
   final String uid;
-  final List<Map<String, dynamic>> activeElections;
+  final List<Map<String, dynamic>> elections;
   final Function(Map<String, dynamic>) onElectionSelected;
 
   const ElectionSelectionPage({
-    super.key,
-    required this.uid,
-    required this.activeElections,
+    super.key, 
+    required this.uid, 
+    required this.elections,
     required this.onElectionSelected,
   });
 
@@ -38,8 +38,8 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
           .get();
 
       int votedCount = 0;
-      if (widget.activeElections.isNotEmpty) {
-        for (var election in widget.activeElections) {
+      if (widget.elections.isNotEmpty) {
+        for (var election in widget.elections) {
           final String id = election['id'];
           final String type = election['type'] ?? 'election';
           final hasVoted = await _hasUserVoted(id, type);
@@ -51,7 +51,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
       if (userDoc.exists && mounted) {
         setState(() {
           _isVerified = userDoc.data()?['isVerified'] ?? false;
-          _allVoted = widget.activeElections.isNotEmpty && votedCount == widget.activeElections.length;
+          _allVoted = widget.elections.isNotEmpty && votedCount == widget.elections.length;
           _isLoading = false;
         });
       }
@@ -134,7 +134,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
+                      'You have ${widget.elections.length} active elections.\nPlease select one to continue.',
                       style: const TextStyle(
                         color: Color(0xFF747474),
                         fontSize: 14,
@@ -180,7 +180,8 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     padding: EdgeInsets.zero,
-                    itemCount: widget.activeElections.length,
+                    itemCount: widget.elections.length,
+                  
                     separatorBuilder: (context, index) => const Divider(
                       height: 1,
                       thickness: 1,
@@ -189,7 +190,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                       endIndent: 20,
                     ),
                     itemBuilder: (context, index) {
-                      final election = widget.activeElections[index];
+                      final election = widget.elections[index];
                       final String electionId = election['id'] ?? '';
                       final String type = election['type'] ?? 'election';
 

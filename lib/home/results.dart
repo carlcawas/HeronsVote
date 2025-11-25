@@ -1,71 +1,35 @@
+
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-
-class TurnoutDebugData {
-  final int totalVoters = 475;
-  final int totalVotesCast = 378;
-
-  final List<VoteTurnout> turnouts = [
-    VoteTurnout("1st year", 112, 140),
-    VoteTurnout("2nd year", 91, 130),
-    VoteTurnout("3rd year", 99, 110),
-    VoteTurnout("4th year", 76, 95),
-    VoteTurnout("CCSE", 50, 50),
-  ];
-
-  double get totalPercentage =>
-      totalVoters == 0 ? 0 : totalVotesCast / totalVoters;
-}
-
-class VoteTurnout {
-  final String label;
-  final int cast;
-  final int total;
-  double get percentage => total == 0 ? 0 : cast / total;
-
-  VoteTurnout(this.label, this.cast, this.total);
-}
-
-class PositionResultDebugData {
-  final String positionTitle;
-  final List<CandidateResult> candidates;
-  PositionResultDebugData(this.positionTitle, this.candidates);
-}
-
-class CandidateResult {
-  final String name;
-  final int votes;
-  final bool isWinner;
-  CandidateResult(this.name, this.votes, {this.isWinner = false});
-}
-
-final turnoutData = TurnoutDebugData();
-
-final List<PositionResultDebugData> resultsData = [
-  PositionResultDebugData("Chairperson", [
-    CandidateResult("Rhic Ruzel H. Reyes", 50, isWinner: true),
-    CandidateResult("Jane Doe", 30),
-    CandidateResult("Abstain", 19),
-  ]),
-  PositionResultDebugData("Vice Chairperson", [
-    CandidateResult("John Smith", 55, isWinner: true),
-    CandidateResult("Rhic Ruzel H. Reyes", 25),
-    CandidateResult("Abstain", 10),
-  ]),
-];
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/services/firebase_service.dart';
+import 'package:heronsvote/model/turnout_model.dart';
 
 class ElectionResultPage extends StatefulWidget {
-  const ElectionResultPage({super.key});
+  final String uid;
+  final Map<String, dynamic> electionData;
+  final VoidCallback? onBack;
+
+  const ElectionResultPage({
+    super.key,
+    required this.uid,
+    required this.electionData,
+    this.onBack,
+  });
 
   @override
   State<ElectionResultPage> createState() => _ElectionResultPageState();
 }
 
 class _ElectionResultPageState extends State<ElectionResultPage> {
-  String _currentState = 'Ongoing';
   bool _isExpanded = false;
-  bool _isEndedTurnoutVisible = false;
+  bool _isEndedTurnoutVisible = true;
+  
+  late Future<List<Map<String, dynamic>>> _resultsFuture;
 
+  late Future<TurnoutStats> _turnoutFuture;
+
+  // Colors
   final Color _bgColor = const Color(0xFFF7F7F7);
   final Color _textColor = const Color(0xFF404040);
   final Color _subTextColor = const Color(0xFF747474);
@@ -75,46 +39,441 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
   final Color _redAccent = const Color(0xFFED6C6A);
 
   @override
+  void initState() {
+    super.initState();
+    final service = FirebaseService(); // Create instance or use a singleton
+    
+    _turnoutFuture = service.getTurnoutDataStream(
+      electionId: widget.electionData['id'],
+      electionType: widget.electionData['type'] ?? 'local',
+      userCollege: widget.electionData['college_id'],
+    );
+
+    _resultsFuture = service.getElectionDataStream(
+      electionId: widget.electionData['id'],
+      electionType: widget.electionData['type'] ?? 'local',
+    );
+  }
+
+
+  String _computeAcademicYear(Timestamp? startTimestamp) {
+    if (startTimestamp == null) return "(Date TBD)";
+
+    DateTime startDate = startTimestamp.toDate();
+    int month = startDate.month;
+    int year = startDate.year;
+
+    // Academic Year Logic: Sept-July means August (8) starts the new year.
+    int startYear = (month >= 8) ? year : year - 1;
+    int endYear = startYear + 1;
+
+    return "(S.Y. $startYear-$endYear)";
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bool isOngoing = widget.electionData['ongoing'] ?? false;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _currentState,
-                icon: const Icon(Icons.accessibility_new_rounded),
-                items: <String>['Ongoing', 'Ended'].map((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
-                onChanged: (newValue) {
-                  setState(() {
-                    _currentState = newValue!;
-                  });
-                },
-              ),
-            ),
-          ),
-        ],
+        leading: widget.onBack != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                onPressed: widget.onBack,
+              )
+            : null,
+        title: Text(
+          isOngoing ? "Live Updates" : "Election Results",
+          style: TextStyle(color: _textColor, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
-        child: _currentState == 'Ongoing'
-            ? _buildOngoingView()
-            : _buildEndedView(),
+        child: Column(
+          children: [
+            _buildElectionHeader(),
+            const SizedBox(height: 20),
+
+            // Use FutureBuilder to handle the async data fetching
+            FutureBuilder<TurnoutStats>(
+              future: _turnoutFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return SizedBox(
+                    height: 300,
+                    child: Center(
+                      child: CircularProgressIndicator(color: _blueHighlight),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError || !snapshot.hasData) {
+                  final fallbackStats = TurnoutStats(
+                    breakdown: {},
+                    groupTotalVoters: {}, // <--- ADD THIS LINE
+                    totalVotesCast: 0,
+                    totalVerifiedVoters: 1,
+                  );
+
+                  return Column(
+                    children: [
+                      isOngoing
+                          ? _buildOngoingView(fallbackStats)
+                          : _buildEndedView(fallbackStats),
+                      const SizedBox(height: 20),
+                      Text(
+                        "Error fetching live data. Showing stored data fallback if available.",
+                        style: TextStyle(color: _redAccent, fontSize: 14),
+                      ),
+                    ],
+                  );
+                }
+
+                final stats = snapshot.data!;
+                return isOngoing
+                    ? _buildOngoingView(stats)
+                    : _buildEndedView(stats);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  //progress bar tunrout container / box
-  Widget _buildBarsOnly() {
-    final int totalItems = turnoutData.turnouts.length;
+  Widget _buildElectionHeader() {
+    final title =
+        widget.electionData['title'] ??
+        widget.electionData['name'] ??
+        'Election Name';
+
+    final Timestamp? startTimestamp =
+        widget.electionData['start'] as Timestamp?;
+
+    final String academicYear = _computeAcademicYear(startTimestamp);
+
+    String startDate = "Date TBD";
+
+    if (startTimestamp != null) {
+      final DateTime date = startTimestamp.toDate();
+      const List<String> months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+      final String monthName = months[date.month - 1];
+      startDate = "Started in: $monthName ${date.day}, ${date.year}";
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 22),
+      decoration: BoxDecoration(
+        color: _bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFD9D9D9), width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: _textColor,
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            academicYear,
+            style: TextStyle(
+              color: _subTextColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            startDate,
+            style: TextStyle(
+              color: _subTextColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              fontFamily: 'Geist',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildOngoingView(TurnoutStats stats) {
+    final List<Map<String, dynamic>> turnoutList = stats.breakdown.entries.map((
+      e,
+    ) {
+      final int castCount = e.value;
+      final String label = e.key;
+
+      final int groupTotal = stats.groupTotalVoters[label] ?? 1;
+
+      return {
+        'label': label,
+        'cast': castCount,
+        'total': groupTotal,
+        'percentage': groupTotal == 0 ? 0.0 : (castCount / groupTotal),
+      };
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: _bgColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Voter Turnout",
+                    style: TextStyle(
+                      color: _textColor,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
+                      fontFamily: 'Geist',
+                    ),
+                  ),
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        color: _subTextColor,
+                        fontSize: 14,
+                        fontFamily: 'Geist',
+                        fontWeight: FontWeight.w400,
+                      ),
+                      children: [
+                        const TextSpan(text: "Total: "),
+                        TextSpan(
+                          text:
+                              "${stats.totalVotesCast}/${stats.totalVerifiedVoters}",
+                          style: TextStyle(
+                            color: _textColor,
+                            fontSize: 12,
+                            fontFamily: 'Geist',
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildBarsOnly(turnoutList),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        _buildPieAndLegend(stats.totalVotesCast, stats.totalVerifiedVoters),
+
+        const SizedBox(height: 30),
+        Center(
+          child: Text(
+            "Ongoing election, results not published yet.",
+            style: TextStyle(
+              color: _subTextColor,
+              fontSize: 16,
+              fontFamily: 'Geist',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEndedView(TurnoutStats stats) {
+  final Timestamp? startTimestamp = widget.electionData['start'] as Timestamp?;
+
+  if (startTimestamp != null) {
+    final DateTime date = startTimestamp.toDate();
+    const List<String> months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+  }
+
+  final int totalVotes = stats.totalVotesCast;
+  final int totalVoters = stats.totalVerifiedVoters;
+  
+  final List<Map<String, dynamic>> turnoutList = stats.breakdown.entries.map((e) {
+    final int groupTotal = stats.groupTotalVoters[e.key] ?? 1;
+    return {
+      'label': e.key,
+      'cast': e.value,
+      'total': groupTotal,
+      'percentage': groupTotal == 0 ? 0.0 : (e.value / groupTotal),
+    };
+  }).toList();
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 20),
+      Container(
+        decoration: BoxDecoration(
+          color: _bgColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          children: [
+            // Header (Clickable)
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isEndedTurnoutVisible = !_isEndedTurnoutVisible;
+                });
+              },
+              child: Container(
+                color: Colors.transparent, // Ensures tap target fills width
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFECECEC),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _isEndedTurnoutVisible
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: _textColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      "Voter Turnout",
+                      style: TextStyle(
+                        color: _textColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: 'Geist',
+                      ),
+                    ),
+                    const Spacer(),
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          color: _subTextColor,
+                          fontSize: 14,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w400,
+                        ),
+                        children: [
+                          const TextSpan(text: "Total:  "),
+                          TextSpan(
+                            text: "$totalVotes/$totalVoters",
+                            style: TextStyle(
+                              color: _textColor,
+                              fontFamily: 'Geist',
+                              fontWeight: FontWeight.w400,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Expanded Content: Bars
+            if (_isEndedTurnoutVisible)
+              Padding(
+                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 5),
+                    // We pass the prepared list here
+                    _buildBarsOnly(turnoutList), 
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+
+      if (_isEndedTurnoutVisible) ...[
+        const SizedBox(height: 12),
+        _buildPieAndLegend(totalVotes, totalVoters),
+      ],
+
+      const SizedBox(height: 24),
+
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: _resultsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Text("Error loading results: ${snapshot.error}");
+          }
+
+          final resultsData = snapshot.data ?? [];
+
+          if (resultsData.isEmpty) {
+            return const Center(child: Text("No results available."));
+          }
+
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: resultsData.length,
+            itemBuilder: (context, index) {
+              final positionData = resultsData[index];
+              return _buildPositionResultSection(
+                positionData['position'], // Title
+                positionData['candidates'], // List of candidates
+                showHeader: index == 0,
+              );
+            },
+          );
+        },
+      ),
+    ],
+  );
+}
+
+
+  Widget _buildBarsOnly(List<Map<String, dynamic>> turnouts) {
+    final int totalItems = turnouts.length;
     final int itemsToShow = _isExpanded
         ? totalItems
         : (totalItems > 4 ? 4 : totalItems);
@@ -122,10 +481,12 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
 
     return Column(
       children: [
-        ...turnoutData.turnouts.take(itemsToShow).map(
-              (data) => Padding(
+        ...turnouts
+            .take(itemsToShow)
+            .map(
+              (turnoutItem) => Padding(
                 padding: const EdgeInsets.only(bottom: 0.0),
-                child: _buildTurnoutProgressBar(data),
+                child: _buildTurnoutProgressBar(turnoutItem),
               ),
             ),
         if (showSeeMore)
@@ -162,8 +523,9 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
     );
   }
 
-  // pie chart area
-  Widget _buildPieAndLegend() {
+  Widget _buildPieAndLegend(int cast, int total) {
+    double percentage = total == 0 ? 0 : cast / total;
+
     return Row(
       children: [
         Expanded(
@@ -182,7 +544,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                 child: CircularPercentIndicator(
                   radius: 68.0,
                   lineWidth: 136.0,
-                  percent: turnoutData.totalPercentage,
+                  percent: percentage.clamp(0.0, 1.0),
                   backgroundColor: _redAccent,
                   progressColor: _blueHighlight,
                   circularStrokeCap: CircularStrokeCap.butt,
@@ -197,7 +559,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
           flex: 6,
           child: Column(
             children: [
-              _buildSummaryCardGroup(),
+              _buildSummaryCardGroup(percentage),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -221,7 +583,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                       ),
                     ),
                     Text(
-                      "80%",
+                      "${(percentage * 100).toStringAsFixed(0)}%",
                       style: TextStyle(
                         color: _textColor,
                         fontWeight: FontWeight.w400,
@@ -239,374 +601,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
     );
   }
 
-  //ongoing state
-  Widget _buildOngoingView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _bgColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Voter Turnout",
-                    style: TextStyle(
-                      color: _textColor,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                      fontFamily: 'Geist',
-                    ),
-                  ),
-                  RichText(
-                    text: TextSpan(
-                      style: TextStyle(
-                        color: _subTextColor,
-                        fontSize: 14,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w400,
-                      ),
-                      children: [
-                        const TextSpan(text: "Total: "),
-                        TextSpan(
-                          text:
-                              "${turnoutData.totalVotesCast}/${turnoutData.totalVoters}",
-                          style: TextStyle(
-                            color: _textColor,
-                            fontSize: 12,
-                            fontFamily: 'Geist',
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _buildBarsOnly(),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 20),
-        _buildPieAndLegend(),
-
-        const SizedBox(height: 30),
-        Center(
-          child: Text(
-            "Ongoing election, results not published yet.",
-            style: TextStyle(
-              color: _subTextColor,
-              fontSize: 16,
-              fontFamily: 'Geist',
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  //ended
-  Widget _buildEndedView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Info Header
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.only(
-            top: 16,
-            bottom: 16,
-            left: 22,
-            right: 22,
-          ),
-          decoration: BoxDecoration(
-            color: _bgColor,
-            borderRadius: BorderRadius.circular(20),
-             border: Border.all(
-                    color: const Color(0xFFD9D9D9),
-                    width: 1.0,
-                  ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "CSC Election",
-                style: TextStyle(
-                  color: _textColor,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Geist',
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "(S.Y. 2025-2026)",
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  fontFamily: 'Geist',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Published on: October 2, 2025",
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  fontFamily: 'Geist',
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // DROPDOWN CONTAINER 
-        Container(
-          decoration: BoxDecoration(
-            color: _bgColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            children: [
-              // Header
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isEndedTurnoutVisible = !_isEndedTurnoutVisible;
-                  });
-                },
-                child: Container(
-                  color: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFECECEC),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _isEndedTurnoutVisible
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          color: _textColor,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        "Voter Turnout",
-                        style: TextStyle(
-                          color: _textColor,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const Spacer(),
-                      RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            color: _subTextColor,
-                            fontSize: 14,
-                            fontFamily: 'Geist',
-                            fontWeight: FontWeight.w400,
-                          ),
-                          children: [
-                            const TextSpan(text: "Total:  "),
-                            TextSpan(
-                              text:
-                                  "${turnoutData.totalVotesCast}/${turnoutData.totalVoters}",
-                              style: TextStyle(
-                                color: _textColor,
-                                fontFamily: 'Geist',
-                                fontWeight: FontWeight.w400,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Expanded Content: bars
-              if (_isEndedTurnoutVisible)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 20,
-                    right: 20,
-                    bottom: 20,
-                  ),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 5),
-                      _buildBarsOnly(), 
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-
-        //Pie Chart
-        if (_isEndedTurnoutVisible) ...[
-          const SizedBox(height: 12),
-          _buildPieAndLegend(),
-        ],
-
-        const SizedBox(height: 24),
-
-        // Results List
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: resultsData.length,
-          itemBuilder: (context, index) {
-            return _buildPositionResultSection(
-              resultsData[index],
-              showHeader: index == 0,
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  
-  Widget _buildTurnoutProgressBar(VoteTurnout data) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final double totalWidth = constraints.maxWidth;
-
-          const TextStyle textStyle = TextStyle(
-            color: Color(0xFF404040),
-            fontSize: 12,
-            fontFamily: 'Geist',
-            fontWeight: FontWeight.w400,
-          );
-
-          final TextPainter percentPainter = TextPainter(
-            text: TextSpan(
-              text: "${(data.percentage * 100).toStringAsFixed(0)}%",
-              style: textStyle,
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-
-          final TextPainter fractionPainter = TextPainter(
-            text: TextSpan(
-              text: "${data.cast}/${data.total}",
-              style: textStyle,
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-
-          final double percentTextWidth = percentPainter.width;
-          final double fractionTextWidth = fractionPainter.width;
-          const double gap = 16.0;
-
-          return TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0.0, end: data.percentage),
-            duration: const Duration(milliseconds: 1500),
-            curve: Curves.easeOutCubic,
-            builder: (context, animatedPercentage, child) {
-              final double currentBarEnd = totalWidth * animatedPercentage;
-              final double maxAllowedRight =
-                  totalWidth - percentTextWidth - gap;
-
-              final double actualRightEdge = (currentBarEnd < maxAllowedRight)
-                  ? currentBarEnd
-                  : maxAllowedRight;
-
-              final double finalLeftPosition =
-                  (actualRightEdge - fractionTextWidth) > 0
-                      ? (actualRightEdge - fractionTextWidth)
-                      : 0;
-
-              return Container(
-                height: 34,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(50),
-                  border: Border.all(
-                    color: const Color(0xFFECECEC),
-                    width: 3.0,
-                  ),
-                ),
-                child: Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    Container(
-                      width: currentBarEnd,
-                      height: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF74B6F9),
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 16.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(data.label, style: textStyle),
-                      ),
-                    ),
-                    Positioned(
-                      left: finalLeftPosition - 10,
-                      child: SizedBox(
-                        height: 34,
-                        child: Center(
-                          child: Text(
-                            "${data.cast}/${data.total}",
-                            style: textStyle,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12.0),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          "${(data.percentage * 100).toStringAsFixed(0)}%",
-                          style: textStyle,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSummaryCardGroup() {
+  Widget _buildSummaryCardGroup(double percentage) {
     return Container(
       decoration: BoxDecoration(
         color: _bgColor,
@@ -631,7 +626,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                   ),
                 ),
                 Text(
-                  "${(turnoutData.totalPercentage * 100).toStringAsFixed(0)}%",
+                  "${(percentage * 100).toStringAsFixed(0)}%",
                   style: TextStyle(
                     color: _textColor,
                     fontFamily: 'Geist',
@@ -667,7 +662,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                   ),
                 ),
                 Text(
-                  "${((1.0 - turnoutData.totalPercentage) * 100).toStringAsFixed(0)}%",
+                  "${((1.0 - percentage) * 100).toStringAsFixed(0)}%",
                   style: TextStyle(
                     color: _textColor,
                     fontWeight: FontWeight.w400,
@@ -682,9 +677,10 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
       ),
     );
   }
-  //Result under ung may positions
+
   Widget _buildPositionResultSection(
-    PositionResultDebugData data, {
+    String title,
+    List<dynamic> candidates, {
     bool showHeader = false,
   }) {
     return Column(
@@ -695,7 +691,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
           children: [
             Expanded(
               child: Text(
-                data.positionTitle,
+                title,
                 style: TextStyle(
                   color: _textColor,
                   fontSize: 20,
@@ -709,24 +705,31 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                 width: 73,
                 child: Text(
                   "No. of votes",
-                  style: TextStyle(color: _subTextColor, fontSize: 12, fontFamily: 'Geist', fontWeight: FontWeight.w400),
+                  style: TextStyle(
+                    color: _subTextColor,
+                    fontSize: 12,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w400,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
           ],
         ),
         const SizedBox(height: 6),
-        ...data.candidates.map(
-          (candidate) => _buildCandidateResultCard(candidate),
-        ),
+        ...candidates.map((candidate) => _buildCandidateResultCard(candidate)),
         const SizedBox(height: 24),
       ],
     );
   }
-  // eto ung mga candidates ung mga name and no of votes
-  Widget _buildCandidateResultCard(CandidateResult candidate) {
-    final Color cardColor = candidate.isWinner ? _yellowHighlight : _bgColor;
-    final BoxBorder border = candidate.isWinner
+
+  Widget _buildCandidateResultCard(dynamic candidate) {
+    final String name = candidate['name'] ?? 'Unknown';
+    final int votes = (candidate['votes'] as num?)?.toInt() ?? 0;
+    final bool isWinner = candidate['isWinner'] ?? false;
+
+    final Color cardColor = isWinner ? _yellowHighlight : _bgColor;
+    final BoxBorder border = isWinner
         ? Border.all(color: _yellowBorder, width: 2)
         : Border.all(color: const Color(0xFFECECEC), width: 2);
 
@@ -745,7 +748,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
               ),
               alignment: Alignment.centerLeft,
               child: Text(
-                candidate.name,
+                name,
                 style: TextStyle(
                   color: _textColor,
                   fontSize: 14,
@@ -768,7 +771,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
             ),
             alignment: Alignment.center,
             child: Text(
-              candidate.votes.toString(),
+              votes.toString(),
               style: TextStyle(
                 color: _textColor,
                 fontSize: 14,
@@ -778,6 +781,118 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTurnoutProgressBar(Map<String, dynamic> data) {
+    final String label = data['label'];
+    final int cast = data['cast'];
+    final int total = data['total'];
+    final double percentage = data['percentage'];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final double totalWidth = constraints.maxWidth;
+
+          const TextStyle textStyle = TextStyle(
+            color: Color(0xFF404040),
+            fontSize: 12,
+            fontFamily: 'Geist',
+            fontWeight: FontWeight.w400,
+          );
+
+          final TextPainter percentPainter = TextPainter(
+            text: TextSpan(
+              text: "${(percentage * 100).toStringAsFixed(0)}%",
+              style: textStyle,
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+
+          final TextPainter fractionPainter = TextPainter(
+            text: TextSpan(text: "$cast/$total", style: textStyle),
+            textDirection: TextDirection.ltr,
+          )..layout();
+
+          final double percentTextWidth = percentPainter.width;
+          final double fractionTextWidth = fractionPainter.width;
+          const double gap = 16.0;
+
+          return TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: percentage),
+            duration: const Duration(milliseconds: 1500),
+            curve: Curves.easeOutCubic,
+            builder: (context, animatedPercentage, child) {
+              final double currentBarEnd = totalWidth * animatedPercentage;
+              final double maxAllowedRight =
+                  totalWidth - percentTextWidth - gap;
+
+              final double actualRightEdge = (currentBarEnd < maxAllowedRight)
+                  ? currentBarEnd
+                  : maxAllowedRight;
+
+              final double finalLeftPosition =
+                  (actualRightEdge - fractionTextWidth) > 0
+                  ? (actualRightEdge - fractionTextWidth)
+                  : 0;
+
+              return Container(
+                height: 34,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: const Color(0xFFECECEC),
+                    width: 3.0,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Container(
+                      width: currentBarEnd,
+                      height: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF74B6F9),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(label, style: textStyle),
+                      ),
+                    ),
+                    Positioned(
+                      left: finalLeftPosition - 10,
+                      child: SizedBox(
+                        height: 34,
+                        child: Center(
+                          child: Text("$cast/$total", style: textStyle),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "${(percentage * 100).toStringAsFixed(0)}%",
+                          style: textStyle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
