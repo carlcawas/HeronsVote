@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'header.dart';
 import '../services/firebase_service.dart';
+import 'candidate_profile.dart'; 
+import 'sample_data.dart';
 
 class ElectedOfficialsPage extends StatefulWidget {
   final String uid;
@@ -86,21 +88,22 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
 
   // Finds the latest USC election and sets the stream or no-results flag.
   void _determineUscStream() async {
-    final electionQuery = await _service.getLatestUniversityElection().first;
+    final electionQuery = await _service.getUniversityOfficialsStream().first;
     if (!mounted) return;
 
     if (electionQuery.docs.isNotEmpty) {
       final String electionId = electionQuery.docs.first.id;
       setState(() {
-        _uscDisplayStream = _service.getElectionResultsStream(electionId);
+        _uscDisplayStream = _service.getUniversityOfficialsStream();
         _isUscLoading = false;
         _uscHasNoResults = false;
       });
     } else {
-      // No USC election found
       setState(() {
+        _uscDisplayStream = _service.getUniversityOfficialsStream(); 
+        
         _isUscLoading = false;
-        _uscHasNoResults = true;
+        _uscHasNoResults = false; 
       });
     }
   }
@@ -117,9 +120,8 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
     if (!mounted) return;
 
     if (electionQuery.docs.isNotEmpty) {
-      final String electionId = electionQuery.docs.first.id;
       setState(() {
-        _cscDisplayStream = _service.getElectionResultsStream(electionId);
+        _cscDisplayStream = _service.getElectionResultsStream(collegeId);
         _isCscLoading = false;
       });
     } else {
@@ -326,17 +328,39 @@ class OfficialListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CandidateProfilePage(
+              candidate: Candidate(
+                name: official.name,
+                role: official.position,
+                details: official.details,
+                partylist: official.party,
+                img: official.imgPath,
+                college: official.affiliation,
+                age: official.age, 
+                year: official.year,
+                advocacy: official.advocacy,
+                platform: official.platform,
+              ),
+            ),
+          ),
+        );
+      },
+      child: Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
-        height: 114,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
+          height: 114,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F7F7),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
             // Official's image
             Container(
               width: 100,
@@ -414,6 +438,7 @@ class OfficialListItem extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -427,6 +452,10 @@ class Official {
   final String details;
   final String? imgPath;
   final String affiliation;
+  final String age;
+  final String year;
+  final String advocacy;
+  final String platform;
 
   Official({
     required this.id,
@@ -436,20 +465,35 @@ class Official {
     required this.details,
     this.imgPath,
     required this.affiliation,
+    required this.age,
+    required this.year,
+    required this.advocacy,
+    required this.platform,
   });
 
   factory Official.fromFirestore(DocumentSnapshot doc, String affiliation) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    String partyVal = (data['slate'] as String?) ?? '';
+    if (partyVal.trim().isEmpty) {
+      partyVal = 'Independent';
+    }
 
-    final college = data['college'];
-    final year = data['year'];
+    final String? dbCollege = data['college_id'];
+    final String? year = data['year']?.toString(); 
+    
+    String? displayCollege = dbCollege;
+
+    if (displayCollege == null && affiliation != 'USC') {
+      displayCollege = affiliation;
+    }
 
     String fullDetails;
 
-    if (college != null && year != null) {
-      fullDetails = '$college - $year Year';
-    } else if (college != null) {
-      fullDetails = college.toString();
+    if (displayCollege != null && year != null) {
+      fullDetails = '$displayCollege - $year Year';
+    } else if (displayCollege != null) {
+      fullDetails = displayCollege;
     } else if (year != null) {
       fullDetails = '$year Year';
     } else {
@@ -460,10 +504,14 @@ class Official {
       id: doc.id,
       name: data['name'] ?? 'Unknown',
       position: data['position'] ?? 'Unknown',
-      party: data['party'] ?? 'No Party',
+      party: partyVal,
       details: fullDetails,
       imgPath: data['img'],
       affiliation: affiliation,
+      age: data['age']?.toString() ?? 'N/A',
+      year: year ?? 'N/A',
+      advocacy: data['advocacy'] ?? 'No Advocacy.',
+      platform: data['platform'] ?? 'No Platform.',
     );
   }
 }

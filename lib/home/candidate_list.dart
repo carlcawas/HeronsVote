@@ -133,6 +133,11 @@ class CandidateListPage extends StatelessWidget {
                             fullDetails = college.toString();
                           }
 
+                          String slateVal = data['slate'] as String? ?? '';
+                          if (slateVal.trim().isEmpty) {
+                            slateVal = 'Independent';
+                          }
+
                           final candidate = Candidate(
                             name: data['name'] ?? 'MissingNo?',
                             role: data['position'] ?? positionTitle,
@@ -141,7 +146,7 @@ class CandidateListPage extends StatelessWidget {
                             year: data['year'] ?? 'N/A',
                             college: data['college_id'] ?? 'N/A',
                             img: data['img'] as String?,
-                            partylist: data['slate'] ?? 'Independent',
+                            partylist: slateVal,
                             advocacy:
                                 data['advocacy'] ?? 'No advocacy provided.',
                             platform:

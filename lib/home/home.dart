@@ -3,6 +3,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'results.dart';
 import 'profile.dart';
+
+// for checking the internet
+import '../connection_wrapper.dart';
+
 import 'election_gateway.dart';
 
 // Import your page "bodies"
@@ -315,30 +319,32 @@ void initState() {
         // --- 2. THE BODY ---
         // This IndexedStack swaps the pages without losing their state
 
-        body: AnimatedSwitcher(
-          /* instant animation to
-          body: IndexedStack(
-            index: _selectedIndex,
-            children: _pages,
-          ),
-          */
+        body: ConnectionAwareBody(
+          child: AnimatedSwitcher(
+            /* instant animation to
+            body: IndexedStack(
+              index: _selectedIndex,
+              children: _pages,
+            ),
+            */
 
-          // with fade animation, contemplating if maganda lagyan o mas maganda if instant
-          duration: const Duration(milliseconds: 350),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            final fadeInAnimation = CurvedAnimation(
-              parent: animation,
-              curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-            );
-            return FadeTransition(
-              opacity: fadeInAnimation,
-              child: child,
-            );
-          },
-          child: IndexedStack(
-            key: ValueKey<int>(_selectedIndex),
-            index: _selectedIndex,
-            children: _pages,
+            // with fade animation, contemplating if maganda lagyan o mas maganda if instant
+            duration: const Duration(milliseconds: 350),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              final fadeInAnimation = CurvedAnimation(
+                parent: animation,
+                curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
+              );
+              return FadeTransition(
+                opacity: fadeInAnimation,
+                child: child,
+              );
+            },
+            child: IndexedStack(
+              key: ValueKey<int>(_selectedIndex),
+              index: _selectedIndex,
+              children: _pages,
+            ),
           ),
         ),
 

@@ -3,7 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/svg.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:heronsvote/services/firebase_service.dart';
 
 import 'header.dart';
@@ -187,19 +187,71 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   final AnnouncementProvider provider = AnnouncementProvider();
   List<Announcement> _announcements = [];
   bool _loading = true;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
-    _loadAnnouncements();
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> result) {
+      if (mounted) {
+        setState(() {
+          _isOffline = result.contains(ConnectivityResult.none);
+        });
+        
+        if (!_isOffline && _announcements.isEmpty) {
+          _loadAnnouncements();
+        }
+      }
+    });
+
+    _checkInternetAndLoad();
+  }
+
+  Future<void> _checkInternetAndLoad() async {
+    if (mounted) setState(() => _loading = true);
+
+    final connectivityResult = await (Connectivity().checkConnectivity());
+
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      if (mounted) {
+        setState(() {
+          _isOffline = true;
+          _loading = false;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _isOffline = false;
+        });
+      }
+      await _loadAnnouncements();
+    }
   }
 
   Future<void> _loadAnnouncements() async {
-    final data = await provider.getAnnouncements(widget.userId);
-    setState(() {
-      _announcements = data;
-      _loading = false;
-    });
+    try {
+      final data = await provider.getAnnouncements(widget.userId);
+      if (mounted) {
+        setState(() {
+          _announcements = data;
+          _loading = false;
+          _isOffline = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final connectivityResult = await (Connectivity().checkConnectivity());
+        if (connectivityResult.contains(ConnectivityResult.none)) {
+           setState(() {
+             _isOffline = true;
+             _loading = false;
+           });
+        } else {
+          setState(() => _loading = false);
+        }
+      }
+    }
   }
 
   /*void moveToRead(String announcementId) {
@@ -231,12 +283,6 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (_announcements.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text('No announcements available.')),
-      );
-    }
-
     final newAnnouncements = _announcements.where((a) => a.isNew).toList();
     final readAnnouncements = _announcements.where((a) => !a.isNew).toList();
 
@@ -261,45 +307,123 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
               title: 'Announcements',
               onBack: () => Navigator.pop(context),
             ),
-            
-            // Body
+
             Expanded(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 16),
-                      _AnnouncementSection(
-                        title: 'New',
-                        color: const Color(0xFFF2A464),
-                        dateGroups: newDateGroups,
-                        totalCount: newAnnouncements.length,
-                        userId: widget.userId,
-                        onMarkAsRead: moveToRead,
-                        
-                        //initiallyExpanded: false,
-                      ),
-                      const SizedBox(height: 16),
-                      _AnnouncementSection(
-                        title: 'Read',
-                        color: const Color(0xFF74B6F9),
-                        dateGroups: readDateGroups,
-                        totalCount: readAnnouncements.length,
-                        userId: widget.userId,
-                        onMarkAsRead: moveToRead,
-                        
-                        //initiallyExpanded: false,
-                      ),
-                      const SizedBox(height: 32),
-                    ],
+              child: Builder(builder: (context) {
+                
+                // Check Offline
+                if (_isOffline) {
+                   return _buildOfflineWidget();
+                }
+
+                // Check Loading
+                if (_loading) {
+                   return const Center(child: CircularProgressIndicator());
+                }
+
+                // Check Empty
+                if (_announcements.isEmpty) {
+                   return const Center(child: Text('No announcements available.'));
+                }
+            
+                // Body
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        _AnnouncementSection(
+                          title: 'New',
+                          color: const Color(0xFFF2A464),
+                          dateGroups: newDateGroups,
+                          totalCount: newAnnouncements.length,
+                          userId: widget.userId,
+                          onMarkAsRead: moveToRead,
+                          
+                          //initiallyExpanded: false,
+                        ),
+                        const SizedBox(height: 16),
+                        _AnnouncementSection(
+                          title: 'Read',
+                          color: const Color(0xFF74B6F9),
+                          dateGroups: readDateGroups,
+                          totalCount: readAnnouncements.length,
+                          userId: widget.userId,
+                          onMarkAsRead: moveToRead,
+                          
+                          //initiallyExpanded: false,
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
+            ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F7F7),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: const Icon(
+              Icons.wifi_off_rounded,
+              size: 50,
+              color: Color(0xFF747474),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "You're offline",
+            style: TextStyle(
+              color: Color(0xFF404040),
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            "Please check your internet connection\nto view announcements.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color(0xFF747474),
+              fontSize: 14,
+              height: 1.5,
+              fontFamily: 'Geist',
+            ),
+          ),
+          const SizedBox(height: 24),
+          TextButton(
+            onPressed: () {
+              _checkInternetAndLoad();
+            },
+            child: const Text(
+              "Try Again",
+              style: TextStyle(
+                color: Color(0xFF5C6AA0),
+                fontSize: 16,
+                fontFamily: 'Geist',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          )
+        ],
       ),
     );
   }
