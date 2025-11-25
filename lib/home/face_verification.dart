@@ -17,8 +17,8 @@ class FaceVerificationPage extends StatefulWidget {
   final String electionType;
 
   const FaceVerificationPage({
-    super.key, 
-    required this.selectedCandidates, 
+    super.key,
+    required this.selectedCandidates,
     required this.electionId,
     required this.electionType,
   });
@@ -155,33 +155,68 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       if (yawRatio < 0.80) throw "Please face the camera straight.";
 
       // Generate Embedding
-      final List<double> currentEmbedding = [];
+      final List<double> embedding = [];
+
+      final leftEyeInner = points[133];
+      final rightEyeInner = points[362];
+      final chin = points[152];
+      final leftCheek = points[234];
+      final rightCheek = points[454];
+
+      final anchors = [
+        noseTip,
+        leftEyeInner,
+        rightEyeInner,
+        chin,
+        leftCheek,
+        rightCheek,
+      ];
+
       for (final p in points) {
-        final double nx = (p.x - cx) / eyeDist;
-        final double ny = (p.y - cy) / eyeDist;
-        final double nz = (p.z - cz) / eyeDist;
-        currentEmbedding.addAll([nx, ny, nz]);
+        for (final a in anchors) {
+          final dx = (p.x - a.x) / eyeDist;
+          final dy = (p.y - a.y) / eyeDist;
+          final dz = (p.z - a.z) / eyeDist;
+          embedding.addAll([dx, dy, dz]);
+        }
       }
 
-      final double norm = sqrt(currentEmbedding.fold(0.0, (s, v) => s + v * v));
-      final List<double> normalizedCurrent = norm == 0
-          ? currentEmbedding
-          : currentEmbedding.map((e) => e / norm).toList();
+      final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
+
+      final List<double> normalizedCurrent = embedding
+          .map((v) => v / norm)
+          .toList();
 
       // Verify
       await _verifyUser(normalizedCurrent);
 
       // Cleanup
-      try { await file.delete(); } catch (_) {}
-
+      try {
+        await file.delete();
+      } catch (_) {}
     } catch (e) {
       _showError(e.toString().replaceAll("Exception: ", ""));
       await _cameraController!.resumePreview();
       setState(() => _processing = false);
     }
   }
+    double cosineSimilarity(List<double> a, List<double> b) {
+    double dot = 0.0;
+    double normA = 0.0;
+    double normB = 0.0;
 
-  // VERIFY WITH STORED IN FIRESTORE 
+    for (int i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    if (normA == 0 || normB == 0) return 0.0;
+
+    return dot / (sqrt(normA) * sqrt(normB));
+  }
+
+  // VERIFY WITH STORED IN FIRESTORE
   Future<void> _verifyUser(List<double> currentEmbedding) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw "User not logged in.";
@@ -190,13 +225,21 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
         .collection('users')
         .doc(user.uid)
         .get();
-        
+
     if (!doc.exists || !doc.data()!.containsKey('faceEmbedding')) {
       throw "No registered face found. Please contact admin.";
     }
 
     final List<dynamic> storedRaw = doc.data()!['faceEmbedding'];
     final List<double> storedEmbedding = storedRaw.cast<double>();
+
+
+    if (currentEmbedding.length != storedEmbedding.length) {
+      throw "Face embedding mismatch. Please re-register.";
+    }
+    debugPrint("Embedding length: ${currentEmbedding.length}");
+    double similarity = cosineSimilarity(currentEmbedding, storedEmbedding);
+    debugPrint("Cosine similarity: $similarity");
 
     double distance = 0.0;
     for (int i = 0; i < currentEmbedding.length; i++) {
@@ -205,9 +248,10 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     }
     distance = sqrt(distance);
 
-    const double verificationThreshold = 0.8;
-
-    if (distance <= verificationThreshold) {
+    //threshold
+    const double verificationThreshold = 0.15;
+    const double similarityThreshold = 0.995;
+    if (similarity >= similarityThreshold && distance <= verificationThreshold) {
       if (!mounted) return;
       await _submitFinalVote();
     } else {
@@ -222,7 +266,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
     try {
       final firestore = FirebaseFirestore.instance;
-      
+
       // Determine if elections or proposals
       final bool isProposal = widget.electionType == 'proposal';
       final String collectionPath = isProposal ? 'proposals' : 'elections';
@@ -230,21 +274,20 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       // Get User Profile
       final userDoc = await firestore.collection('users').doc(user.uid).get();
       if (!userDoc.exists) throw "User profile not found.";
-      
+
       final userData = userDoc.data()!;
-      final String userYear = userData['year_level'] ?? 'Unknown'; 
+      final String userYear = userData['year_level'] ?? 'Unknown';
       final String userCollege = userData['college_id'] ?? 'Unknown';
 
       // Run Transaction
       await firestore.runTransaction((transaction) async {
-        
         // ONE-VOTE ENFORCEMENT CHECK
         final ballotRef = firestore
             .collection(collectionPath) // Dynamic Path
             .doc(widget.electionId)
             .collection('votes')
             .doc(user.uid);
-            
+
         final ballotSnapshot = await transaction.get(ballotRef);
         if (ballotSnapshot.exists) {
           throw "You have already voted in this election.";
@@ -254,10 +297,10 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
         Map<String, dynamic> selectionsMap = {};
         widget.selectedCandidates.forEach((pos, candidate) {
           if (candidate != null) {
-             // For proposals, candidate.id might be null if created on the fly, fallback to name
-             String id = candidate.id ?? candidate.name; 
-             if (candidate.isAbstain) id = "ABSTAIN";
-             selectionsMap[pos] = id;
+            // For proposals, candidate.id might be null if created on the fly, fallback to name
+            String id = candidate.id ?? candidate.name;
+            if (candidate.isAbstain) id = "ABSTAIN";
+            selectionsMap[pos] = id;
           }
         });
 
@@ -277,55 +320,57 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
         transaction.set(generalStatsRef, {
           'total_votes_cast': FieldValue.increment(1),
-          'by_year_level': { userYear: FieldValue.increment(1) }
+          'by_year_level': {userYear: FieldValue.increment(1)},
         }, SetOptions(merge: true));
 
         // UPDATE PROPOSAL MAIN VOTE COUNT
         if (isProposal) {
-          final proposalRef = firestore.collection('proposals').doc(widget.electionId);
+          final proposalRef = firestore
+              .collection('proposals')
+              .doc(widget.electionId);
           transaction.update(proposalRef, {
-            'vote_count': FieldValue.increment(1)
+            'vote_count': FieldValue.increment(1),
           });
         }
 
         // UPDATE CANDIDATE/OPTION STATS
         widget.selectedCandidates.forEach((position, candidate) {
           if (candidate != null) {
-             DocumentReference statsRef;
-             String name;
-             bool isAbstain = candidate.isAbstain;
+            DocumentReference statsRef;
+            String name;
+            bool isAbstain = candidate.isAbstain;
 
-             // Logic for ID generation
-             String docId;
-             if (isAbstain) {
-                 final String safePos = position.replaceAll(RegExp(r'\s+'), '_');
-                 docId = 'abstain_$safePos';
-                 name = "Abstain";
-             } else if (isProposal) {
-                 // For proposals, use "Yes" or "No" as ID
-                 docId = candidate.name; 
-                 name = candidate.name;
-             } else if (candidate.id != null) {
-                 docId = candidate.id!;
-                 name = candidate.name;
-             } else {
-                 return; // Skip invalid
-             }
+            // Logic for ID generation
+            String docId;
+            if (isAbstain) {
+              final String safePos = position.replaceAll(RegExp(r'\s+'), '_');
+              docId = 'abstain_$safePos';
+              name = "Abstain";
+            } else if (isProposal) {
+              // For proposals, use "Yes" or "No" as ID
+              docId = candidate.name;
+              name = candidate.name;
+            } else if (candidate.id != null) {
+              docId = candidate.id!;
+              name = candidate.name;
+            } else {
+              return; // Skip invalid
+            }
 
-             statsRef = firestore
-                 .collection(collectionPath)
-                 .doc(widget.electionId)
-                 .collection('stats')
-                 .doc(docId);
+            statsRef = firestore
+                .collection(collectionPath)
+                .doc(widget.electionId)
+                .collection('stats')
+                .doc(docId);
 
-             // Atomic Increment
-             transaction.set(statsRef, {
-               'name': name,
-               'position': position,
-               'is_abstain': isAbstain,
-               'total_votes': FieldValue.increment(1),
-               'by_year_level': { userYear: FieldValue.increment(1) }
-             }, SetOptions(merge: true));
+            // Atomic Increment
+            transaction.set(statsRef, {
+              'name': name,
+              'position': position,
+              'is_abstain': isAbstain,
+              'total_votes': FieldValue.increment(1),
+              'by_year_level': {userYear: FieldValue.increment(1)},
+            }, SetOptions(merge: true));
           }
         });
       });
@@ -338,13 +383,13 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           builder: (context) => VoteSubmittedPage(uid: user.uid),
         ),
       );
-
     } catch (e) {
       if (!mounted) return;
       String msg = e.toString();
-      if (msg.contains("FirebaseException")) msg = "Network error. Please try again.";
+      if (msg.contains("FirebaseException"))
+        msg = "Network error. Please try again.";
       if (msg.contains("already voted")) msg = "Vote already recorded.";
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Submission Failed: $msg"),

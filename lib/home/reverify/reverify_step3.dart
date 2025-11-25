@@ -300,17 +300,36 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       }
 
       final List<double> embedding = [];
+
+      final leftEyeInner = points[133];
+      final rightEyeInner = points[362];
+      final chin = points[152];
+      final leftCheek = points[234];
+      final rightCheek = points[454];
+
+      final anchors = [
+        noseTip,
+        leftEyeInner,
+        rightEyeInner,
+        chin,
+        leftCheek,
+        rightCheek,
+      ];
+
       for (final p in points) {
-        final double nx = (p.x - cx) / eyeDist;
-        final double ny = (p.y - cy) / eyeDist;
-        final double nz = (p.z - cz) / eyeDist;
-        embedding.addAll([nx, ny, nz]);
+        for (final a in anchors) {
+          final dx = (p.x - a.x) / eyeDist;
+          final dy = (p.y - a.y) / eyeDist;
+          final dz = (p.z - a.z) / eyeDist;
+          embedding.addAll([dx, dy, dz]);
+        }
       }
 
       final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
-      final List<double> normalized = norm == 0
-          ? embedding
-          : embedding.map((e) => e / norm).toList();
+
+      final List<double> normalizedEmbedding = embedding
+          .map((v) => v / norm)
+          .toList();
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -320,13 +339,14 @@ class _RegistrationStep3State extends State<RegistrationStep3>
         return;
       }
 
-      await FirebaseFirestore.instance
+        await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
-            'faceEmbedding': normalized,
+            'faceEmbedding': normalizedEmbedding,
             'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
           });
+
 
       try {
         await file.delete();
