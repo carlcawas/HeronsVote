@@ -1,7 +1,8 @@
+// election_gateway.dart
+
 import 'package:flutter/material.dart';
 import 'package:heronsvote/home/elect_select.dart';
 
-// 1. Define the function signature (typedef)
 typedef ElectionContentBuilder = Widget Function(
   BuildContext context,
   Map<String, dynamic> electionData,
@@ -11,8 +12,11 @@ typedef ElectionContentBuilder = Widget Function(
 class ElectionGateway extends StatefulWidget {
   final String uid;
   final Future<List<Map<String, dynamic>>> Function(String) fetchElections;
-  final ElectionContentBuilder contentBuilder; 
+  final ElectionContentBuilder contentBuilder;
   final String emptyMessage;
+  
+  // 1. ADD THIS FLAG
+  final bool isResultMode; 
 
   const ElectionGateway({
     super.key,
@@ -20,6 +24,7 @@ class ElectionGateway extends StatefulWidget {
     required this.fetchElections,
     required this.contentBuilder,
     this.emptyMessage = "No elections available.",
+    this.isResultMode = false, // Default is Voting Mode
   });
 
   @override
@@ -51,6 +56,7 @@ class _ElectionGatewayState extends State<ElectionGateway> {
         final elections = snapshot.data ?? [];
 
         if (elections.isEmpty) {
+          // NOTE: If in Result Mode, you might want to show "No results yet" instead
           return Center(child: Text(widget.emptyMessage));
         }
 
@@ -58,7 +64,9 @@ class _ElectionGatewayState extends State<ElectionGateway> {
         if (elections.length > 1 && _selectedElection == null) {
           return ElectionSelectionPage(
             uid: widget.uid,
-            elections: elections,
+            activeElections: elections,
+            // 2. PASS THE FLAG HERE
+            isResultMode: widget.isResultMode, 
             onElectionSelected: (selected) {
               setState(() {
                 _selectedElection = selected;

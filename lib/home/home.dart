@@ -3,10 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'results.dart';
 import 'profile.dart';
-
-// for checking the internet
-import '../connection_wrapper.dart';
-
 import 'election_gateway.dart';
 
 // Import your page "bodies"
@@ -25,9 +21,7 @@ import 'announcement.dart';
 // Import your Firebase service
 import '../services/firebase_service.dart';
 
-
 class HomeScreen extends StatefulWidget {
-
   final String uid;
   const HomeScreen({super.key, required this.uid});
 
@@ -36,7 +30,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
   // This will hold the currently selected tab index (0 = Home)
   int _selectedIndex = 0;
   DateTime? currentBackPressTime;
@@ -46,60 +39,56 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // This is the Firebase service to get user data
   final FirebaseService _firebaseService = FirebaseService();
-  
 
   // home.dart
 
-@override
-void initState() {
-  super.initState();
-  _pages = [
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      // 0. Home Tab
+      HomeBody(uid: widget.uid, onTabChange: _onItemTapped),
 
-    // 0. Home Tab
-    HomeBody(uid: widget.uid, onTabChange: _onItemTapped),
+      // 1. Candidates Tab
+      CandidatesViewBody(uid: widget.uid),
 
-    // 1. Candidates Tab
-    CandidatesViewBody(uid: widget.uid),
+      // 2. Voting Tab (Index 2)
+      // In your home_screen.dart or where you define tabs
+      ElectionGateway(
+        uid: widget.uid,
+        fetchElections:
+            _firebaseService.getActiveElectionsForUser, // Fetches ONGOING only
+        isResultMode: false, // Default (Voting logic applied)
+        contentBuilder: (context, electionData, onBack) {
+          return VotingHomePage(
+            uid: widget.uid,
+            electionData: electionData,
+            onBack: onBack,
+          );
+        },
+      ),
 
-    // 2. Voting Tab (Index 2)
-    ElectionGateway(
-      uid: widget.uid,
-      emptyMessage: "No active elections to vote on.",
-      
-      // REQUIRED ARGUMENT 1: The function to fetch active election data
-      fetchElections: (uid) => _firebaseService.getActiveElectionsForUser(uid),
-      
-      // REQUIRED ARGUMENT 2: The widget to build when an election is selected (Voting Page)
-      contentBuilder: (context, electionData, onBack) {
-        // Assuming VotingHomePage is the page where the user casts their vote
-        return VotingHomePage( 
-          uid: widget.uid,
-          electionData: electionData,
-          onBack: onBack,
-        );
-      },
-    ),
+      // 3. Results Tab (Index 3)
+      ElectionGateway(
+        uid: widget.uid,
+        emptyMessage: "No results available yet.",
+        
+        // CRITICAL CHANGE HERE:
+        isResultMode: true, // <--- MUST BE TRUE to allow clicking even if voted
 
-    // 3. Results Tab (Index 3)
-    ElectionGateway(
-      uid: widget.uid,
-      emptyMessage: "No results available yet.",
-      
-      // REQUIRED ARGUMENT 1: The function to fetch relevant (ended) results
-      fetchElections: (uid) => _firebaseService.getRelevantElectionsForUser(uid),
-      
-      // REQUIRED ARGUMENT 2: The widget to build when an election is selected (Results Page)
-      contentBuilder: (context, electionData, onBack) {
-        // Assuming ElectionResultPage displays the results and details
-        return ElectionResultPage( 
-          uid: widget.uid,
-          electionData: electionData,
-          onBack: onBack,
-        );
-      },
-    ),
-  ];
-}
+        // Fetch active AND ended elections here
+        fetchElections: (uid) => _firebaseService.getRelevantElectionsForUser(uid),
+
+        contentBuilder: (context, electionData, onBack) {
+          return ElectionResultPage(
+            uid: widget.uid,
+            electionData: electionData,
+            onBack: onBack,
+          );
+        },
+      ),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -114,15 +103,16 @@ void initState() {
         'assets/bottom_nav/${iconName}_${isActive ? 'active' : 'inactive'}.svg';
     return SvgPicture.asset(assetPath, width: 21, height: 19);
   }
-  
+
   // 2 backs swipe to exit app function - hindi to nagana ewan baket, kinuha koto sa luma eh pinaste kolang here
-  Future<bool> _onWillPop() async { //saka ko nalang ayusin - rik
+  Future<bool> _onWillPop() async {
+    //saka ko nalang ayusin - rik
     DateTime now = DateTime.now();
     if (_selectedIndex != 0) {
       setState(() {
         _selectedIndex = 0;
       });
-      return false; 
+      return false;
     }
     if (currentBackPressTime == null ||
         now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
@@ -138,7 +128,7 @@ void initState() {
     }
     return true;
   }
-  
+
   // --- START OF PERSISTENT DYNAMIC APP BAR LOGIC ---
   // This helper builds the correct title for the current tab
   Widget _buildAppBarTitle() {
@@ -164,6 +154,7 @@ void initState() {
         return const SizedBox.shrink();
     }
   }
+
   // A small, dedicated StreamBuilder just for the "Hello, [name]" title
   Widget _buildHomeTitle(TextStyle style) {
     return StreamBuilder<DocumentSnapshot>(
@@ -182,16 +173,16 @@ void initState() {
     );
   }
 
-
   // These are the persistent action buttons for the AppBar - FIXED ripple effect
   List<Widget> _buildAppBarActions() {
     return [
       // First Button - Announcement
       Padding(
         padding: const EdgeInsets.only(right: 8),
-        child: ClipOval( // This clips the ripple effect to a circle
+        child: ClipOval(
+          // This clips the ripple effect to a circle
           child: Material(
-            color: const Color(0xFFEEEEEE), 
+            color: const Color(0xFFEEEEEE),
             child: InkWell(
               onTap: () {
                 // GOTO: ANNOUNCEMENT
@@ -227,15 +218,18 @@ void initState() {
       //Second Button - Account
       Padding(
         padding: const EdgeInsets.only(right: 25),
-        child: ClipOval( // Clips the ripple
+        child: ClipOval(
+          // Clips the ripple
           child: Material(
             color: const Color(0xFFEEEEEE),
             child: InkWell(
-             onTap: () {
-                 Navigator.push(
-                   context, 
-                   MaterialPageRoute(builder: (context) => ProfilePage(uid: widget.uid))
-                 );
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ProfilePage(uid: widget.uid),
+                  ),
+                );
               },
               child: SizedBox(
                 width: 45,
@@ -258,7 +252,6 @@ void initState() {
   }
   // --- END OF APP BAR LOGIC ---
 
-
   @override
   Widget build(BuildContext context) {
     // WillPopScope handles the "press back again to exit" logic
@@ -274,10 +267,10 @@ void initState() {
           scrolledUnderElevation: 0,
 
           //Flutter has built inn back btn sa app bar, this forces it to hide it
-          automaticallyImplyLeading: false, 
+          automaticallyImplyLeading: false,
 
           // This controls the padding for the title
-          titleSpacing: 25.0, 
+          titleSpacing: 25.0,
 
           // ripple feedback color
           iconTheme: IconThemeData(color: Colors.black),
@@ -286,26 +279,24 @@ void initState() {
           //title: _buildAppBarTitle(),
           //with fade animation here:
           title: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350), 
+            duration: const Duration(milliseconds: 350),
             transitionBuilder: (Widget child, Animation<double> animation) {
               final fadeInAnimation = CurvedAnimation(
                 parent: animation,
                 curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
               );
-              return FadeTransition(
-                opacity: fadeInAnimation,
-                child: child,
-              );
+              return FadeTransition(opacity: fadeInAnimation, child: child);
             },
-            layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
-              return Stack(
-                alignment: AlignmentDirectional.centerStart, 
-                children: <Widget>[
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
-              );
-            },
+            layoutBuilder:
+                (Widget? currentChild, List<Widget> previousChildren) {
+                  return Stack(
+                    alignment: AlignmentDirectional.centerStart,
+                    children: <Widget>[
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
             child: _buildAppBarTitle(),
           ),
 
@@ -318,37 +309,29 @@ void initState() {
 
         // --- 2. THE BODY ---
         // This IndexedStack swaps the pages without losing their state
+        body: AnimatedSwitcher(
+          /* instant animation to
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: _pages,
+          ),
+          */
 
-        body: ConnectionAwareBody(
-          child: AnimatedSwitcher(
-            /* instant animation to
-            body: IndexedStack(
-              index: _selectedIndex,
-              children: _pages,
-            ),
-            */
-
-            // with fade animation, contemplating if maganda lagyan o mas maganda if instant
-            duration: const Duration(milliseconds: 350),
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              final fadeInAnimation = CurvedAnimation(
-                parent: animation,
-                curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
-              );
-              return FadeTransition(
-                opacity: fadeInAnimation,
-                child: child,
-              );
-            },
-            child: IndexedStack(
-              key: ValueKey<int>(_selectedIndex),
-              index: _selectedIndex,
-              children: _pages,
-            ),
+          // with fade animation, contemplating if maganda lagyan o mas maganda if instant
+          duration: const Duration(milliseconds: 350),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            final fadeInAnimation = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
+            );
+            return FadeTransition(opacity: fadeInAnimation, child: child);
+          },
+          child: IndexedStack(
+            key: ValueKey<int>(_selectedIndex),
+            index: _selectedIndex,
+            children: _pages,
           ),
         ),
-
-
 
         // --- 3. THE BOTTOM NAVIGATION BAR ---
         bottomNavigationBar: Container(
@@ -368,10 +351,10 @@ void initState() {
             showSelectedLabels: false,
             showUnselectedLabels: false,
             type: BottomNavigationBarType.fixed,
-            
+
             // This is the CORRECT onTap for the IndexedStack pattern
-            onTap: _onItemTapped, 
-            
+            onTap: _onItemTapped,
+
             currentIndex: _selectedIndex,
             items: [
               BottomNavigationBarItem(
@@ -397,4 +380,3 @@ void initState() {
     );
   }
 }
-

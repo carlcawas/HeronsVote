@@ -5,14 +5,18 @@ import 'profile.dart';
 
 class ElectionSelectionPage extends StatefulWidget {
   final String uid;
-  final List<Map<String, dynamic>> elections;
+  final List<Map<String, dynamic>> activeElections; // Or 'elections'
   final Function(Map<String, dynamic>) onElectionSelected;
+  
+  // 1. ADD THIS FLAG
+  final bool isResultMode; 
 
   const ElectionSelectionPage({
-    super.key, 
-    required this.uid, 
-    required this.elections,
+    super.key,
+    required this.uid,
+    required this.activeElections,
     required this.onElectionSelected,
+    this.isResultMode = false, // Default is false (Voting Mode)
   });
 
   @override
@@ -21,25 +25,44 @@ class ElectionSelectionPage extends StatefulWidget {
 
 class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
   bool _isVerified = true;
-  bool _allVoted = false;
   bool _isLoading = true;
+  bool _allVoted = false;
 
   @override
   void initState() {
     super.initState();
-    _checkVerification();
+    _checkStatus();
   }
 
-  Future<void> _checkVerification() async {
+  Future<void> _checkStatus() async {
     try {
+      // 1. Check Verification (Always needed for security)
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.uid)
           .get();
 
+      bool verified = true;
+      if (userDoc.exists) {
+        verified = userDoc.data()?['isVerified'] ?? false;
+      }
+
+      // 2. CHECK MODE: If isResultMode, SKIP vote checking logic
+      if (widget.isResultMode) {
+        if (mounted) {
+          setState(() {
+            _isVerified = verified;
+            _allVoted = false; // Never show "Voting Complete" screen in Results
+            _isLoading = false;
+          });
+        }
+        return; // EXIT EARLY
+      }
+
+      // --- VOTING MODE LOGIC (Only runs if !isResultMode) ---
       int votedCount = 0;
-      if (widget.elections.isNotEmpty) {
-        for (var election in widget.elections) {
+      if (widget.activeElections.isNotEmpty) {
+        for (var election in widget.activeElections) {
           final String id = election['id'];
           final String type = election['type'] ?? 'election';
           final hasVoted = await _hasUserVoted(id, type);
@@ -48,18 +71,22 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
           }
         }
       }
-      if (userDoc.exists && mounted) {
+
+      if (mounted) {
         setState(() {
-          _isVerified = userDoc.data()?['isVerified'] ?? false;
-          _allVoted = widget.elections.isNotEmpty && votedCount == widget.elections.length;
+          _isVerified = verified;
+          _allVoted = widget.activeElections.isNotEmpty && 
+                      votedCount == widget.activeElections.length;
           _isLoading = false;
         });
       }
     } catch (e) {
-      print("Error fetching user: $e");
+      print("Error checking status: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // Helper (unchanged)
   Future<bool> _hasUserVoted(String electionId, String type) async {
     try {
       final collection = (type == 'proposal') ? 'proposals' : 'elections';
@@ -74,7 +101,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
       return false;
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -87,96 +114,86 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
     if (!_isVerified) {
       return Scaffold(
         backgroundColor: Colors.white,
-        body: _buildNotVerifiedCard(),
+        body: _buildNotVerifiedCard(), // Assuming this is defined in your file
       );
     }
-    if (_allVoted) {
+
+    // Only show "All Voted" screen if NOT in result mode
+    if (_allVoted && !widget.isResultMode) {
       return const Scaffold(
         backgroundColor: Colors.white,
-        body: SafeArea(child: VotingCompletePageBody()), 
+        body: SafeArea(child: VotingCompletePageBody()), // Ensure this class is imported/defined
       );
     }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 25.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
+              
+              // HEADER CARD
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(20),
-                  /*boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 2,
-                      blurRadius: 5,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],*/
+                  borderRadius: BorderRadius.circular(15),
+                  // Removed shadow as per your previous code style if needed
                   border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Choose Election',
-                      style: TextStyle(
+                    Text(
+                      // Change Title based on Mode
+                      widget.isResultMode ? 'View Results' : 'Choose Election',
+                      style: const TextStyle(
                         color: Color(0xFF404040),
-                        fontSize: 24,
+                        fontSize: 20,
                         fontFamily: 'Geist',
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     Text(
-                      'You have ${widget.elections.length} active elections.\nPlease select one to continue.',
+                      widget.isResultMode
+                          ? 'Select an election to view the live results.'
+                          : 'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
                       style: const TextStyle(
                         color: Color(0xFF747474),
                         fontSize: 14,
                         fontFamily: 'Geist',
-                        //height: 1.4,
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 22),
+              const SizedBox(height: 30),
 
-              Padding(
-                padding: const EdgeInsets.only(left: 4.0),
-                child: const Text(
-                  'Active Election',
-                  style: TextStyle(
-                    color: Color(0xFF404040),
-                    fontSize: 14,
-                    fontFamily: 'Geist',
-                    fontWeight: FontWeight.w500,
-                  ),
+              Text(
+                widget.isResultMode ? 'All Elections' : 'Active Election',
+                style: const TextStyle(
+                  color: Color(0xFF404040),
+                  fontSize: 14,
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w500,
                 ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
 
-              //list election
+              // LIST CONTAINER
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(20),
-                  /*boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 2,
-                      blurRadius: 5,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],*/
+                  borderRadius: BorderRadius.circular(15),
                   border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
                 ),
                 child: ClipRRect(
@@ -185,8 +202,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     padding: EdgeInsets.zero,
-                    itemCount: widget.elections.length,
-                  
+                    itemCount: widget.activeElections.length,
                     separatorBuilder: (context, index) => const Divider(
                       height: 1,
                       thickness: 1,
@@ -195,66 +211,30 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                       endIndent: 20,
                     ),
                     itemBuilder: (context, index) {
-                      final election = widget.elections[index];
+                      final election = widget.activeElections[index];
                       final String electionId = election['id'] ?? '';
                       final String type = election['type'] ?? 'election';
 
+                      // IF RESULT MODE: Return clickable tile immediately (no DB check)
+                      if (widget.isResultMode) {
+                        return _buildListTile(
+                          election: election, 
+                          isDisabled: false, 
+                          showVotedBadge: false
+                        );
+                      }
+
+                      // IF VOTING MODE: Check DB for vote status
                       return FutureBuilder<bool>(
                         future: _hasUserVoted(electionId, type),
                         builder: (context, snapshot) {
                           final bool hasVoted = snapshot.data ?? false;
-                          final bool isChecking =
-                              snapshot.connectionState == ConnectionState.waiting;
-
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: (hasVoted || isChecking)
-                                  ? null
-                                  : () {
-                                      widget.onElectionSelected(election);
-                                    },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 24, horizontal: 24),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        election['title'] ?? 'Election',
-                                        style: TextStyle(
-                                          // Grey out text if voted
-                                          color: hasVoted
-                                              ? Colors.grey
-                                              : const Color(0xFF404040),
-                                          fontSize: 16,
-                                          fontFamily: 'Geist',
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    if (hasVoted)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Color(0xFFBBEDBB),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: const Text(
-                                          "Voted",
-                                          style: TextStyle(
-                                            color: Color(0xFF76D675),
-                                            fontSize: 12,
-                                            fontFamily: 'Geist',
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                          final bool isChecking = snapshot.connectionState == ConnectionState.waiting;
+                          
+                          return _buildListTile(
+                            election: election, 
+                            isDisabled: hasVoted || isChecking, 
+                            showVotedBadge: hasVoted
                           );
                         },
                       );
@@ -263,6 +243,61 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                 ),
               ),
               const SizedBox(height: 50),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Reusable Tile Helper to keep build clean
+  Widget _buildListTile({
+    required Map<String, dynamic> election, 
+    required bool isDisabled, 
+    required bool showVotedBadge
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isDisabled
+            ? null
+            : () {
+                widget.onElectionSelected(election);
+              },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  election['title'] ?? 'Election',
+                  style: TextStyle(
+                    // Grey out only if disabled in voting mode
+                    color: isDisabled && showVotedBadge 
+                        ? Colors.grey 
+                        : const Color(0xFF404040),
+                    fontSize: 16,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (showVotedBadge)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFBBEDBB),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    "Voted",
+                    style: TextStyle(
+                      color: Color(0xFF76D675),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
