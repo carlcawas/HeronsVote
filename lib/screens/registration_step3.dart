@@ -11,7 +11,7 @@ import 'package:image/image.dart' as img;
 
 class RegistrationStep3 extends StatefulWidget {
   final String? uid;
-  const RegistrationStep3({super.key, required this.uid,});
+  const RegistrationStep3({super.key, required this.uid});
 
   @override
   State<RegistrationStep3> createState() => _RegistrationStep3State();
@@ -32,7 +32,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   @override
   void initState() {
     super.initState();
-    // Save user's registration step 
+    // Save user's registration step
     _saveRegisterStep();
 
     _panelController = AnimationController(
@@ -78,9 +78,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   Future<void> _saveRegisterStep() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-    await userRef.set({
-        'registration_step' : 3,
-      }, SetOptions(merge: true));
+    await userRef.set({'registration_step': 3}, SetOptions(merge: true));
   }
 
   Future<void> _initCameraAndPermission() async {
@@ -124,8 +122,15 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       return;
     }
     if (_processing) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showError("User not logged in.");
+      await _cameraController!.resumePreview();
+      setState(() => _processing = false);
+      return;
+    }
 
-  setState(() => _processing = true);
+    setState(() => _processing = true);
     try {
       final XFile raw = await _cameraController!.takePicture();
       await _cameraController!.pausePreview();
@@ -133,7 +138,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       // Check if too captured img is dark
       if (await _isImageTooDark(file)) {
-        _showError("Surrounding is too dark. Please move to a brighter area and try again.");
+        _showError(
+          "Surrounding is too dark. Please move to a brighter area and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -143,10 +150,12 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final imageBytes = await file.readAsBytes();
       final decoded = img.decodeImage(imageBytes);
 
-      // if < 30 --- less strict 
+      // if < 30 --- less strict
       // if < 80 --- more strict
       if (decoded != null && _imageSharpness(decoded) < 80) {
-        _showError("Image is blurry. Please keep the camera stable and try again.");
+        _showError(
+          "Image is blurry. Please keep the camera stable and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -156,7 +165,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final meshes = await _meshDetector.processImage(inputImage);
 
       if (meshes.isEmpty) {
-        _showError("No face detected. Please face the camera directly and try again.");
+        _showError(
+          "No face detected. Please face the camera directly and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -176,7 +187,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       // geometry-based checks
       final leftEye = points[33];
       final rightEye = points[263];
-      
+
       if (leftEye.x.isNaN || rightEye.x.isNaN) {
         _showError("Invalid mesh data. Try again.");
         await _cameraController!.resumePreview();
@@ -192,22 +203,26 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       // can be adjusted
       // if < 7 --- less strict
-      // if < 15 --- more strict 
+      // if < 15 --- more strict
       if (eyeDist < 15) {
-        _showError("Face is far or partially covered. Please move closer and try again.",);
+        _showError(
+          "Face is far or partially covered. Please move closer and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
       }
 
-      // Glasses check 
+      // Glasses check
       final eyesBrightness = await _regionBrightness(file, leftEye, rightEye);
-      
+
       // can be adjusted to adjust eye strictness
       // if < 40 --- less strict
       // if < 60 --- more strict
       if (eyesBrightness < 55) {
-        _showError("Please remove obstruction for clearer face detection and try again.");
+        _showError(
+          "Please remove obstruction for clearer face detection and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -223,13 +238,13 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final double imageHeight = decoded.height.toDouble();
       final double imageCenterX = imageWidth / 2.0;
       final double imageCenterY = imageHeight / 2.0;
-      
+
       final double cx = (leftEye.x + rightEye.x) / 2.0;
       final double cy = (leftEye.y + rightEye.y) / 2.0;
       final double cz = (leftEye.z + rightEye.z) / 2.0;
 
       // tolerance 0.20 = 20% can be adjusted to be more/less strict
-      final double allowedHorizontalOffset = imageWidth * 0.15; 
+      final double allowedHorizontalOffset = imageWidth * 0.15;
       final double allowedVerticalOffset = imageHeight * 0.15;
 
       if ((cx - imageCenterX).abs() > allowedHorizontalOffset ||
@@ -253,8 +268,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final noseTip = points[1];
       final double distLeft = (noseTip.x - leftEye.x).abs();
       final double distRight = (noseTip.x - rightEye.x).abs();
-      final double yawRatio = min(distLeft, distRight) / max(distLeft, distRight);
-      
+      final double yawRatio =
+          min(distLeft, distRight) / max(distLeft, distRight);
+
       // 0.70 = 30% turn
       // can be adjusted to 0.80+ for stricter.
       const double minYawThreshold = 0.80;
@@ -271,9 +287,11 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final double lipDist = (lipBottom.y - lipTop.y).abs();
 
       // Can be adjusted, mouth open < 40% of eye distance
-      const double maxMouthOpenRatio = 0.4; 
+      const double maxMouthOpenRatio = 0.4;
       if ((lipDist / eyeDist) > maxMouthOpenRatio) {
-        _showError("Please close your mouth for a neutral expression and try again.");
+        _showError(
+          "Please close your mouth for a neutral expression and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -289,8 +307,8 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final double rightEyeOpenness = (rightEyeBottom.y - rightEyeTop.y).abs();
 
       // can be adjusted eye openness 0.05 - less strict 0.10 - more strict
-      const double minEyeOpenRatio = 0.07; 
-      if ((leftEyeOpenness / eyeDist) < minEyeOpenRatio || 
+      const double minEyeOpenRatio = 0.07;
+      if ((leftEyeOpenness / eyeDist) < minEyeOpenRatio ||
           (rightEyeOpenness / eyeDist) < minEyeOpenRatio) {
         _showError("Please keep both of your eyes open and try again.");
         await _cameraController!.resumePreview();
@@ -299,31 +317,43 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       }
 
       final List<double> embedding = [];
+
+      final leftEyeInner = points[133];
+      final rightEyeInner = points[362];
+      final chin = points[152];
+      final leftCheek = points[234];
+      final rightCheek = points[454];
+
+      // Pick stable anchor points:
+      final anchors = [
+        noseTip,
+        leftEyeInner,
+        rightEyeInner,
+        chin,
+        leftCheek,
+        rightCheek,
+      ];
+
       for (final p in points) {
-        final double nx = (p.x - cx) / eyeDist;
-        final double ny = (p.y - cy) / eyeDist;
-        final double nz = (p.z - cz) / eyeDist;
-        embedding.addAll([nx, ny, nz]);
+        for (final a in anchors) {
+          final dx = (p.x - a.x) / eyeDist;
+          final dy = (p.y - a.y) / eyeDist;
+          final dz = (p.z - a.z) / eyeDist;
+          embedding.addAll([dx, dy, dz]);
+        }
       }
 
       final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
-      final List<double> normalized = norm == 0
-          ? embedding
-          : embedding.map((e) => e / norm).toList();
 
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        _showError("Unable to find current user.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+      final List<double> normalizedEmbedding = embedding
+          .map((v) => v / norm)
+          .toList();
 
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
-            'faceEmbedding': normalized,
+            'faceEmbedding': normalizedEmbedding,
             'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
           });
 
@@ -390,11 +420,12 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       for (int x = 1; x < image.width - 1; x += stride) {
         final double gray = img.getLuminance(image.getPixel(x, y)).toDouble();
 
-        final double laplacian = gray * 4.0
-            - img.getLuminance(image.getPixel(x - 1, y))
-            - img.getLuminance(image.getPixel(x + 1, y))
-            - img.getLuminance(image.getPixel(x, y - 1))
-            - img.getLuminance(image.getPixel(x, y + 1));
+        final double laplacian =
+            gray * 4.0 -
+            img.getLuminance(image.getPixel(x - 1, y)) -
+            img.getLuminance(image.getPixel(x + 1, y)) -
+            img.getLuminance(image.getPixel(x, y - 1)) -
+            img.getLuminance(image.getPixel(x, y + 1));
 
         sum += laplacian;
         sumSq += laplacian * laplacian;
@@ -409,7 +440,11 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   }
 
   // for glasses detection
-  Future<double> _regionBrightness(File file, FaceMeshPoint left, FaceMeshPoint right) async {
+  Future<double> _regionBrightness(
+    File file,
+    FaceMeshPoint left,
+    FaceMeshPoint right,
+  ) async {
     final bytes = await file.readAsBytes();
     final image = img.decodeImage(bytes);
     if (image == null) return 0.0;
@@ -447,7 +482,8 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       extendBody: true,
       backgroundColor: const Color(0xFFF9F2D7),
 
-      appBar: AppBar( //appbar back button
+      appBar: AppBar(
+        //appbar back button
         toolbarHeight: 72,
         backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
@@ -476,18 +512,19 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
             const Center(
               child: Hero(
-                tag: 'HeroStepProgressIndicator', 
+                tag: 'HeroStepProgressIndicator',
                 child: Material(
                   type: MaterialType.transparency,
-                  child: StepProgressIndicator(currentStep: 3)),  
-              )
+                  child: StepProgressIndicator(currentStep: 3),
+                ),
+              ),
             ),
 
             const SizedBox(height: 0),
             Expanded(
-              child: Stack (
+              child: Stack(
                 children: [
-                  Hero (
+                  Hero(
                     tag: 'bluePanel', // <--- 2. USE THE SAME TAG
                     child: Material(
                       type: MaterialType.transparency,
@@ -614,12 +651,14 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                   borderRadius: BorderRadius.circular(40),
                                   onTap: _processing ? null : _onCapturePressed,
                                   child: SizedBox(
-                                    width: double.infinity,  
+                                    width: double.infinity,
                                     height: 56,
-                                    
+
                                     child: Center(
                                       child: Text(
-                                        _processing ? 'Processing...' : 'Capture',
+                                        _processing
+                                            ? 'Processing...'
+                                            : 'Capture',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 14,
@@ -636,8 +675,8 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                         ),
                       ),
                     ),
-                  )
-                ]
+                  ),
+                ],
               ),
             ),
           ],
@@ -662,7 +701,7 @@ class StepProgressIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     // SIZES
     const double innerCircleSize = 32.0;
-    const double gapSize = 4.0; 
+    const double gapSize = 4.0;
     const double outerCircleSize = innerCircleSize + (gapSize * 2); // 40.0 px
 
     const Color activeColor = Color(0xFF354372);
@@ -671,12 +710,12 @@ class StepProgressIndicator extends StatelessWidget {
 
     // Calculate the total number of gaps (e.g., 4 steps = 3 gaps)
     int totalIntervals = totalSteps - 1;
-    
+
     // Calculate current progress
     double progressValue;
     if (currentStep >= totalSteps) {
       // If last step, fill line completely
-      progressValue = 1.0; 
+      progressValue = 1.0;
     } else {
       // Otherwise, fill to current step PLUS half of the next gap (+ 0.5)
       progressValue = ((currentStep - 1) + 0.5) / totalIntervals;
@@ -684,7 +723,7 @@ class StepProgressIndicator extends StatelessWidget {
 
     return SizedBox(
       width: 254,
-      height: outerCircleSize, 
+      height: outerCircleSize,
       child: Stack(
         children: [
           // LAYER 1: The Outer Containers (Bottom)
@@ -692,26 +731,28 @@ class StepProgressIndicator extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(totalSteps, (index) {
-               return Container(
-                 width: outerCircleSize,
-                 height: outerCircleSize,
-                 decoration: const BoxDecoration(
-                   color: inactiveColor, // outer circle color
-                   shape: BoxShape.circle,
-                 ),
-               );
+              return Container(
+                width: outerCircleSize,
+                height: outerCircleSize,
+                decoration: const BoxDecoration(
+                  color: inactiveColor, // outer circle color
+                  shape: BoxShape.circle,
+                ),
+              );
             }),
           ),
 
           // LAYER 2: The Continuous Line (Middle)
           // This sits ON TOP of Layer 1, so it is not erased.
-          
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: outerCircleSize / 2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: outerCircleSize / 2,
+            ),
             child: Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(1),
-                child: Container( // <-- Add Container for the border
+                child: Container(
+                  // <-- Add Container for the border
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: inactiveColor, //border color
@@ -721,7 +762,9 @@ class StepProgressIndicator extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progressValue,
                     backgroundColor: inactiveColor,
-                    valueColor: const AlwaysStoppedAnimation<Color>(activeColor),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      activeColor,
+                    ),
                     minHeight: 2,
                   ),
                 ),
@@ -746,16 +789,24 @@ class StepProgressIndicator extends StatelessWidget {
                     width: innerCircleSize,
                     height: innerCircleSize,
                     decoration: BoxDecoration(
-                      color: (isActive || isCompleted) ? activeColor : inactiveColor,
+                      color: (isActive || isCompleted)
+                          ? activeColor
+                          : inactiveColor,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: isCompleted
-                          ? const Icon(Icons.check, size: 12, color: checkIconColor)
+                          ? const Icon(
+                              Icons.check,
+                              size: 12,
+                              color: checkIconColor,
+                            )
                           : Text(
                               '$stepNumber',
                               style: TextStyle(
-                                color: (isActive) ? Colors.white : const Color(0xFF404040),
+                                color: (isActive)
+                                    ? Colors.white
+                                    : const Color(0xFF404040),
                                 fontWeight: FontWeight.w100,
                                 fontSize: 14,
                                 fontFamily: 'Geist',

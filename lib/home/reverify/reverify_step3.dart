@@ -119,14 +119,22 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  
   Future<void> _onCapturePressed() async {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
       _showError("Camera not ready.");
       return;
     }
     if (_processing) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showError("User not logged in.");
+      await _cameraController!.resumePreview();
+      setState(() => _processing = false);
+      return;
+    }
 
-  setState(() => _processing = true);
+    setState(() => _processing = true);
     try {
       final XFile raw = await _cameraController!.takePicture();
       await _cameraController!.pausePreview();
@@ -134,7 +142,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       // Check if too captured img is dark
       if (await _isImageTooDark(file)) {
-        _showError("Surrounding is too dark. Please move to a brighter area and try again.");
+        _showError(
+          "Surrounding is too dark. Please move to a brighter area and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -144,10 +154,12 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final imageBytes = await file.readAsBytes();
       final decoded = img.decodeImage(imageBytes);
 
-      // if < 30 --- less strict 
+      // if < 30 --- less strict
       // if < 80 --- more strict
       if (decoded != null && _imageSharpness(decoded) < 80) {
-        _showError("Image is blurry. Please keep the camera stable and try again.");
+        _showError(
+          "Image is blurry. Please keep the camera stable and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -157,7 +169,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final meshes = await _meshDetector.processImage(inputImage);
 
       if (meshes.isEmpty) {
-        _showError("No face detected. Please face the camera directly and try again.");
+        _showError(
+          "No face detected. Please face the camera directly and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -177,7 +191,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       // geometry-based checks
       final leftEye = points[33];
       final rightEye = points[263];
-      
+
       if (leftEye.x.isNaN || rightEye.x.isNaN) {
         _showError("Invalid mesh data. Try again.");
         await _cameraController!.resumePreview();
@@ -193,22 +207,26 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       // can be adjusted
       // if < 7 --- less strict
-      // if < 15 --- more strict 
+      // if < 15 --- more strict
       if (eyeDist < 15) {
-        _showError("Face is far or partially covered. Please move closer and try again.",);
+        _showError(
+          "Face is far or partially covered. Please move closer and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
       }
 
-      // Glasses check 
+      // Glasses check
       final eyesBrightness = await _regionBrightness(file, leftEye, rightEye);
-      
+
       // can be adjusted to adjust eye strictness
       // if < 40 --- less strict
       // if < 60 --- more strict
       if (eyesBrightness < 55) {
-        _showError("Please remove obstruction for clearer face detection and try again.");
+        _showError(
+          "Please remove obstruction for clearer face detection and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -224,13 +242,13 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final double imageHeight = decoded.height.toDouble();
       final double imageCenterX = imageWidth / 2.0;
       final double imageCenterY = imageHeight / 2.0;
-      
+
       final double cx = (leftEye.x + rightEye.x) / 2.0;
       final double cy = (leftEye.y + rightEye.y) / 2.0;
       final double cz = (leftEye.z + rightEye.z) / 2.0;
 
       // tolerance 0.20 = 20% can be adjusted to be more/less strict
-      final double allowedHorizontalOffset = imageWidth * 0.15; 
+      final double allowedHorizontalOffset = imageWidth * 0.15;
       final double allowedVerticalOffset = imageHeight * 0.15;
 
       if ((cx - imageCenterX).abs() > allowedHorizontalOffset ||
@@ -254,8 +272,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final noseTip = points[1];
       final double distLeft = (noseTip.x - leftEye.x).abs();
       final double distRight = (noseTip.x - rightEye.x).abs();
-      final double yawRatio = min(distLeft, distRight) / max(distLeft, distRight);
-      
+      final double yawRatio =
+          min(distLeft, distRight) / max(distLeft, distRight);
+
       // 0.70 = 30% turn
       // can be adjusted to 0.80+ for stricter.
       const double minYawThreshold = 0.80;
@@ -272,9 +291,11 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final double lipDist = (lipBottom.y - lipTop.y).abs();
 
       // Can be adjusted, mouth open < 40% of eye distance
-      const double maxMouthOpenRatio = 0.4; 
+      const double maxMouthOpenRatio = 0.4;
       if ((lipDist / eyeDist) > maxMouthOpenRatio) {
-        _showError("Please close your mouth for a neutral expression and try again.");
+        _showError(
+          "Please close your mouth for a neutral expression and try again.",
+        );
         await _cameraController!.resumePreview();
         setState(() => _processing = false);
         return;
@@ -290,8 +311,8 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       final double rightEyeOpenness = (rightEyeBottom.y - rightEyeTop.y).abs();
 
       // can be adjusted eye openness 0.05 - less strict 0.10 - more strict
-      const double minEyeOpenRatio = 0.07; 
-      if ((leftEyeOpenness / eyeDist) < minEyeOpenRatio || 
+      const double minEyeOpenRatio = 0.07;
+      if ((leftEyeOpenness / eyeDist) < minEyeOpenRatio ||
           (rightEyeOpenness / eyeDist) < minEyeOpenRatio) {
         _showError("Please keep both of your eyes open and try again.");
         await _cameraController!.resumePreview();
@@ -300,31 +321,43 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       }
 
       final List<double> embedding = [];
+
+      final leftEyeInner = points[133];
+      final rightEyeInner = points[362];
+      final chin = points[152];
+      final leftCheek = points[234];
+      final rightCheek = points[454];
+
+      // Pick stable anchor points:
+      final anchors = [
+        noseTip,
+        leftEyeInner,
+        rightEyeInner,
+        chin,
+        leftCheek,
+        rightCheek,
+      ];
+
       for (final p in points) {
-        final double nx = (p.x - cx) / eyeDist;
-        final double ny = (p.y - cy) / eyeDist;
-        final double nz = (p.z - cz) / eyeDist;
-        embedding.addAll([nx, ny, nz]);
+        for (final a in anchors) {
+          final dx = (p.x - a.x) / eyeDist;
+          final dy = (p.y - a.y) / eyeDist;
+          final dz = (p.z - a.z) / eyeDist;
+          embedding.addAll([dx, dy, dz]);
+        }
       }
 
       final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
-      final List<double> normalized = norm == 0
-          ? embedding
-          : embedding.map((e) => e / norm).toList();
 
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        _showError("Unable to find current user.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+      final List<double> normalizedEmbedding = embedding
+          .map((v) => v / norm)
+          .toList();
 
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .update({
-            'faceEmbedding': normalized,
+            'faceEmbedding': normalizedEmbedding,
             'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
           });
 
