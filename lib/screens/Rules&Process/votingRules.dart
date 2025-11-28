@@ -7,7 +7,7 @@ class VotingRules extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F2D7),
+      backgroundColor: const Color(0xFFFFFFFF),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,11 +51,24 @@ class VotingRules extends StatelessWidget {
             const Divider(color: Colors.white24),
 
             // Body
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Voting Rules here.',
-                  style: TextStyle(color: Color.fromARGB(255, 64, 64, 64), fontSize: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                // Optional: Add padding if you want the image to "float"
+                // padding: const EdgeInsets.all(16.0), 
+                child: Column(
+                  children: [
+                    // The Long Image
+                    Image.asset(
+                      'assets/voting_rules.png', // Replace with your actual asset path
+                      fit: BoxFit.fitWidth, // Crucial: Stretches width to fill screen
+                      width: double.infinity, // Ensures it takes full width
+                    ),
+                    
+                    
+                    // Optional: Extra space at the bottom so the user can scroll past the end
+                    const SizedBox(height: 40), 
+
+                  ],
                 ),
               ),
             ),

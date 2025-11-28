@@ -400,6 +400,7 @@ class VotingCompletePageBody extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF7F7F7),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

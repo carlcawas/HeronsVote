@@ -60,22 +60,23 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
             child: SingleChildScrollView(
               padding: EdgeInsets.only(
                 top: listTopPadding,
-                left: 25,
-                right: 25,
+                left: 24,
+                right: 24,
                 bottom: 100,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0, left: 5),
+                    padding: const EdgeInsets.only(bottom: 16.0, left: 4, right: 4),
                     child: RichText(
+                      textAlign: TextAlign.justify,
                       text: TextSpan(
                         style: const TextStyle(
                           fontSize: 14,
                           fontFamily: 'Geist',
                           color: Color(0xFF404040),
-                          height: 1.5,
+                          //height: 1.5,
                         ),
                         children: [
                           const TextSpan(
@@ -276,7 +277,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE7E8E9),
+                          color: const Color.fromARGB(211, 9, 108, 207),
                           borderRadius: BorderRadius.circular(25),
                           image: (publicUrl != null)
                               ? DecorationImage(
@@ -294,12 +295,12 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                           Text(
                             candidate.college.isEmpty ? 'College' : candidate.college,
                             style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist', fontWeight: FontWeight.w500),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 0),
                           Text(
                             candidate.year.isEmpty ? 'Year' : '${candidate.year} Year',
                             style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist'),
@@ -308,12 +309,12 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
                     candidate.partylist.isEmpty ? 'Independent' : candidate.partylist,
                     style: const TextStyle(color: Color(0xFF747474), fontSize: 12, fontFamily: 'Geist', fontWeight: FontWeight.normal),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 0),
                   Text(
                     candidate.name,
                     style: const TextStyle(color: Color(0xFF404040), fontSize: 18, fontFamily: 'Geist', fontWeight: FontWeight.w600),
@@ -322,7 +323,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
               ),
             ),
             Container(
-              margin: const EdgeInsets.only(left: 10, top: 15),
+              margin: const EdgeInsets.only(left: 0, top: 0),
               width: 24,
               height: 24,
               decoration: BoxDecoration(
@@ -354,15 +355,15 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
               child: Row(
                 children: [
-                  Container(
+                  /*Container(
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(color: const Color(0xFFE7E8E9), borderRadius: BorderRadius.circular(50)),
                     child: const Icon(Icons.how_to_vote_outlined, color: Color(0xFF747474)),
-                  ),
+                  ),*/
                   const SizedBox(width: 12),
                   const Text(
                     'Abstain',

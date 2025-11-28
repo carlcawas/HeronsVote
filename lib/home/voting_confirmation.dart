@@ -22,9 +22,16 @@ class VoteConfirmationPage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            CustomHeader(
-              title: 'Vote confirmation',
-              onBack: () => Navigator.pop(context),
+            
+            Hero(
+              tag: 'header_vote',
+              child: Material(
+                type: MaterialType.transparency,
+                  child: CustomHeader(
+                  title: 'Vote confirmation',
+                  onBack: () => Navigator.pop(context),
+                ),
+              )
             ),
 
             const Padding(

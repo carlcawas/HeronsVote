@@ -162,7 +162,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     const SizedBox(height: 8),
                     Text(
                       widget.isResultMode
-                          ? 'Select an election to view the live results.'
+                          ? 'Select an election to view the live or\npublished results.'
                           : 'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
                       style: const TextStyle(
                         color: Color(0xFF747474),
@@ -282,6 +282,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                   ),
                 ),
               ),
+
               if (showVotedBadge)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -298,6 +299,10 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     ),
                   ),
                 ),
+
+                // --- NEW: STATUS BADGE (Only in Result Mode) ---
+              if (widget.isResultMode)
+                _buildStatusBadge(election),
             ],
           ),
         ),
@@ -379,6 +384,47 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(Map<String, dynamic> election) {
+    bool isEnded = false;
+
+    if (election['end'] != null) {
+      try {
+        DateTime end = (election['end'] as Timestamp).toDate();
+        isEnded = DateTime.now().isAfter(end);
+      } catch (e) {
+        isEnded = false;
+      }
+    }
+
+    final Color bgColor = isEnded 
+        ? const Color(0xFFC3D9FF)
+        : const Color(0xFFD6FBD5); 
+        
+    final Color textColor = isEnded 
+        ? const Color(0xFF1F8EFF) 
+        : const Color(0xFF76D675); 
+        
+    final String text = isEnded ? "Ended" : "Ongoing";
+
+    //Return the Badge (Same style as your Voted badge)
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontFamily: 'Geist',
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

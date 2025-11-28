@@ -119,24 +119,23 @@ class _LoginScreenState extends State<LoginScreen>
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 224),
+                padding: const EdgeInsets.only(top: 220),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SlideTransition(
                       position: _logoSlide,
+
                       child: Hero(
-                        tag: 'logoHero',
-                        child: SizedBox(
-                          width: 130,
-                          child: Image.asset(
-                            alignment: Alignment.bottomCenter,
-                            'assets/HeronVoteLogo.png',
-                            fit: BoxFit.contain,
-                          ),
+                        tag: 'appLogo',
+                        child: Image.asset(
+                          'assets/HeronVoteLogo.png',
+                          width: 75,
                         ),
                       ),
+                      
                     ),
+                    const SizedBox(height: 18),
                     SlideTransition(
                       position: _textSlide,
                       child: FadeTransition(

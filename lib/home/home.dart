@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'results.dart';
 import 'profile.dart';
 import 'election_gateway.dart';
+import 'package:flutter/services.dart';
 
 // Import your page "bodies"
 import 'home_body.dart';
@@ -105,29 +106,42 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // 2 backs swipe to exit app function - hindi to nagana ewan baket, kinuha koto sa luma eh pinaste kolang here
-  Future<bool> _onWillPop() async {
-    //saka ko nalang ayusin - rik
+  void _handleBackPress() {
     DateTime now = DateTime.now();
+
+    // A. If not on Home Tab, go back to Home Tab first
     if (_selectedIndex != 0) {
       setState(() {
         _selectedIndex = 0;
       });
-      return false;
+      return;
     }
+
+    // B. Check if 2 seconds have passed since last press
     if (currentBackPressTime == null ||
         now.difference(currentBackPressTime!) > const Duration(seconds: 2)) {
-      currentBackPressTime = now;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Press back again to exit app'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.black87,
-        ),
-      );
-      return false;
+      
+        // Update time
+        currentBackPressTime = now;
+        
+        // Show SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Press back again to exit',
+              style: TextStyle(fontFamily: 'Geist'),
+            ),
+            duration: Duration(seconds: 2),
+            backgroundColor: Color(0xFF404040),
+            behavior: SnackBarBehavior.floating, // Makes it float above bottom nav
+            margin: EdgeInsets.only(bottom: 20, left: 20, right: 20),
+          ),
+        );
+      } else {
+        // C. If pressed within 2 seconds, Exit App
+        SystemNavigator.pop();
+      }
     }
-    return true;
-  }
 
   // --- START OF PERSISTENT DYNAMIC APP BAR LOGIC ---
   // This helper builds the correct title for the current tab
@@ -178,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       // First Button - Announcement
       Padding(
-        padding: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.only(right: 11),
         child: ClipOval(
           // This clips the ripple effect to a circle
           child: Material(
@@ -201,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 45,
                 height: 45,
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.only(right: 8, left: 6, top: 12, bottom: 12),
                   child: SvgPicture.asset(
                     'assets/announcement.svg',
                     color: const Color(0xFF404040),
@@ -252,12 +266,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   // --- END OF APP BAR LOGIC ---
 
+
+  // popscope
   @override
   Widget build(BuildContext context) {
-    // WillPopScope handles the "press back again to exit" logic
-    return WillPopScope(
-      onWillPop: _onWillPop,
-      child: Scaffold(
+    // REPLACE WillPopScope WITH PopScope
+    return PopScope(
+      canPop: false, // 1. Prevent the system from closing the app automatically
+      
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        _handleBackPress(); // 2. Call your custom logic
+      },
+      
+      
+        child: Scaffold(
         backgroundColor: Colors.white,
 
         // --- 1. THE APP BAR ---
@@ -375,8 +400,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-        ),
+        ),    
       ),
     );
-  }
+  } 
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
+import 'dart:async';
+import 'package:shimmer/shimmer.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,7 +15,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 3), () {
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
@@ -30,13 +32,20 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9F2D7),
+      backgroundColor: const Color(0xFFF9F2D7), 
       body: Center(
-        child: Hero(
-          tag: 'logoHero',
-          child: Image.asset(
-            'assets/HeronVoteLogo.png',
-            width: 130, 
+        child: Shimmer.fromColors(
+          baseColor: const Color(0xFF354372),
+          highlightColor: Colors.white, 
+          
+          period: const Duration(seconds: 1),
+          
+          child: Hero(
+            tag: 'appLogo',
+            child: Image.asset(
+              'assets/HeronVoteLogo.png',
+              width: 70,
+            ),
           ),
         ),
       ),
