@@ -93,7 +93,7 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
                   const SizedBox(height: 17),
 
                   StreamBuilder<QuerySnapshot>(
-                    stream: slateDocRef.collection('candidates').snapshots(),
+                    stream: slateDocRef.collection('candidates').orderBy('pos_rank').snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) return const Text("Error loading candidates");
                       if (!snapshot.hasData) {

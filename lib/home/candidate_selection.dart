@@ -29,10 +29,19 @@ class CandidateSelectionPage extends StatefulWidget {
 class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
   VotingCandidate? _selectedCandidate;
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
   @override
   void initState() {
     super.initState();
     _selectedCandidate = widget.initialSelection;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -45,10 +54,18 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
         : widget.positionTitle;
 
     List<VotingCandidate> displayedCandidates = widget.candidates;
-    
+
     if (widget.electionType == 'college' && widget.userCollege != null) {
-      displayedCandidates = widget.candidates.where((candidate) {
+      displayedCandidates = displayedCandidates.where((candidate) {
         return candidate.college == widget.userCollege;
+      }).toList();
+    }
+    
+    if (_searchQuery.isNotEmpty) {
+      displayedCandidates = displayedCandidates.where((candidate) {
+        final name = candidate.name.toLowerCase();
+        final partylist = candidate.partylist.toLowerCase();
+        return name.contains(_searchQuery) || partylist.contains(_searchQuery);
       }).toList();
     }
 
@@ -67,6 +84,60 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
+                  // Search bar 
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20.0),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value.toLowerCase();
+                        });
+                      },
+                      style: const TextStyle(
+                        fontFamily: 'Geist',
+                        fontSize: 14,
+                        color: Color(0xFF404040),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "Search name or slate...",
+                        hintStyle: TextStyle(
+                          fontFamily: 'Geist',
+                          color: Colors.grey.withOpacity(0.8),
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(Icons.search, color: Color(0xFF5C6AA0)),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = "";
+                                  });
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: const Color(0xFFF7F7F7),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
+                        ),
+                      ),
+                    ),
+                  ),
+
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0, left: 4, right: 4),
                     child: RichText(
@@ -80,7 +151,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                         ),
                         children: [
                           const TextSpan(
-                            text: 'Please select one option fromt the list. Read the full ', 
+                            text: 'Please select one option from the list. Read the full ', 
                           ),
                           TextSpan(
                             text: 'Voting Rules',
@@ -100,10 +171,15 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                   ),
 
                   displayedCandidates.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Padding(
-                              padding: EdgeInsets.only(top: 50),
-                              child: Text("No options found for your college")))
+                              padding: const EdgeInsets.only(top: 50),
+                              child: Text(
+                                _searchQuery.isNotEmpty 
+                                  ? "No candidates found matching '$_searchQuery'"
+                                  : "No options found for your college",
+                                style: const TextStyle(color: Colors.grey),
+                              )))
                       : Column(
                           children: [
                             if (widget.isProposal) ...[
