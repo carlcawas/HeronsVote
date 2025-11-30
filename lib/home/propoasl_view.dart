@@ -39,7 +39,7 @@ class _ProposalViewPageState extends State<ProposalViewPage> {
             onNotification: _handleScrollNotification,
             child: SingleChildScrollView(
               padding: EdgeInsets.only(
-                top: topPadding + 102,
+                top: topPadding + 85,
                 left: 25,
                 right: 25,
                 bottom: 22,
@@ -63,19 +63,14 @@ class _ProposalViewPageState extends State<ProposalViewPage> {
             child: Column(
               children: [
                 Container(
-                  height: MediaQuery.of(context).padding.top,
-                  color: Colors.white,
-                ),
-
-                Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.white.withOpacity(1.0), 
+                        Colors.white.withOpacity(1.0),
                         Colors.white.withOpacity(0.8),
-                        Colors.white.withOpacity(0.0,), 
+                        Colors.white.withOpacity(0.0),
                       ],
                       stops: const [0.0, 0.5, 1.0],
                     ),
@@ -95,7 +90,7 @@ class _ProposalViewPageState extends State<ProposalViewPage> {
 
   List<Widget> _buildProposalSections() {
     final List<Widget> sections = [];
-    //all if are adding only that pert if there is given part // CAN DELETE IF UPON CREATION ITS REQUIRED
+    
     if (widget.proposal.summary?.isNotEmpty == true) {
       sections.add(
         ExpandableSection(
@@ -159,7 +154,10 @@ class _ProposalViewPageState extends State<ProposalViewPage> {
   }
 }
 
-//expand if long
+// ---------------------------------------------------------
+// REFACTORED EXPANDABLE SECTION (Matches Announcement Card Style)
+// ---------------------------------------------------------
+
 class ExpandableSection extends StatefulWidget {
   final String title;
   final String content;
@@ -180,71 +178,90 @@ class _ExpandableSectionState extends State<ExpandableSection> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final availableWidth = screenWidth - (25 * 2);
+    // Check if text is long enough to warrant a "See More" button
+    // You can adjust this threshold (e.g., 160 chars) as needed
+    final bool isTextLong = widget.content.length > 160;
 
     return Container(
-      width: availableWidth,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      margin: const EdgeInsets.only(bottom: 25),
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20), // Spacing between cards
       decoration: BoxDecoration(
         color: const Color(0xFFF7F7F7),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7E8E9), width: 0.5),
+        /*boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.07),
+            blurRadius: 2,
+            offset: const Offset(0, 2),
+          ),
+        ],*/
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            widget.title,
-            style: TextStyle(
-              color: const Color(0xFF404040),
-              fontSize: 18,
-              fontFamily: 'Geist',
-              fontWeight: FontWeight.w600,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 16, left: 20, right: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title Section
+            Text(
+              widget.title,
+              style: const TextStyle(
+                color: Color(0xFF404040),
+                fontSize: 18,
+                fontFamily: 'Geist',
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.content,
-            style: TextStyle(
-              color: const Color(0xFF747474),
-              fontSize: 14,
-              fontFamily: 'Geist',
-              fontWeight: FontWeight.w500,
-              height: 1.5,
+            const SizedBox(height: 8),
+
+            // Animated Content Section
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topLeft,
+              child: Text(
+                widget.content,
+                maxLines: _isExpanded ? null : collapsedMaxLines,
+                overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: const Color(0xFF747474),
+                  fontSize: 14,
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w500,
+                  height: 1.5,
+                ),
+              ),
             ),
-            maxLines: _isExpanded ? null : collapsedMaxLines,
-            overflow: _isExpanded ? TextOverflow.clip : TextOverflow.ellipsis,
-          ),
-          if (widget.content.length > 160)
-            Align(
-              alignment: Alignment.bottomRight,
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isExpanded = !_isExpanded;
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEEEEE),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Text(
-                    _isExpanded ? 'See less' : 'See more',
-                    style: const TextStyle(
-                      color: Color(0xFF404040),
-                      fontSize: 12,
-                      fontFamily: 'Geist',
-                      fontWeight: FontWeight.w500,
+
+            // See More Button (Only shows if text is long)
+            if (isTextLong) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: () => setState(() => _isExpanded = !_isExpanded),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEEEEEE),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      _isExpanded ? "See less" : "See more",
+                      style: const TextStyle(
+                        color: Color(0xFF404040),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        fontFamily: 'Geist',
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+            ],
+          ],
+        ),
       ),
     );
   }

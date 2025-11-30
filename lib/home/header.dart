@@ -63,7 +63,8 @@ class CustomHeader extends StatelessWidget {
               
               const SizedBox(width: 16),
               
-              Expanded(
+              SizedBox(
+                width: 250,
                 child: Text(
                   title,
                   style: const TextStyle(

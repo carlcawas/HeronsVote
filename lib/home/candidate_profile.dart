@@ -421,7 +421,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
                     children: [
 
                       Container( //year
-                        width: 85,//adjust lang to ito lang finix ko tsaka yung age
+                        width: 90,//adjust lang to ito lang finix ko tsaka yung age
                         height: 50,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         //margin: const EdgeInsets.only(bottom: 12),
