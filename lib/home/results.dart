@@ -866,19 +866,19 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
             fontWeight: FontWeight.w400,
           );
 
-          // 1. Measure the Label ("1styear")
+          // Measure the Label ("1styear")
           final TextPainter labelPainter = TextPainter(
             text: TextSpan(text: label, style: textStyle),
             textDirection: TextDirection.ltr,
           )..layout();
 
-          // 2. Measure the Fraction ("10/100")
+          // Measure the Fraction ("10/100")
           final TextPainter fractionPainter = TextPainter(
             text: TextSpan(text: "$cast/$total", style: textStyle),
             textDirection: TextDirection.ltr,
           )..layout();
 
-          // 3. Measure the Percentage ("10%")
+          // Measure the Percentage ("10%")
           final TextPainter percentPainter = TextPainter(
             text: TextSpan(
               text: "${(percentage * 100).toStringAsFixed(0)}%",
@@ -892,10 +892,79 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
             duration: const Duration(milliseconds: 1500),
             curve: Curves.easeOutCubic,
             builder: (context, animatedPercentage, child) {
-               final double currentBarEnd = totalWidth * animatedPercentage;
-               // ... (Drawing code was not present in provided snippet but structure implies it was here)
-               // Returning placeholder container as previous implementation was cut off
-               return Container(); 
+              
+              
+              // Current Bar Width
+              final double currentBarEnd = totalWidth * animatedPercentage;
+
+              // Calculate "Safe Left" (Label Width + Padding + Gap)
+              final double safeLeft = 16.0 + labelPainter.width + 12.0;
+
+              // Calculate "Ideal Position" of fraction (Ends 8px before bar tip)
+              double calculatedLeft = currentBarEnd - fractionPainter.width - 8.0;
+
+              // Logic: Clamp Left (Don't overlap label)
+              if (calculatedLeft < safeLeft) {
+                calculatedLeft = safeLeft;
+              }
+
+              final double maxRightStart =
+                  totalWidth - percentPainter.width - 12.0 - fractionPainter.width - 8.0;
+
+              if (calculatedLeft > maxRightStart) {
+                calculatedLeft = maxRightStart;
+              }
+
+              return Container(
+                height: 34,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: const Color(0xFFECECEC),
+                    width: 3.0,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    // Blue Progress Bar (Animated Width)
+                    Container(
+                      width: currentBarEnd, 
+                      height: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF74B6F9),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                    ),
+                    
+                    // Label (Static Left)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16.0),
+                      child: Text(label, style: textStyle),
+                    ),
+
+                    // Fraction (Sliding Calculation)
+                    Positioned(
+                      left: calculatedLeft,
+                      child: Text("$cast/$total", style: textStyle),
+                    ),
+
+                    // Percentage (Static Right)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "${(percentage * 100).toStringAsFixed(0)}%",
+                          style: textStyle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
             },
           );
         },
