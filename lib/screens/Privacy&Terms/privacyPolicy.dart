@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart'; 
 import 'package:flutter_svg/flutter_svg.dart';
 
 class PrivacyPolicy extends StatelessWidget {
-  const PrivacyPolicy({super.key});
+  final String mdFileName; 
+
+  const PrivacyPolicy({super.key, this.mdFileName = 'privacy_policy.md'});
 
   @override
   Widget build(BuildContext context) {
@@ -12,6 +16,7 @@ class PrivacyPolicy extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Padding(
               padding: const EdgeInsets.only(left: 25, bottom: 9, top: 25, right: 16),
               child: Row(
@@ -20,21 +25,22 @@ class PrivacyPolicy extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                     },
-
                     child: Container(
                       height: 40,
                       width: 40,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: Color(0xFF5C6AA0),
                       ),
-                      child: SvgPicture.asset(
-                        'assets/back.svg',
-                        fit: BoxFit.contain,
-                      )
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: SvgPicture.asset(
+                          'assets/back.svg',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
-
                   const SizedBox(width: 20),
                   const Text(
                     'Privacy Policy',
@@ -51,12 +57,45 @@ class PrivacyPolicy extends StatelessWidget {
             const Divider(color: Colors.white24),
 
             // Body
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Privacy Policy here.',
-                  style: TextStyle(color: Color.fromARGB(255, 64, 64, 64), fontSize: 16),
-                ),
+            Expanded(
+              child: FutureBuilder(
+                future: rootBundle.loadString('assets/legal/$mdFileName'), 
+                builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+                  if (snapshot.hasData) {
+                    return Markdown(
+                      data: snapshot.data!,
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(
+                          color: Color(0xFF404040), 
+                          fontFamily: 'Geist',
+                          fontSize: 16
+                        ),
+                        h1: const TextStyle(
+                          color: Color(0xFF404040), 
+                          fontFamily: 'Geist', 
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24
+                        ),
+                        h2: const TextStyle(
+                          color: Color(0xFF404040), 
+                          fontFamily: 'Geist', 
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20
+                        ),
+                        listBullet: const TextStyle(color: Color(0xFF404040)), 
+                      ),
+                    );
+                  } else if (snapshot.hasError) {
+                    return const Center(
+                      child: Text("Error loading Privacy Policy"),
+                    );
+                  }
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF5C6AA0),
+                    ),
+                  );
+                },
               ),
             ),
           ],

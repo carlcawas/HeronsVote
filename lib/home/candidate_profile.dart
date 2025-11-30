@@ -303,7 +303,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
             onNotification: _handleScrollNotification,
             child: SingleChildScrollView(
               padding: EdgeInsets.only(
-                top: topPadding + 102,
+                top: topPadding + 85,
                 left: 24,
                 right: 24,
                 bottom: 22,
@@ -577,11 +577,6 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
             right: 0,
             child: Column(
               children: [
-                Container(
-                  height: MediaQuery.of(context).padding.top,
-                  color: Colors.white,
-                ),
-
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(

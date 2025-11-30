@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart'; 
 import 'package:flutter_svg/flutter_svg.dart';
 
 class TermsCondition extends StatelessWidget {
-  const TermsCondition({super.key});
+  final String mdFileName;
+
+  const TermsCondition({super.key, this.mdFileName = 'terms_conditions.md'});
 
   @override
   Widget build(BuildContext context) {
@@ -20,24 +24,25 @@ class TermsCondition extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                     },
-
                     child: Container(
                       height: 40,
                       width: 40,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
                         color: Color(0xFF5C6AA0),
                       ),
-                      child: SvgPicture.asset(
-                        'assets/back.svg',
-                        fit: BoxFit.contain,
-                      )
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: SvgPicture.asset(
+                          'assets/back.svg', 
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
-
                   const SizedBox(width: 20),
                   const Text(
-                    'Terms & Condition',
+                    'Terms & Conditions',
                     style: TextStyle(
                       color: Color(0xFF404040),
                       fontFamily: 'Geist',
@@ -51,12 +56,56 @@ class TermsCondition extends StatelessWidget {
             const Divider(color: Colors.white24),
 
             // Body
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Terms and Condition here.',
-                  style: TextStyle(color: Color.fromARGB(255, 64, 64, 64), fontSize: 16),
-                ),
+            Expanded(
+              child: FutureBuilder(
+                // 3. Load from the specific 'assets/legal/' folder
+                future: rootBundle.loadString('assets/legal/$mdFileName'),
+                builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
+                  if (snapshot.hasData) {
+                    return Markdown(
+                      data: snapshot.data!,
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                          fontSize: 16,
+                        ),
+                        h1: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 24,
+                        ),
+                        h2: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                        h3: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                        ),
+                        listBullet: const TextStyle(color: Color(0xFF404040)),
+                        blockSpacing: 15.0,
+                      ),
+                    );
+                  } else if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        "Error loading Terms & Conditions.\nEnsure 'assets/legal/$mdFileName' exists.",
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  }
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF5C6AA0),
+                    ),
+                  );
+                },
               ),
             ),
           ],

@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'voting_models.dart';
 import 'header.dart';
+import 'package:heronsvote/screens/Rules&Process/votingRules.dart';
 
 class CandidateSelectionPage extends StatefulWidget {
   final String positionTitle;
@@ -47,7 +48,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    final double listTopPadding = topPadding + 102;
+    final double listTopPadding = topPadding + 85;
 
     String truncatedTitle = widget.positionTitle.length > 25
         ? '${widget.positionTitle.substring(0, 25)}...'
@@ -85,59 +86,6 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // Search bar 
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value.toLowerCase();
-                        });
-                      },
-                      style: const TextStyle(
-                        fontFamily: 'Geist',
-                        fontSize: 14,
-                        color: Color(0xFF404040),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: "Search name or slate...",
-                        hintStyle: TextStyle(
-                          fontFamily: 'Geist',
-                          color: Colors.grey.withOpacity(0.8),
-                          fontSize: 14,
-                        ),
-                        prefixIcon: const Icon(Icons.search, color: Color(0xFF5C6AA0)),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _searchQuery = "";
-                                  });
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFFF7F7F7),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
-                        ),
-                      ),
-                    ),
-                  ),
-
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0, left: 4, right: 4),
                     child: RichText(
@@ -160,12 +108,70 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                               decoration: TextDecoration.underline,
                             ),
                             recognizer: TapGestureRecognizer()
-                              ..onTap = () {
-                                print('Voting Rules Clicked');
-                              },
+                            ..onTap = () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const VotingRules(), // Ensure the class name matches your file
+                                ),
+                              );
+                            },
                           ),
                           const TextSpan(text: '. Vote wisely.'),
                         ],
+                      ),
+                    ),
+                  ),
+
+                  // Search bar 
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value.toLowerCase();
+                        });
+                      },
+                      style: const TextStyle(
+                        fontFamily: 'Geist',
+                        fontSize: 14,
+                        color: Color(0xFF404040),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "Search name or slate...",
+                        hintStyle: TextStyle(
+                          fontFamily: 'Geist',
+                          color: Colors.grey.withOpacity(0.8),
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(Icons.search, color: Color(0xFF747474)),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = "";
+                                  });
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: const Color(0xFFF7F7F7),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(50),
+                          borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
+                        ),
                       ),
                     ),
                   ),
@@ -197,9 +203,9 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                                         _selectedCandidate!.name == candidate.name;
                                 return _buildCandidateTile(candidate, isSelected);
                               }),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 5),
                               const Divider(),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 20),
                               _buildAbstainTile(),
                             ]
                           ],
@@ -216,7 +222,6 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
             right: 0,
             child: Column(
               children: [
-                Container(height: topPadding, color: Colors.white),
                 CustomHeader(
                   title: truncatedTitle,
                   onBack: () => Navigator.pop(context, widget.initialSelection),
@@ -353,7 +358,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(
-                          color: const Color.fromARGB(211, 9, 108, 207),
+                          color: const Color(0xFFE7E8E9),
                           borderRadius: BorderRadius.circular(25),
                           image: (publicUrl != null)
                               ? DecorationImage(

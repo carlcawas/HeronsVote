@@ -26,7 +26,7 @@ class CustomHeader extends StatelessWidget {
         
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.only(left: 24, bottom: 16, top: 12),
+          padding: const EdgeInsets.only(left: 24, bottom: 16, top: 24),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,

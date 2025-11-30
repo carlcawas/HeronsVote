@@ -36,7 +36,7 @@ class SlateListPage extends StatelessWidget {
 
               return ListView.builder(
                 padding: EdgeInsets.only(
-                  top: topPadding + 94,
+                  top: topPadding + 85,
                   left: 24,
                   right: 24,
                   bottom: 22,
@@ -62,11 +62,7 @@ class SlateListPage extends StatelessWidget {
             right: 0,
             child: Column(
               children: [
-                Container(
-                  height: topPadding,
-                  color: Colors.white,
-                ),
-
+                
                 // Header 
                 Container(
                   decoration: BoxDecoration(
