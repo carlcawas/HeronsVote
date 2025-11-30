@@ -464,6 +464,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
   bool _isLoadingVerification = true;
 
   String? _userCollege;
+  String? _userYearLevel;
 
   late String _electionTitle;
   late String _electionPeriod;
@@ -606,6 +607,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
         final data = userDoc.data();
         verified = data?['isVerified'] ?? false;
         _userCollege = data?['college_id'];
+        _userYearLevel = data?['year_level'];
       }
 
       final String collectionPath = _isProposal ? 'proposals' : 'elections';
@@ -754,7 +756,31 @@ class _VotingHomePageState extends State<VotingHomePage> {
           );
         }
 
-        final allCandidates = _mapFirestoreToCandidates(snapshot.data!.docs);
+        var allCandidates = _mapFirestoreToCandidates(snapshot.data!.docs);
+
+        // User's Year Level Filtering
+        if (_userYearLevel != null && _userYearLevel!.isNotEmpty) {
+          allCandidates = allCandidates.where((candidate) {
+            final String role = candidate.role.toLowerCase();
+            final String userYear = _userYearLevel!.toLowerCase();
+
+            bool isYearRep = role.contains('representative') && role.contains('year');
+
+            if (isYearRep) {
+              String yearKeyword = userYear.split(' ')[0]; 
+
+              String numericKeyword = '';
+              if (yearKeyword == 'first') numericKeyword = '1st';
+              else if (yearKeyword == 'second') numericKeyword = '2nd';
+              else if (yearKeyword == 'third') numericKeyword = '3rd';
+              else if (yearKeyword == 'fourth') numericKeyword = '4th';
+
+              return role.contains(yearKeyword) || (numericKeyword.isNotEmpty && role.contains(numericKeyword));
+            }
+
+            return true;
+          }).toList();
+        }
 
         final List<String> dynamicPositions = allCandidates
             .map((c) => c.role)
