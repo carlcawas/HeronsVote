@@ -216,7 +216,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     }
     distance = sqrt(distance);
     // threshold
-    const double verificationThreshold = 0.25;
+    const double verificationThreshold = 0.1;
     const double similarityThreshold = 0.90;
     if (similarity >= similarityThreshold && distance <= verificationThreshold) {
       if (!mounted) return;

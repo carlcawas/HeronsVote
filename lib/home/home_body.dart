@@ -1107,12 +1107,12 @@ class _HomeBodyState extends State<HomeBody> {
 
   Widget _buildSlatesSection(String electionId) { //slates
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12), //padding left right, may dineclare ako +12 sa baba para naka crop siya
+      padding: const EdgeInsets.symmetric(horizontal: 24), //padding left right, may dineclare ako +12 sa baba para naka crop siya
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 16),
+            padding: const EdgeInsets.only(left: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1125,7 +1125,7 @@ class _HomeBodyState extends State<HomeBody> {
                   ),
                 ),
                 Padding(
-                  padding: EdgeInsets.only(right: 16),
+                  padding: EdgeInsets.only(right: 4),
                   child: GestureDetector( // see all
                     onTap: () {
                       Navigator.push(
@@ -1179,7 +1179,14 @@ class _HomeBodyState extends State<HomeBody> {
               final slates = snapshot.data!.docs;
               return Column(
                 children: [
-                  SizedBox(
+                  Container(
+
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300, 
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+
                     height: 186,
                     child: Stack(
                       children: [
@@ -1211,11 +1218,11 @@ class _HomeBodyState extends State<HomeBody> {
                               }
                             }
                             return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 12), //ito pla yon dapat wla o huhu hirap hnapin, para may space yung items
+                              margin: const EdgeInsets.symmetric(horizontal: 0), //ito pla yon dapat wla o huhu hirap hnapin, para may space yung items
                               clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade300, // Fallback color
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(0),
                               ),
                               child: Stack(
                                 fit: StackFit.expand,

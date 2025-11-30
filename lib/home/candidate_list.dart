@@ -55,6 +55,7 @@ class _CandidateListPageState extends State<CandidateListPage> {
       builder: (context, userSnapshot) {
         if (userSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
+            backgroundColor: Colors.white,
             body: Center(child: CircularProgressIndicator()),
           );
         }
@@ -65,7 +66,7 @@ class _CandidateListPageState extends State<CandidateListPage> {
           items: [
             // Search bar (customize niyo nalang :DD)
             Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
+              padding: const EdgeInsets.only(bottom: 16.0),
               child: TextField(
                 controller: _searchController,
                 onChanged: (value) {
@@ -85,7 +86,7 @@ class _CandidateListPageState extends State<CandidateListPage> {
                     color: Colors.grey.withOpacity(0.8),
                     fontSize: 14,
                   ),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF5C6AA0)),
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF747474)),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
@@ -101,15 +102,15 @@ class _CandidateListPageState extends State<CandidateListPage> {
                   fillColor: const Color(0xFFF7F7F7),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(100),
                     borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(100),
                     borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(100),
                     borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
                   ),
                 ),
