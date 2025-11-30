@@ -285,7 +285,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       children: [
                         // Verification Status Card
                         Expanded(
-                          flex: 5,
+                          flex: 6,
                           child: Container(
                             height: 170,
                             padding: const EdgeInsets.only(
