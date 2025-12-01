@@ -285,7 +285,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
   @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    String truncatedName = '${widget.candidate.name.split(' ').take(2).join(' ')}...';
+    //String truncatedName = '${widget.candidate.name.split(' ').take(2).join(' ')}...';
 
     //final screenWidth = MediaQuery.of(context).size.width;
     //final availableWidth = screenWidth - (25 * 2);
@@ -570,7 +570,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
             ),
           ),
 
-          // Header 
+          // Header import mo nlng header.dart
           Positioned(
             top: 0,
             left: 0,
@@ -591,7 +591,7 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
                     ),
                   ),
                   child: CustomHeader(
-                    title: truncatedName,
+                    title: widget.candidate.name,
                     onBack: () => Navigator.pop(context),
                   ),
                 ),
