@@ -146,6 +146,9 @@ class _ElectedOfficialsPageState extends State<ElectedOfficialsPage> {
               onBack: () => Navigator.pop(context),
             ),
             _buildAffiliationFilter(),
+
+            const SizedBox(height: 12),
+
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300), // Fade duration
@@ -312,7 +315,7 @@ class _OfficialsListBuilder extends StatelessWidget {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 22),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           itemCount: officials.length,
           itemBuilder: (_, i) => OfficialListItem(official: officials[i]),
         );
@@ -391,9 +394,10 @@ class OfficialListItem extends StatelessWidget {
                     official.position,
                     style: const TextStyle(
                       color: Color(0xFF404040),
-                      fontSize: 20,
+                      fontSize: 18,
                       fontFamily: 'Geist',
                       fontWeight: FontWeight.w600,
+                      //overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Text(

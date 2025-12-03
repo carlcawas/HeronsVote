@@ -138,7 +138,7 @@ class _RegistrationStep0State extends State<RegistrationStep0>
                       TextSpan(
                         children: [
                           TextSpan(
-                            text: "Complete ",
+                            text: "Complete your ",
                             style: TextStyle(
                               color: const Color(0xFF414141),
                               fontSize: 24,

@@ -791,6 +791,7 @@ class _HomeBodyState extends State<HomeBody> {
                   final String id = item['id'];
                   final String itemType = item['type'];
                   // TODO: Navigate to Results Screen
+                  widget.onTabChange(3);
                   print("Navigate to results for ID: $id, Type: $itemType");
                 },
                 child: const Text(

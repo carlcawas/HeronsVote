@@ -58,20 +58,36 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   bool _isFormValid = true;
 
   void _validateFields() {
-    setState(() {
-      _isNameEmpty = _nameController.text.trim().isEmpty;
-      _isCollegeEmpty = _collegeController.text.trim().isEmpty;
-      _isYearLevelEmpty = _yearLevelController.text.trim().isEmpty;
-      _isSectionEmpty = _sectionController.text.trim().isEmpty;
-      _isSemesterEmpty = _semesterController.text.trim().isEmpty;
+    // 1. Calculate the new values first (WITHOUT setState)
+    final bool nameEmpty = _nameController.text.trim().isEmpty;
+    final bool collegeEmpty = _collegeController.text.trim().isEmpty;
+    final bool yearLevelEmpty = _yearLevelController.text.trim().isEmpty;
+    final bool sectionEmpty = _sectionController.text.trim().isEmpty;
+    final bool semesterEmpty = _semesterController.text.trim().isEmpty;
 
-      _isFormValid =
-          !(_isNameEmpty ||
-              _isCollegeEmpty ||
-              _isYearLevelEmpty ||
-              _isSectionEmpty ||
-              _isSemesterEmpty);
-    });
+    final bool newFormValid = !(nameEmpty ||
+        collegeEmpty ||
+        yearLevelEmpty ||
+        sectionEmpty ||
+        semesterEmpty);
+
+    // 2. Only rebuild IF something actually changed visually
+    if (_isNameEmpty != nameEmpty ||
+        _isCollegeEmpty != collegeEmpty ||
+        _isYearLevelEmpty != yearLevelEmpty ||
+        _isSectionEmpty != sectionEmpty ||
+        _isSemesterEmpty != semesterEmpty ||
+        _isFormValid != newFormValid) {
+      
+      setState(() {
+        _isNameEmpty = nameEmpty;
+        _isCollegeEmpty = collegeEmpty;
+        _isYearLevelEmpty = yearLevelEmpty;
+        _isSectionEmpty = sectionEmpty;
+        _isSemesterEmpty = semesterEmpty;
+        _isFormValid = newFormValid;
+      });
+    }
   }
 
   // String map for colleges autofill and dropdown
@@ -259,12 +275,16 @@ class _RegistrationStep2State extends State<RegistrationStep2>
 
   @override
   Widget build(BuildContext context) {
+
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       extendBody: true,
       backgroundColor: const Color(0xFFF9F2D7),
 
       appBar: AppBar( //appbar back button
+      scrolledUnderElevation: 0,
         toolbarHeight: 72,
         backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
@@ -382,10 +402,11 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                   ).createShader(bounds);
                                 },
                                 blendMode: BlendMode.dstIn,
+                                
                                 child: SingleChildScrollView(
-                                  padding: const EdgeInsets.only(
+                                  padding: EdgeInsets.only(
                                     top: 18,                                    
-                                    bottom: 12,
+                                    bottom: 12 + MediaQuery.of(context).viewInsets.bottom
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -394,7 +415,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                       _buildStyledTextField(
                                         controller: _nameController,
                                         label: 'Name:',
-                                        hintText: 'Last name, First name, M.I.',
+                                        hintText: 'First name, M.I. Last name',
                                         isEmpty: _isNameEmpty,
                                       ),
                                       const SizedBox(height: 0),
@@ -669,72 +690,78 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                         isEmpty: _isSemesterEmpty,
                                       ),
 
-                                      const SizedBox(
-                                        height: 75,//button gap height distance
-                                      ),
-                                      Center(
-                                        child: AbsorbPointer(
-                                          absorbing: !_isFormValid,
-                                          child: AnimatedContainer(
-                                            duration: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            height: 56,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF5C6AA0),
-                                              borderRadius:
-                                                  BorderRadius.circular(40),
-                                              
-                                            ),
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: InkWell(
-                                                borderRadius:
-                                                    BorderRadius.circular(40),
-                                                onTap: () async {
-                                                  _validateFields();
-                                                  if (_isFormValid) {
-                                                    await _updateDetails(
-                                                      context,
-                                                    );
-                                                  }
-                                                },
-                                                child: SizedBox(
-                                                  width: double.infinity,
-                                                  child: Center(
-                                                    child:
-                                                        AnimatedDefaultTextStyle(
-                                                          duration:
-                                                              const Duration(
-                                                                milliseconds:
-                                                                    200,
-                                                              ),
-                                                          style: TextStyle(
-                                                            color: _isFormValid
-                                                                ? Colors.white
-                                                                : Colors
-                                                                      .white60,
-                                                            fontSize: 14,
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            fontFamily: 'Geist',
-                                                          ),
-                                                          child: const Text(
-                                                            'Confirm',
-                                                          ),
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                      const SizedBox(height: 12),
+
                                     ],
                                   ),
                                 ),
                               ),
                             ),
+
+                            if (!isKeyboardOpen) ...[
+
+                              Center(
+                                child: AbsorbPointer(
+                                  absorbing: !_isFormValid,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(
+                                      milliseconds: 200,
+                                    ),
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF5C6AA0),
+                                      borderRadius:
+                                          BorderRadius.circular(40),
+                                      
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius:
+                                            BorderRadius.circular(40),
+                                        onTap: () async {
+                                          _validateFields();
+                                          if (_isFormValid) {
+                                            await _updateDetails(
+                                              context,
+                                            );
+                                          }
+                                        },
+                                        child: SizedBox(
+                                          width: double.infinity,
+                                          child: Center(
+                                            child: AnimatedDefaultTextStyle(
+                                              duration:
+                                                  const Duration(
+                                                    milliseconds:
+                                                        200,
+                                                  ),
+                                              style: TextStyle(
+                                                color: _isFormValid
+                                                    ? Colors.white
+                                                    : Colors
+                                                          .white60,
+                                                fontSize: 14,
+                                                fontWeight:
+                                                    FontWeight.bold,
+                                                fontFamily: 'Geist',
+                                              ),
+                                              child: const Text(
+                                                'Confirm',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 47),
+                            ]
+
+                            
+                            
                           ],
                         ),
                       ),

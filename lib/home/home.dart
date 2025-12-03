@@ -388,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               BottomNavigationBarItem(
                 icon: _buildNavIcon('slate', 1), // <-- This will now work
-                label: "Slates",
+                label: "Candidate",
               ),
               BottomNavigationBarItem(
                 icon: _buildNavIcon('voting', 2), // <-- This will now work
