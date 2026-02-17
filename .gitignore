@@ -45,4 +45,4 @@ app.*.map.json
 /android/app/release
 
 # Firebase related
-*.json
+heronsvote-firebase-adminsdk-fbsvc-df5ce477bc.json
