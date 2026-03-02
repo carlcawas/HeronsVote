@@ -134,11 +134,12 @@ class _RegistrationStep1State extends State<RegistrationStep1>
 
     // Clear previous error and reset visible file state before starting
     setState(() {
-      _uploadErrorMessage = null;
-      _selectedFileName = '';
+      _isUploading = true;
       _selectedFilePath = null;
+      _selectedFileName = "";
       _uploadProgress = 0;
       _uploadComplete = false;
+      _uploadErrorMessage = null;
     });
 
     // Init and check storage permission
@@ -226,107 +227,87 @@ class _RegistrationStep1State extends State<RegistrationStep1>
 
     try {
       final text = await ReadPdfText.getPDFtext(filePath);
-      final pdfText = text.replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+      final pdfText = text
+          .replaceAll(RegExp(r'["\n,]'), ' ') 
+          .replaceAll(RegExp(r'\s+'), ' ') 
+          .toLowerCase();
 
       // --- COR validation fields ---
-      final hasStudentNo = RegExp(
-        r'\b[ka]\d{8}\b',
-        caseSensitive: false,
-      ).hasMatch(pdfText);
-      final hasUmakEmail = RegExp(
-        r'\b[\w\.\-]+@umak\.edu\.ph\b',
-      ).hasMatch(pdfText);
-      final hasCollege =
-          pdfText.contains('college of') || pdfText.contains('college');
-      final hasProgram =
-          pdfText.contains('program') || pdfText.contains('major');
-      final hasYearLevel = pdfText.contains('year level');
-      final hasSemester = pdfText.contains('semester');
+      final hasStudentNo = RegExp(r'[ka]\d{8}', caseSensitive: false).hasMatch(pdfText);
+      final hasUmakEmail = RegExp(r'[\w\.\-]+@umak\.edu\.ph').hasMatch(pdfText);
+      final hasCollege = pdfText.contains('college of') || pdfText.contains('college');
+      final hasProgram = pdfText.contains('program') || pdfText.contains('major');
+      final hasSemester = pdfText.contains('semester') || pdfText.contains('academic year');
 
       // --- Academic Year Validation ---
       final currentYear = DateTime.now().year;
       final ayMatch = RegExp(r'(20\d{2})\s*-\s*(20\d{2})').firstMatch(pdfText);
+      final isSecondSem = pdfText.contains('2nd semester') || pdfText.contains('second semester');
+
       bool hasValidAY = false;
       if (ayMatch != null) {
         final startYear = int.tryParse(ayMatch.group(1) ?? '');
-        final endYear = int.tryParse(ayMatch.group(2) ?? '');
-        if (startYear != null && endYear != null) {
-          hasValidAY =
-              (startYear == currentYear || startYear == currentYear + 1);
+        if (startYear != null) {
+          hasValidAY = (startYear == currentYear || 
+                        startYear == currentYear + 1 ||
+                        (isSecondSem && startYear == currentYear - 1));
         }
       }
 
-      if (!hasStudentNo ||
-          !hasUmakEmail ||
-          !hasCollege ||
-          !hasProgram ||
-          !hasYearLevel ||
-          !hasSemester) {
+      if (!hasStudentNo || !hasUmakEmail || !hasCollege || !hasProgram || !hasSemester) {
         _cancelUpload();
-        setState(() {
-          _uploadErrorMessage = "This is not a University COR";
-        });
+        setState(() { _uploadErrorMessage = "This is not a University COR"; });
         return;
       }
 
       if (!hasValidAY) {
         _cancelUpload();
-        setState(() {
-          _uploadErrorMessage = "This is an outdated COR";
-        });
+        setState(() { _uploadErrorMessage = "This is an outdated COR"; });
         return;
       }
 
       // --- Extract student info ---
       final name = RegExp(
-        r'name\s*:? ([a-z\s\.\-]+) student no',
+        r'name\s*[:\.]?\s*([a-z\s\.-]+?)(?=\s+(?:address|student|guardian|blk|\d))',
       ).firstMatch(pdfText)?.group(1)?.trim();
-      final studentNo = RegExp(
-        r'student no\.?\s*:? ([a-z0-9\-]+)',
-      ).firstMatch(pdfText)?.group(1)?.trim();
-      final email = RegExp(
-        r'email\s*:? ([\w\.\@]+)',
-      ).firstMatch(pdfText)?.group(1)?.trim();
+
       final program = RegExp(
-        r'program/?major\s*:? ([a-z\s\.\-]+) year level',
+        r'program\s*/?\s*major\s*[:\.]?\s*([a-z\s\.,&-]+?)(?=\s+(?:year|name|student))',
       ).firstMatch(pdfText)?.group(1)?.trim();
-      var yearLevel = RegExp(
-        r'year level\s*:? ([a-z0-9\s]+)',
-      ).firstMatch(pdfText)?.group(1)?.trim();
+
       final college = RegExp(
-        r'college\s*:? ([a-z\s]+) semester',
+        r'college\s*[:\.]?\s*([a-z\s\.,&-]+?)(?=\s+(?:academic|program|semester))',
       ).firstMatch(pdfText)?.group(1)?.trim();
-      var semester = RegExp(
-        r'semester\s*&?\s*academic year\s*:? ([a-z0-9\s\.\-]+)',
-      ).firstMatch(pdfText)?.group(1)?.trim();
-      final gender = RegExp(
-        r'gender\s*:? ([a-z]+)',
-      ).firstMatch(pdfText)?.group(1)?.trim();
-      final rawSection = RegExp(
-        r'\b([ivx]{1,4})\s*-\s*([a-z]+)\b',
-        caseSensitive: false,
+
+      final studentNo = RegExp(r'([kK]\d{8})').firstMatch(pdfText)?.group(1)?.trim();
+
+      final email = RegExp(r'([\w\.\-]+@umak\.edu\.ph)').firstMatch(pdfText)?.group(1)?.trim();
+
+      var yearLevel = RegExp(
+        r'\b(first|second|third|fourth|fifth)\s+year\b',
+      ).firstMatch(pdfText)?.group(0)?.trim();
+
+      String? semesterRaw;
+      final combinedSemMatch = RegExp(
+        r'(20\d{2}\s*-\s*20\d{2}\s*-\s*[a-z]+\s*semester)',
       ).firstMatch(pdfText);
-      String? section;
-      if (rawSection != null) {
-        section = rawSection.group(2)?.toUpperCase().trim();
-      }
+
+      if (combinedSemMatch != null) semesterRaw = combinedSemMatch.group(1);
+
+      final gender = RegExp(r'gender\s*[:\.]?\s*([a-z]+)(?=\s+date)').firstMatch(pdfText)?.group(1)?.trim();
+
+      final rawSection = RegExp(r'\b([ivx]{1,4})\s*-\s*([a-z]+)\b', caseSensitive: false).firstMatch(pdfText);
+      String? section = rawSection?.group(0)?.toUpperCase().trim();
 
       // --- Formatting helpers ---
       String capitalizeWords(String? input) {
         if (input == null || input.isEmpty) return '';
-        return input
-            .split(' ')
-            .map(
-              (w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}',
-            )
-            .join(' ')
-            .trim();
+        return input.split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}').join(' ').trim();
       }
 
       String cleanSection(String? input) {
         if (input == null || input.isEmpty) return '';
-        final match = RegExp(r'\b[IVX]{1,4}\s*-\s*([A-Z]+)\b', caseSensitive: false).firstMatch(input);
-        return match != null ? match.group(1)!.toUpperCase().trim() : input.toUpperCase().trim();
+        return input.toUpperCase().replaceAll(RegExp(r'\s+'), ''); 
       }
 
       final nameCap = capitalizeWords(name);
@@ -336,42 +317,37 @@ class _RegistrationStep1State extends State<RegistrationStep1>
       final collegeId = findCollegeIdFromOCR(collegeCap);
       final genderCap = capitalizeWords(gender);
       final sectionCap = cleanSection(section);
+      
+      if (yearLevel != null) yearLevel = capitalizeWords(yearLevel);
 
-      if (yearLevel != null && yearLevel.contains('year')) {
-        final idx = yearLevel.indexOf('year');
-        yearLevel = yearLevel.substring(0, idx + 4).trim();
-        yearLevel = capitalizeWords(yearLevel);
-      }
-
-      if (semester != null) {
-        final match = RegExp(r'(20\d{2}-20\d{2})').firstMatch(semester);
-        if (match != null) semester = semester.substring(0, match.end).trim();
-        semester = semester.replaceAll(
-          RegExp(r'a\.?y\.?', caseSensitive: false),
-          'A.Y.',
-        );
-        semester = capitalizeWords(semester);
+      var finalSemester = '';
+      if (semesterRaw != null) {
+        final ay = RegExp(r'(20\d{2}-20\d{2})').firstMatch(semesterRaw)?.group(1);
+        String semPart = semesterRaw;
+        if (ay != null) {
+           semPart = semesterRaw.replaceAll(ay, '').replaceAll('-', '').trim();
+        }
+        semPart = capitalizeWords(semPart);
+        if (ay != null) {
+          finalSemester = "$semPart A.Y. $ay";
+        } else {
+          finalSemester = semPart;
+        }
       }
 
       // --- Final Data Validation ---
-      final studentNoValid = RegExp(
-        r'^[KA]\d{8}$',
-        caseSensitive: false,
-      ).hasMatch(studentNoCap);
-      final emailValid =
-          email != null && email.toLowerCase().endsWith('@umak.edu.ph');
-      final hasEssentialData =
-          nameCap.isNotEmpty &&
-          programCap.isNotEmpty &&
-          collegeCap.isNotEmpty &&
-          yearLevel != null &&
-          semester != null;
+      final studentNoValid = RegExp(r'^[KA]\d{8}$', caseSensitive: false).hasMatch(studentNoCap);
+      final emailValid = email != null && email.toLowerCase().endsWith('@umak.edu.ph');
+
+      debugPrint('EXTRACTED -> Name: "$nameCap", Prog: "$programCap", Coll: "$collegeCap", Year: "$yearLevel", Sem: "$finalSemester"');
+
+      final hasEssentialData = nameCap.isNotEmpty && programCap.isNotEmpty && 
+          collegeCap.isNotEmpty && yearLevel != null && finalSemester.isNotEmpty;
 
       if (!studentNoValid || !emailValid || !hasEssentialData) {
         _cancelUpload();
         setState(() {
-          _uploadErrorMessage =
-              "Invalid COR details. Please upload a valid University COR.";
+          _uploadErrorMessage = "Invalid COR details. Please upload a valid University COR.";
         });
         return;
       }
@@ -401,7 +377,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
         'college_id': collegeId,
         'year_level': yearLevel,
         'section': sectionCap,
-        'semester': semester,
+        'semester': finalSemester,
         'gender': genderCap,
         'lastUpdateCOR': DateTime.now(),
         'registerComplete': false,
@@ -419,7 +395,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
         _collegeCap = collegeCap;
         _collegeId = collegeId; 
         _yearLevel = yearLevel;
-        _semester = semester;
+        _semester = finalSemester;
         _sectionCap = sectionCap;
       });
     } catch (e) {

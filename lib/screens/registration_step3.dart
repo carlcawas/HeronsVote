@@ -2,12 +2,16 @@ import 'dart:io';
 import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_verified.dart';
 import 'package:image/image.dart' as img;
+import 'package:heronsvote/services/model_handler.dart';
+
+const int MODEL_INPUT_SIZE = 160;
+const double MIN_EYE_DISTANCE = 25.0;
 
 class RegistrationStep3 extends StatefulWidget {
   final String? uid;
@@ -24,10 +28,14 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   late final Animation<Offset> _contentSlide;
   late final Animation<double> _contentFade;
 
+  // Model Handler
+  late final ModelHandler _modelHandler;
+  bool _modelsReady = false;
+
   CameraController? _cameraController;
   bool _cameraInitialized = false;
   bool _processing = false;
-  late final FaceMeshDetector _meshDetector;
+  late final FaceDetector _faceDetector;
 
   @override
   void initState() {
@@ -62,8 +70,18 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       if (mounted) _contentController.forward();
     });
 
-    _meshDetector = FaceMeshDetector(option: FaceMeshDetectorOptions.faceMesh);
+    final options = FaceDetectorOptions(
+      enableLandmarks: false,
+      enableContours: false,
+      enableTracking: false,
+      enableClassification: false,
+      performanceMode: FaceDetectorMode.fast,
+    );
+    _faceDetector = FaceDetector(options: options);
+    
     _initCameraAndPermission();
+
+    _initializeModels();
   }
 
   @override
@@ -71,8 +89,16 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     _panelController.dispose();
     _contentController.dispose();
     _cameraController?.dispose();
-    _meshDetector.close();
+    _faceDetector.close();
+    _modelHandler.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeModels() async {
+    _modelHandler = ModelHandler();
+    await _modelHandler.loadModels();
+    if (!mounted) return;
+    setState(() => _modelsReady = true);
   }
 
   Future<void> _saveRegisterStep() async {
@@ -117,264 +143,177 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   }
 
   Future<void> _onCapturePressed() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      _showError("Camera not ready.");
-      return;
-    }
-    if (_processing) return;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _showError("User not logged in.");
-      await _cameraController!.resumePreview();
-      setState(() => _processing = false);
-      return;
-    }
+  if (_cameraController == null || !_cameraController!.value.isInitialized) {
+    _showError("Camera not ready.");
+    return;
+  }
 
-    setState(() => _processing = true);
+  if (_processing || _cameraController!.value.isTakingPicture) return;
+  setState(() => _processing = true);
+
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    _showError("User not logged in.");
+    setState(() => _processing = false);
+    return;
+  }
+
+  if (!_modelsReady) {
+    _showError("Loading validation models. Please try again.");
+    setState(() => _processing = false);
+    return;
+  }
+
+  try {
+    // Capture image
+    XFile raw;
     try {
-      final XFile raw = await _cameraController!.takePicture();
+      raw = await _cameraController!.takePicture();
+    } catch (e) {
+      _showError("Camera busy. Try again.");
+      return;
+    }
+
+    final File file = File(raw.path);
+    try {
       await _cameraController!.pausePreview();
-      final File file = File(raw.path);
+    } catch (_) {}
 
-      // Check if too captured img is dark
-      if (await _isImageTooDark(file)) {
-        _showError(
-          "Surrounding is too dark. Please move to a brighter area and try again.",
-        );
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    // Brightness check
+    if (await _isImageTooDark(file)) {
+      _showError("Surrounding is too dark. Please move to a brighter area.");
+      await _cameraController!.resumePreview();
+      return;
+    }
 
-      // Check if image is blurred (Still strict at 80)
-      final imageBytes = await file.readAsBytes();
-      final decoded = img.decodeImage(imageBytes);
+    // Decode image
+    final imageBytes = await file.readAsBytes();
+    final decoded = img.decodeImage(imageBytes);
+    if (decoded == null) {
+      _showError("Failed to decode image.");
+      await _cameraController!.resumePreview();
+      return;
+    }
 
-      // if < 30 --- less strict
-      // if < 80 --- more strict
-      if (decoded != null && _imageSharpness(decoded) < 80) {
-        _showError(
-          "Image is blurry. Please keep the camera stable and try again.",
-        );
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    // Sharpness check
+    if (_imageSharpness(decoded) < 80) {
+      _showError("Image is blurry. Keep the camera stable.");
+      await _cameraController!.resumePreview();
+      return;
+    }
 
-      final inputImage = InputImage.fromFile(file);
-      final meshes = await _meshDetector.processImage(inputImage);
+    // Segmentation foreground check
+    final segOutput = await _modelHandler?.runSegmentation(file);
+    if (segOutput == null || !_isForegroundGood(segOutput)) {
+      _showError("Face not clear from background. Move closer.");
+      await _cameraController!.resumePreview();
+      return;
+    }
 
-      if (meshes.isEmpty) {
-        _showError(
-          "No face detected. Please face the camera directly and try again.",
-        );
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    // ----- FACE VALIDATION USING FACENET 512 -----
+    // Resize to model input
+    final resized = img.copyResize(decoded, width: MODEL_INPUT_SIZE, height: MODEL_INPUT_SIZE);
+    final tempDir = Directory.systemTemp;
+    final alignedFile = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_aligned.jpg');
+    await alignedFile.writeAsBytes(img.encodeJpg(resized));
 
-      final mesh = meshes.first;
-      final points = mesh.points;
+    // Run Facenet 512 TFLite model
+    final embedding = await _modelHandler?.runFaceEmbedding(alignedFile);
+    if (embedding == null || embedding.length != 512) {
+      _showError("Embedding generation failed.");
+      await _cameraController!.resumePreview();
+      alignedFile.deleteSync();
+      return;
+    }
 
-      // can be adjusted up to 468
-      if (points.length < 300) {
-        _showError("Face mesh incomplete. Try again.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    final inputImage = InputImage.fromFilePath(file.path);
+    final faces = await _faceDetector.processImage(inputImage);
 
-      // geometry-based checks
-      final leftEye = points[33];
-      final rightEye = points[263];
+    if (faces.isEmpty) {
+      _showError("No face detected.");
+      await _cameraController!.resumePreview();
+      alignedFile.deleteSync();
+      return;
+    }
 
-      if (leftEye.x.isNaN || rightEye.x.isNaN) {
-        _showError("Invalid mesh data. Try again.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    if (faces.length > 1) {
+      _showError("Multiple faces detected. Please ensure only you are in the frame.");
+      await _cameraController!.resumePreview();
+      alignedFile.deleteSync();
+      return;
+    }
 
-      final double eyeDist = sqrt(
-        pow(rightEye.x - leftEye.x, 2) +
-            pow(rightEye.y - leftEye.y, 2) +
-            pow(rightEye.z - leftEye.z, 2),
-      );
+    final face = faces.first;
+    
+    if (face.headEulerAngleY == null || face.headEulerAngleX == null || face.headEulerAngleZ == null) {
+      _showError("Could not determine face orientation.");
+      await _cameraController!.resumePreview();
+      alignedFile.deleteSync();
+      return;
+    }
 
-      // can be adjusted
-      // if < 7 --- less strict
-      // if < 15 --- more strict
-      if (eyeDist < 15) {
-        _showError(
-          "Face is far or partially covered. Please move closer and try again.",
-        );
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    // Allow a 12-degree margin of error for looking straight ahead
+    // Y = Yaw (left/right), X = Pitch (up/down), Z = Roll (tilt)
+    if (face.headEulerAngleY!.abs() > 12 || face.headEulerAngleX!.abs() > 12 || face.headEulerAngleZ!.abs() > 12) {
+      _showError("Face not properly oriented. Please look straight at the camera.");
+      await _cameraController!.resumePreview();
+      alignedFile.deleteSync();
+      return;
+    }
 
-      // Glasses check
-      final eyesBrightness = await _regionBrightness(file, leftEye, rightEye);
+    // Normalize embedding
+    final double norm = sqrt(embedding.fold(0.0, (prev, e) => prev + e * e));
+    final normalizedEmbedding = embedding.map((e) => e / norm).toList();
 
-      // can be adjusted to adjust eye strictness
-      // if < 40 --- less strict
-      // if < 60 --- more strict
-      if (eyesBrightness < 55) {
-        _showError(
-          "Please remove obstruction for clearer face detection and try again.",
-        );
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    // Store to Firebase
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'faceEmbedding': normalizedEmbedding,
+      'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
+    });
 
-      if (decoded == null) {
-        _showError("Failed to decode image for pose checks.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
-      final double imageWidth = decoded.width.toDouble();
-      final double imageHeight = decoded.height.toDouble();
-      final double imageCenterX = imageWidth / 2.0;
-      final double imageCenterY = imageHeight / 2.0;
+    // Cleanup
+    try {
+      await file.delete();
+      await alignedFile.delete();
+    } catch (_) {}
 
-      final double cx = (leftEye.x + rightEye.x) / 2.0;
-      final double cy = (leftEye.y + rightEye.y) / 2.0;
-      final double cz = (leftEye.z + rightEye.z) / 2.0;
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 0),
+        pageBuilder: (_, __, ___) => RegistrationVerified(uid: user.uid),
+      ),
+    );
+  } catch (e) {
+    _showError("Failed to capture and process face: $e");
+    try {
+      await _cameraController?.resumePreview();
+    } catch (_) {}
+  } finally {
+    if (mounted) setState(() => _processing = false);
+  }
+}
 
-      // tolerance 0.20 = 20% can be adjusted to be more/less strict
-      final double allowedHorizontalOffset = imageWidth * 0.15;
-      final double allowedVerticalOffset = imageHeight * 0.15;
+  // Check if the foreground is good
+  bool _isForegroundGood(List<List<List<List<double>>>> mask) {
+    final height = mask[0].length;
+    final width = mask[0][0].length;
 
-      if ((cx - imageCenterX).abs() > allowedHorizontalOffset ||
-          (cy - imageCenterY).abs() > allowedVerticalOffset) {
-        _showError("Please center your face in the frame and try again.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
+    int foreground = 0;
+    final total = height * width;
 
-      final double eyeTilt = (leftEye.y - rightEye.y).abs();
-      // 0.17 = ~10 deg, 0.25 = ~15 deg. Lower is stricter.
-      const double maxTiltThreshold = 0.17;
-      if ((eyeTilt / eyeDist) > maxTiltThreshold) {
-        _showError("Please keep your head level straight and try again.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
-
-      final noseTip = points[1];
-      final double distLeft = (noseTip.x - leftEye.x).abs();
-      final double distRight = (noseTip.x - rightEye.x).abs();
-      final double yawRatio =
-          min(distLeft, distRight) / max(distLeft, distRight);
-
-      // 0.70 = 30% turn
-      // can be adjusted to 0.80+ for stricter.
-      const double minYawThreshold = 0.80;
-      if (yawRatio < minYawThreshold) {
-        _showError("Please face the camera straight and try again.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
-
-      // Mouth Open Check
-      final lipTop = points[13];
-      final lipBottom = points[14];
-      final double lipDist = (lipBottom.y - lipTop.y).abs();
-
-      // Can be adjusted, mouth open < 40% of eye distance
-      const double maxMouthOpenRatio = 0.4;
-      if ((lipDist / eyeDist) > maxMouthOpenRatio) {
-        _showError(
-          "Please close your mouth for a neutral expression and try again.",
-        );
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
-
-      // Eye Closed Check
-      final leftEyeTop = points[159];
-      final leftEyeBottom = points[145];
-      final double leftEyeOpenness = (leftEyeBottom.y - leftEyeTop.y).abs();
-
-      final rightEyeTop = points[386];
-      final rightEyeBottom = points[374];
-      final double rightEyeOpenness = (rightEyeBottom.y - rightEyeTop.y).abs();
-
-      // can be adjusted eye openness 0.05 - less strict 0.10 - more strict
-      const double minEyeOpenRatio = 0.07;
-      if ((leftEyeOpenness / eyeDist) < minEyeOpenRatio ||
-          (rightEyeOpenness / eyeDist) < minEyeOpenRatio) {
-        _showError("Please keep both of your eyes open and try again.");
-        await _cameraController!.resumePreview();
-        setState(() => _processing = false);
-        return;
-      }
-
-      final List<double> embedding = [];
-
-      final leftEyeInner = points[133];
-      final rightEyeInner = points[362];
-      final chin = points[152];
-      final leftCheek = points[234];
-      final rightCheek = points[454];
-
-      // Pick stable anchor points:
-      final anchors = [
-        noseTip,
-        leftEyeInner,
-        rightEyeInner,
-        chin,
-        leftCheek,
-        rightCheek,
-      ];
-
-      for (final p in points) {
-        for (final a in anchors) {
-          final dx = (p.x - a.x) / eyeDist;
-          final dy = (p.y - a.y) / eyeDist;
-          final dz = (p.z - a.z) / eyeDist;
-          embedding.addAll([dx, dy, dz]);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        if (mask[0][y][x][0] > 0.5) {
+          foreground++;
         }
       }
-
-      final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
-
-      final List<double> normalizedEmbedding = embedding
-          .map((v) => v / norm)
-          .toList();
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-            'faceEmbedding': normalizedEmbedding,
-            'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
-          });
-
-      try {
-        await file.delete();
-      } catch (_) {}
-
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 0),
-          pageBuilder: (_, __, ___) => RegistrationVerified(uid: user.uid),
-        ),
-      );
-    } catch (e) {
-      _showError("Failed to capture and process face: $e");
-      await _cameraController!.resumePreview();
-    } finally {
-      if (mounted) setState(() => _processing = false);
     }
+
+    final ratio = foreground / total;
+
+    return ratio > 0.30;
   }
 
   // Brightness check
@@ -437,43 +376,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     final double mean = sum / count;
     final double variance = (sumSq / count) - (mean * mean);
     return variance;
-  }
-
-  // for glasses detection
-  Future<double> _regionBrightness(
-    File file,
-    FaceMeshPoint left,
-    FaceMeshPoint right,
-  ) async {
-    final bytes = await file.readAsBytes();
-    final image = img.decodeImage(bytes);
-    if (image == null) return 0.0;
-
-    final int midX = ((left.x + right.x) / 2).round();
-    final int midY = ((left.y + right.y) / 2).round();
-
-    double total = 0.0;
-    int count = 0;
-
-    const int dx = 40;
-    const int dy = 20;
-    final int step = 5;
-
-    for (int y = midY - dy; y <= midY + dy; y += step) {
-      for (int x = midX - dx; x <= midX + dx; x += step) {
-        if (x >= 0 && y >= 0 && x < image.width && y < image.height) {
-          final img.Pixel pixel = image.getPixel(x, y);
-          final int r = pixel.r.toInt();
-          final int g = pixel.g.toInt();
-          final int b = pixel.b.toInt();
-          final int avg = ((r + g + b) / 3).round();
-          total += avg;
-          count++;
-        }
-      }
-    }
-
-    return count == 0 ? 0.0 : total / count;
   }
 
   @override
@@ -606,14 +508,18 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                           FittedBox(
                                             fit: BoxFit.cover,
                                             child: SizedBox(
-                                              width: _cameraController!
-                                                  .value
-                                                  .previewSize!
-                                                  .height,
-                                              height: _cameraController!
-                                                  .value
-                                                  .previewSize!
-                                                  .width,
+                                              width:
+                                                  _cameraController!
+                                                      .value
+                                                      .previewSize
+                                                      ?.height ??
+                                                  100,
+                                              height:
+                                                  _cameraController!
+                                                      .value
+                                                      .previewSize
+                                                      ?.width ??
+                                                  100,
                                               child: CameraPreview(
                                                 _cameraController!,
                                               ),

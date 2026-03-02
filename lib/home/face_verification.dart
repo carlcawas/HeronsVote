@@ -2,7 +2,8 @@ import 'dart:io';
 import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:google_mlkit_face_mesh_detection/google_mlkit_face_mesh_detection.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:heronsvote/services/model_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -31,19 +32,37 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   CameraController? _cameraController;
   bool _cameraInitialized = false;
   bool _processing = false;
-  late final FaceMeshDetector _meshDetector;
+  late final FaceDetector _faceDetector;
+  late final ModelHandler _modelHandler;
+  bool _modelsReady = false;
 
   @override
   void initState() {
-    super.initState();
-    _meshDetector = FaceMeshDetector(option: FaceMeshDetectorOptions.faceMesh);
+  super.initState();
+    final options = FaceDetectorOptions(
+      enableLandmarks: false,
+      enableContours: false,
+      enableTracking: false,
+      enableClassification: false,
+      performanceMode: FaceDetectorMode.fast,
+    );
+    _faceDetector = FaceDetector(options: options);
     _initCameraAndPermission();
+    _initializeModels();
+  }
+
+  Future<void> _initializeModels() async {
+    _modelHandler = ModelHandler();
+    await _modelHandler.loadModels();
+    if (!mounted) return;
+    setState(() => _modelsReady = true);
   }
 
   @override
   void dispose() {
     _cameraController?.dispose();
-    _meshDetector.close();
+    _faceDetector.close();
+    _modelHandler.dispose();
     super.dispose();
   }
 
@@ -86,15 +105,22 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
   // CAPTURE AND PROCESS FACE
   Future<void> _onCapturePressed() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+  if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
     }
     if (_processing) return;
+    if (!_modelsReady) {
+      _showError("Loading models. Please try again.");
+      return;
+    }
+
     setState(() => _processing = true);
+
     try {
       final XFile raw = await _cameraController!.takePicture();
       await _cameraController!.pausePreview();
       final File file = File(raw.path);
+
       // Quality Checks
       if (await _isImageTooDark(file)) {
         throw "Surrounding is too dark. Please move to a brighter area.";
@@ -103,75 +129,68 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       final decoded = img.decodeImage(imageBytes);
       if (decoded != null && _imageSharpness(decoded) < 80) {
         throw "Image is blurry. Please keep the camera stable.";
-      } // Detect Face Mesh
+      }
+
+      // Detect Face
       final inputImage = InputImage.fromFile(file);
-      final meshes = await _meshDetector.processImage(inputImage);
-      if (meshes.isEmpty) throw "No face detected.";
-      final mesh = meshes.first;
-      final points = mesh.points;
-      if (points.length < 300) throw "Face mesh incomplete.";
-      // Geometric Checks
-      final leftEye = points[33];
-      final rightEye = points[263];
-      final double eyeDist = sqrt(
-        pow(rightEye.x - leftEye.x, 2) +
-            pow(rightEye.y - leftEye.y, 2) +
-            pow(rightEye.z - leftEye.z, 2),
-      );
-      if (eyeDist < 15) throw "Face is too far. Please move closer.";
-      final eyesBrightness = await _regionBrightness(file, leftEye, rightEye);
-      if (eyesBrightness < 55) throw "Remove obstructions (mask/sunglasses).";
+      final faces = await _faceDetector.processImage(inputImage);
+
+      if (faces.isEmpty) throw "No face detected.";
+      if (faces.length > 1) throw "Multiple faces detected. Please ensure only you are in the frame.";
+
+      final face = faces.first;
       final double imageWidth = decoded!.width.toDouble();
       final double imageHeight = decoded.height.toDouble();
-      final double cx = (leftEye.x + rightEye.x) / 2.0;
-      final double cy = (leftEye.y + rightEye.y) / 2.0;
-      final double cz = (leftEye.z + rightEye.z) / 2.0;
+      final rect = face.boundingBox;
+
+      // Distance check based on bounding box size relative to image
+      if (rect.width < imageWidth * 0.3) {
+        throw "Face is too far. Please move closer.";
+      }
+
+      // Center Check
+      final double cx = rect.left + (rect.width / 2);
+      final double cy = rect.top + (rect.height / 2);
       if ((cx - imageWidth / 2).abs() > imageWidth * 0.15 ||
           (cy - imageHeight / 2).abs() > imageHeight * 0.15) {
         throw "Please center your face.";
       }
-      final noseTip = points[1];
-      final double distLeft = (noseTip.x - leftEye.x).abs();
-      final double distRight = (noseTip.x - rightEye.x).abs();
-      final double yawRatio =
-          min(distLeft, distRight) / max(distLeft, distRight);
-      if (yawRatio < 0.80) throw "Please face the camera straight.";
-      // Generate Embedding
-      final List<double> embedding = [];
-      final leftEyeInner = points[133];
-      final rightEyeInner = points[362];
-      final chin = points[152];
-      final leftCheek = points[234];
-      final rightCheek = points[454];
-      final anchors = [
-        noseTip,
-        leftEyeInner,
-        rightEyeInner,
-        chin,
-        leftCheek,
-        rightCheek,
-      ];
-      for (final p in points) {
-        for (final a in anchors) {
-          final dx = (p.x - a.x) / eyeDist;
-          final dy = (p.y - a.y) / eyeDist;
-          final dz = (p.z - a.z) / eyeDist;
-          embedding.addAll([dx, dy, dz]);
-        }
+
+      // Orientation Check (Euler angles)
+      if (face.headEulerAngleY == null || face.headEulerAngleX == null || face.headEulerAngleZ == null) {
+        throw "Could not determine face orientation.";
       }
+      if (face.headEulerAngleY!.abs() > 12 || face.headEulerAngleX!.abs() > 12 || face.headEulerAngleZ!.abs() > 12) {
+        throw "Please face the camera straight.";
+      }
+
+      // Generate Embedding using FaceNet 512
+      final resized = img.copyResize(decoded, width: 160, height: 160);
+      final tempDir = Directory.systemTemp;
+      final alignedFile = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_aligned.jpg');
+      await alignedFile.writeAsBytes(img.encodeJpg(resized));
+
+      final embedding = await _modelHandler.runFaceEmbedding(alignedFile);
+      if (embedding.length != 512) {
+        throw "Embedding generation failed.";
+      }
+
       final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
-      final List<double> normalizedCurrent = embedding
-          .map((v) => v / norm)
-          .toList();
+      final List<double> normalizedCurrent = embedding.map((v) => v / norm).toList();
+
       // Verify
       await _verifyUser(normalizedCurrent);
+
       // Cleanup
       try {
         await file.delete();
+        await alignedFile.delete();
       } catch (_) {}
     } catch (e) {
       _showError(e.toString().replaceAll("Exception: ", ""));
-      await _cameraController!.resumePreview();
+      try {
+        await _cameraController!.resumePreview();
+      } catch (_) {}
       setState(() => _processing = false);
     }
   }
@@ -415,38 +434,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     if (count == 0) return 0.0;
     final double mean = sum / count;
     return (sumSq / count) - (mean * mean);
-  }
-
-  Future<double> _regionBrightness(
-    File file,
-    FaceMeshPoint left,
-    FaceMeshPoint right,
-  ) async {
-    final bytes = await file.readAsBytes();
-    final image = img.decodeImage(bytes);
-    if (image == null) return 0.0;
-
-    final int midX = ((left.x + right.x) / 2).round();
-    final int midY = ((left.y + right.y) / 2).round();
-    double total = 0.0;
-    int count = 0;
-    const int dx = 40;
-    const int dy = 20;
-    final int step = 5;
-
-    for (int y = midY - dy; y <= midY + dy; y += step) {
-      for (int x = midX - dx; x <= midX + dx; x += step) {
-        if (x >= 0 && y >= 0 && x < image.width && y < image.height) {
-          final img.Pixel pixel = image.getPixel(x, y);
-          final int r = pixel.r.toInt();
-          final int g = pixel.g.toInt();
-          final int b = pixel.b.toInt();
-          total += ((r + g + b) / 3).round();
-          count++;
-        }
-      }
-    }
-    return count == 0 ? 0.0 : total / count;
   }
 
   @override
