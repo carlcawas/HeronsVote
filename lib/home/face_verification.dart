@@ -1,13 +1,12 @@
 import 'dart:io';
-import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:heronsvote/services/model_handler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:heronsvote/services/model_handler.dart';
 import 'voting_models.dart';
 import 'vote_submitted.dart';
 import 'header.dart';
@@ -35,18 +34,26 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   late final FaceDetector _faceDetector;
   late final ModelHandler _modelHandler;
   bool _modelsReady = false;
+  
+  // Verification state
+  int _verificationAttempts = 0;
+  static const int maxVerificationAttempts = 3;
+  int _framesCollected = 0;
+  static const int minFramesForLiveness = 2;
 
   @override
   void initState() {
-  super.initState();
+    super.initState();
+    
     final options = FaceDetectorOptions(
-      enableLandmarks: false,
-      enableContours: false,
+      enableLandmarks: true,
+      enableContours: true,
       enableTracking: false,
-      enableClassification: false,
-      performanceMode: FaceDetectorMode.fast,
+      enableClassification: true,
+      performanceMode: FaceDetectorMode.accurate,
     );
     _faceDetector = FaceDetector(options: options);
+    
     _initCameraAndPermission();
     _initializeModels();
   }
@@ -56,6 +63,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     await _modelHandler.loadModels();
     if (!mounted) return;
     setState(() => _modelsReady = true);
+    print('[Verification] Models loaded, ready for verification');
   }
 
   @override
@@ -84,13 +92,15 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
       _cameraController = CameraController(
         front,
-        ResolutionPreset.medium,
+        ResolutionPreset.high,
         enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.nv21,
       );
 
       await _cameraController!.initialize();
       if (!mounted) return;
       setState(() => _cameraInitialized = true);
+      print('[Verification] Camera initialized');
     } catch (e) {
       _showError("Failed to initialize camera: $e");
     }
@@ -99,165 +109,241 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   void _showError(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
     );
   }
 
-  // CAPTURE AND PROCESS FACE
+  void _showSuccess(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ============================================
+  // MAIN VERIFICATION FLOW
+  // ============================================
   Future<void> _onCapturePressed() async {
-  if (_cameraController == null || !_cameraController!.value.isInitialized) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return;
     }
     if (_processing) return;
     if (!_modelsReady) {
-      _showError("Loading models. Please try again.");
+      _showError("Loading models. Please wait...");
       return;
     }
 
     setState(() => _processing = true);
+    _framesCollected = 0;
 
     try {
+      // Reset liveness detector for new session
+      _modelHandler.resetLiveness();
+
+      // Check if user has registered face
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw "User not logged in.";
+      
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+          
+      if (!doc.exists || !doc.data()!.containsKey('faceEmbeddingEncrypted')) {
+        throw "No registered face found. Please complete registration first.";
+      }
+      
+      final String encryptedStoredEmbedding = doc.data()!['faceEmbeddingEncrypted'];
+
+      // Collect frames for liveness detection
+      _showSuccess('Please hold steady for 2 seconds...');
+      await _collectFramesForLiveness();
+
+      // Capture final image
+      print('[Verification] Capturing final image...');
       final XFile raw = await _cameraController!.takePicture();
       await _cameraController!.pausePreview();
       final File file = File(raw.path);
 
-      // Quality Checks
-      if (await _isImageTooDark(file)) {
-        throw "Surrounding is too dark. Please move to a brighter area.";
-      }
+      // Decode image
       final imageBytes = await file.readAsBytes();
       final decoded = img.decodeImage(imageBytes);
-      if (decoded != null && _imageSharpness(decoded) < 80) {
-        throw "Image is blurry. Please keep the camera stable.";
+      
+      if (decoded == null) {
+        throw "Failed to decode image.";
       }
 
-      // Detect Face
+      print('[Verification] Image decoded: ${decoded.width}x${decoded.height}');
+
+      // Detect face
       final inputImage = InputImage.fromFile(file);
       final faces = await _faceDetector.processImage(inputImage);
 
-      if (faces.isEmpty) throw "No face detected.";
-      if (faces.length > 1) throw "Multiple faces detected. Please ensure only you are in the frame.";
+      if (faces.isEmpty) {
+        throw "No face detected. Please face the camera directly.";
+      }
+
+      if (faces.length > 1) {
+        throw "Multiple faces detected. Please ensure only you are in the frame.";
+      }
 
       final face = faces.first;
-      final double imageWidth = decoded!.width.toDouble();
-      final double imageHeight = decoded.height.toDouble();
-      final rect = face.boundingBox;
+      final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
 
-      // Distance check based on bounding box size relative to image
-      if (rect.width < imageWidth * 0.3) {
-        throw "Face is too far. Please move closer.";
+      print('[Verification] Face detected with ${landmarks.length} landmarks');
+
+      // Run verification pipeline
+      print('[Verification] Running verification pipeline...');
+      final result = await _modelHandler.processVerification(
+        image: decoded,
+        face: face,
+        landmarks: landmarks,
+        encryptedStoredEmbedding: encryptedStoredEmbedding,
+      );
+
+      // Handle result
+      if (!result.success) {
+        print('[Verification] Pipeline failed at ${result.stage}: ${result.message}');
+        print('[Verification] Similarity Score: ${result.similarityScore?.toStringAsFixed(4)}');
+        print('[Verification] Distance Score: ${result.distanceScore?.toStringAsFixed(4)}');
+        print('[Verification] Quality Score: ${result.qualityResult?.qualityScore.toStringAsFixed(1)}');
+        print('[Verification] Liveness Confidence: ${result.livenessResult?.confidence.toStringAsFixed(2)}');
+
+        if (result.stage == 'quality_check') {
+          _verificationAttempts++;
+          if (_verificationAttempts >= maxVerificationAttempts) {
+            throw "Verification failed after $maxVerificationAttempts attempts. Please try again later or contact support.";
+          }
+          throw "${result.message} (Attempt $_verificationAttempts/$maxVerificationAttempts)";
+        }
+
+        if (result.stage == 'liveness_check') {
+          _verificationAttempts++;
+          if (_verificationAttempts >= maxVerificationAttempts) {
+            throw "Verification failed after $maxVerificationAttempts attempts. Please try again later or contact support.";
+          }
+          throw "${result.message} (Attempt $_verificationAttempts/$maxVerificationAttempts)";
+        }
+
+        if (result.stage == 'embedding_extraction') {
+          throw result.message;
+        }
+
+        // Comparison stage - show actual scores for debugging
+        if (result.stage == 'complete') {
+          final similarityPct = (result.similarityScore! * 100).toStringAsFixed(1);
+          throw "Face does not match (Similarity: $similarityPct%). Please try again or contact support.";
+        }
+
+        throw result.message;
       }
 
-      // Center Check
-      final double cx = rect.left + (rect.width / 2);
-      final double cy = rect.top + (rect.height / 2);
-      if ((cx - imageWidth / 2).abs() > imageWidth * 0.15 ||
-          (cy - imageHeight / 2).abs() > imageHeight * 0.15) {
-        throw "Please center your face.";
-      }
-
-      // Orientation Check (Euler angles)
-      if (face.headEulerAngleY == null || face.headEulerAngleX == null || face.headEulerAngleZ == null) {
-        throw "Could not determine face orientation.";
-      }
-      if (face.headEulerAngleY!.abs() > 12 || face.headEulerAngleX!.abs() > 12 || face.headEulerAngleZ!.abs() > 12) {
-        throw "Please face the camera straight.";
-      }
-
-      // Generate Embedding using FaceNet 512
-      final resized = img.copyResize(decoded, width: 160, height: 160);
-      final tempDir = Directory.systemTemp;
-      final alignedFile = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_aligned.jpg');
-      await alignedFile.writeAsBytes(img.encodeJpg(resized));
-
-      final embedding = await _modelHandler.runFaceEmbedding(alignedFile);
-      if (embedding.length != 512) {
-        throw "Embedding generation failed.";
-      }
-
-      final double norm = sqrt(embedding.fold(0.0, (s, v) => s + v * v));
-      final List<double> normalizedCurrent = embedding.map((v) => v / norm).toList();
-
-      // Verify
-      await _verifyUser(normalizedCurrent);
-
+      // SUCCESS
+      print('[Verification] VERIFICATION SUCCESSFUL');
+      print('[Verification] Similarity: ${(result.similarityScore! * 100).toStringAsFixed(2)}%');
+      print('[Verification] Distance: ${result.distanceScore!.toStringAsFixed(4)}');
+      
+      _showSuccess('Face verified! Submitting vote...');
+      
       // Cleanup
       try {
         await file.delete();
-        await alignedFile.delete();
       } catch (_) {}
+
+      // Submit vote
+      await _submitFinalVote();
+
     } catch (e) {
+      print('[Verification] ERROR: $e');
       _showError(e.toString().replaceAll("Exception: ", ""));
       try {
         await _cameraController!.resumePreview();
       } catch (_) {}
-      setState(() => _processing = false);
+      
+      if (!e.toString().contains("already voted")) {
+        _verificationAttempts++;
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
+      _framesCollected = 0;
     }
   }
 
-  double cosineSimilarity(List<double> a, List<double> b) {
-    double dot = 0.0;
-    double normA = 0.0;
-    double normB = 0.0;
-    for (int i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+  // ============================================
+  // COLLECT FRAMES FOR LIVENESS
+  // ============================================
+  Future<void> _collectFramesForLiveness() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
     }
-    if (normA == 0 || normB == 0) return 0.0;
-    return dot / (sqrt(normA) * sqrt(normB));
+
+    final stopwatch = Stopwatch()..start();
+    const collectionDuration = Duration(milliseconds: 1000); // Reduced from 2000ms
+
+    while (stopwatch.elapsed < collectionDuration) {
+      try {
+        final XFile raw = await _cameraController!.takePicture();
+        final File file = File(raw.path);
+        final imageBytes = await file.readAsBytes();
+        final decoded = img.decodeImage(imageBytes);
+
+        if (decoded == null) continue;
+
+        final inputImage = InputImage.fromFile(file);
+        final faces = await _faceDetector.processImage(inputImage);
+
+        if (faces.isNotEmpty) {
+          final face = faces.first;
+          final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
+          
+          final livenessResult = await _modelHandler.processFrameForLiveness(
+            image: decoded,
+            face: face,
+            landmarks: landmarks,
+          );
+
+          _framesCollected = livenessResult.framesCollected ?? 0;
+          
+          print('[Liveness] Frames: $_framesCollected, Ready: ${livenessResult.isReadyForAnalysis}');
+
+          if (livenessResult.isReadyForAnalysis && livenessResult.isLive) {
+            print('[Liveness] Liveness verified!');
+            break;
+          }
+        }
+
+        await Future.delayed(const Duration(milliseconds: 100));
+      } catch (e) {
+        print('[Liveness] Frame collection error: $e');
+      }
+    }
+
+    stopwatch.stop();
+    print('[Liveness] Collection completed in ${stopwatch.elapsedMilliseconds}ms');
   }
 
-  // VERIFY WITH STORED IN FIRESTORE
-  Future<void> _verifyUser(List<double> currentEmbedding) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw "User not logged in.";
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-    if (!doc.exists || !doc.data()!.containsKey('faceEmbedding')) {
-      throw "No registered face found. Please contact admin.";
-    }
-    final List<dynamic> storedRaw = doc.data()!['faceEmbedding'];
-    final List<double> storedEmbedding = storedRaw.cast<double>();
-    // Extra protection
-    if (currentEmbedding.length != storedEmbedding.length) {
-      throw "Face embedding mismatch. Please re-register.";
-    }
-    print("Embedding length: ${currentEmbedding.length}");
-    double similarity = cosineSimilarity(currentEmbedding, storedEmbedding);
-    print("Cosine similarity: $similarity");
-    double distance = 0.0;
-    for (int i = 0; i < currentEmbedding.length; i++) {
-      double diff = currentEmbedding[i] - storedEmbedding[i];
-      distance += diff * diff;
-    }
-    distance = sqrt(distance);
-    // threshold
-    const double verificationThreshold = 0.1;
-    const double similarityThreshold = 0.95;
-    if (similarity >= similarityThreshold && distance <= verificationThreshold) {
-      if (!mounted) return;
-      await _submitFinalVote();
-    } else {
-      throw "Face does not match our records. Verification failed.";
-    }
-  }
-
+  // ============================================
   // SUBMIT VOTE AFTER VERIFICATION
+  // ============================================
   Future<void> _submitFinalVote() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
       final firestore = FirebaseFirestore.instance;
-
-      // Determine if elections or proposals
       final bool isProposal = widget.electionType == 'proposal';
       final String collectionPath = isProposal ? 'proposals' : 'elections';
 
-      // Get User Profile
       final userDoc = await firestore.collection('users').doc(user.uid).get();
       if (!userDoc.exists) throw "User profile not found.";
 
@@ -265,11 +351,9 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       final String userYear = userData['year_level'] ?? 'Unknown';
       final String userCollege = userData['college_id'] ?? 'Unknown';
 
-      // Run Transaction
       await firestore.runTransaction((transaction) async {
-        // ONE-VOTE ENFORCEMENT CHECK
         final ballotRef = firestore
-            .collection(collectionPath) // Dynamic Path
+            .collection(collectionPath)
             .doc(widget.electionId)
             .collection('votes')
             .doc(user.uid);
@@ -279,11 +363,9 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           throw "You have already voted in this election.";
         }
 
-        // WRITE VOTE/BALLOT
         Map<String, dynamic> selectionsMap = {};
         widget.selectedCandidates.forEach((pos, candidate) {
           if (candidate != null) {
-            // For proposals, candidate.id might be null if created on the fly, fallback to name
             String id = candidate.id ?? candidate.name;
             if (candidate.isAbstain) id = "ABSTAIN";
             selectionsMap[pos] = id;
@@ -297,7 +379,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           'selections': selectionsMap,
         });
 
-        // UPDATE GENERAL STATS
         final generalStatsRef = firestore
             .collection(collectionPath)
             .doc(widget.electionId)
@@ -309,38 +390,32 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           'by_year_level': {userYear: FieldValue.increment(1)},
         }, SetOptions(merge: true));
 
-        // UPDATE PROPOSAL MAIN VOTE COUNT
         if (isProposal) {
-          final proposalRef = firestore
-              .collection('proposals')
-              .doc(widget.electionId);
+          final proposalRef = firestore.collection('proposals').doc(widget.electionId);
           transaction.update(proposalRef, {
             'vote_count': FieldValue.increment(1),
           });
         }
 
-        // UPDATE CANDIDATE/OPTION STATS
         widget.selectedCandidates.forEach((position, candidate) {
           if (candidate != null) {
             DocumentReference statsRef;
             String name;
             bool isAbstain = candidate.isAbstain;
 
-            // Logic for ID generation
             String docId;
             if (isAbstain) {
               final String safePos = position.replaceAll(RegExp(r'\s+'), '_');
               docId = 'abstain_$safePos';
               name = "Abstain";
             } else if (isProposal) {
-              // For proposals, use "Yes" or "No" as ID
               docId = candidate.name;
               name = candidate.name;
             } else if (candidate.id != null) {
               docId = candidate.id!;
               name = candidate.name;
             } else {
-              return; // Skip invalid
+              return;
             }
 
             statsRef = firestore
@@ -349,7 +424,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
                 .collection('stats')
                 .doc(docId);
 
-            // Atomic Increment
             transaction.set(statsRef, {
               'name': name,
               'position': position,
@@ -387,55 +461,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     }
   }
 
-  Future<bool> _isImageTooDark(File file) async {
-    final bytes = await file.readAsBytes();
-    final image = img.decodeImage(bytes);
-    if (image == null) return true;
-
-    double total = 0.0;
-    int count = 0;
-    final int strideX = max(1, image.width ~/ 40);
-    final int strideY = max(1, image.height ~/ 40);
-
-    for (int y = 0; y < image.height; y += strideY) {
-      for (int x = 0; x < image.width; x += strideX) {
-        final img.Pixel pixel = image.getPixel(x, y);
-        final int r = pixel.r.toInt();
-        final int g = pixel.g.toInt();
-        final int b = pixel.b.toInt();
-        final int avg = ((r + g + b) / 3).round();
-        total += avg;
-        count++;
-      }
-    }
-    return (count == 0 ? 0.0 : total / count) < 75.0;
-  }
-
-  double _imageSharpness(img.Image image) {
-    double sum = 0.0;
-    double sumSq = 0.0;
-    int count = 0;
-    final int stride = max(1, (min(image.width, image.height) ~/ 80));
-
-    for (int y = 1; y < image.height - 1; y += stride) {
-      for (int x = 1; x < image.width - 1; x += stride) {
-        final double gray = img.getLuminance(image.getPixel(x, y)).toDouble();
-        final double laplacian =
-            gray * 4.0 -
-            img.getLuminance(image.getPixel(x - 1, y)) -
-            img.getLuminance(image.getPixel(x + 1, y)) -
-            img.getLuminance(image.getPixel(x, y - 1)) -
-            img.getLuminance(image.getPixel(x, y + 1));
-        sum += laplacian;
-        sumSq += laplacian * laplacian;
-        count++;
-      }
-    }
-    if (count == 0) return 0.0;
-    final double mean = sum / count;
-    return (sumSq / count) - (mean * mean);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -466,7 +491,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
             const SizedBox(height: 20),
 
-            //Camera Preview
+            // Camera Preview
             Container(
               height: 424,
               width: double.infinity,
@@ -494,6 +519,25 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
                         color: Colors.black,
                         child: const Center(child: CircularProgressIndicator()),
                       ),
+                    if (_processing)
+                      Positioned.fill(
+                        child: Container(
+                          color: Colors.black.withOpacity(0.4),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const CircularProgressIndicator(color: Colors.white),
+                              const SizedBox(height: 16),
+                              Text(
+                                _framesCollected >= minFramesForLiveness
+                                    ? 'Analyzing...'
+                                    : 'Collecting frames ($_framesCollected/$minFramesForLiveness)',
+                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -501,16 +545,14 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
             const Spacer(),
 
-            // button
+            // Button
             Padding(
               padding: const EdgeInsets.only(left: 25, right: 25, bottom: 25),
               child: ElevatedButton(
                 onPressed: _processing ? null : _onCapturePressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF5C6AA0),
-                  disabledBackgroundColor: const Color(
-                    0xFF5C6AA0,
-                  ).withOpacity(0.5),
+                  disabledBackgroundColor: const Color(0xFF5C6AA0).withOpacity(0.5),
                   minimumSize: const Size(double.infinity, 55),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -519,7 +561,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
                 ),
                 child: Text(
                   _processing ? 'Processing' : 'Capture',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Color(0xFFF8F8F8),
                     fontSize: 14,
                     fontFamily: 'Geist',

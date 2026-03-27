@@ -248,7 +248,7 @@ class FirebaseService {
     }
   }
 
-  /// Gets announcements less than 6 months old
+  /// Gets announcements less than 6 months old with status 'Published'
   Future<QuerySnapshot> getAnnouncements() {
     final retentionDate = DateTime.now().subtract(Duration(days: 6 * 30));
     final cutoffTimestamp = Timestamp.fromDate(retentionDate);
@@ -256,6 +256,7 @@ class FirebaseService {
     return _firestore
         .collection('announcements')
         .where('posted_at', isGreaterThan: cutoffTimestamp)
+        .where('status', isEqualTo: 'Published')
         .orderBy('posted_at', descending: true)
         .get();
   }

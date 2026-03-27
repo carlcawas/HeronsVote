@@ -43,6 +43,50 @@
         .btn-sm { padding: 5px 12px; font-size: 12px; width: auto; flex: none; }
         .btn-edit { background: #f57c00; }
         .btn-del { background: #d32f2f; }
+        .btn-status { background: #1976d2; }
+
+        /* Status Badge Styles */
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+        .status-published { background: #e8f5e9; color: #2e7d32; }
+        .status-pending { background: #fff3e0; color: #ef6c00; }
+        .status-approved { background: #e3f2fd; color: #1565c0; }
+        .status-rejected { background: #ffebee; color: #c62828; }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -67,7 +111,7 @@
     <div class="card">
         <h2>Post Announcement</h2>
         <input type="hidden" id="docId">
-        
+
         <div class="form-group">
             <label>Title</label>
             <input type="text" id="title" placeholder="e.g. Ako si Sierra Madre">
@@ -99,9 +143,40 @@
     </div>
 </div>
 
+<!-- Status Update Modal -->
+<div id="statusModal" class="modal-overlay">
+    <div class="modal-content">
+        <h2 style="border: none; padding: 0; margin-bottom: 15px;">Update Status</h2>
+        <p style="font-size: 14px; color: #666; margin-bottom: 15px;">
+            Change the status of <b id="statusAnnouncementTitle">this announcement</b>.
+        </p>
+        <input type="hidden" id="statusDocId">
+
+        <div class="form-group">
+            <label>Current Status</label>
+            <div id="currentStatusDisplay" style="padding: 10px; background: #f5f5f5; border-radius: 4px; font-weight: bold;"></div>
+        </div>
+
+        <div class="form-group">
+            <label>New Status</label>
+            <select id="newStatusSelect" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="Published">Published</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+            </select>
+        </div>
+
+        <div class="modal-actions">
+            <button onclick="closeStatusModal()" style="background: #757575; width: auto; padding: 8px 15px;">Cancel</button>
+            <button onclick="confirmStatusUpdate()" style="background: #1976d2; width: auto; padding: 8px 15px;">Update Status</button>
+        </div>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, Timestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, updateDoc, Timestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCbOXynjC4MVIwbpz67DsJLdWS0RCXk7bY",
@@ -140,16 +215,18 @@
 
             docs.forEach(data => {
                 const dateStr = data.posted_at ? new Date(data.posted_at.seconds * 1000).toLocaleString() : "N/A";
-                
+                const status = data.status || 'Pending';
+
                 const el = document.createElement('div');
                 el.className = 'announcement-item';
                 el.innerHTML = `
                     <div class="item-header">
-                        <h3>${data.title}</h3>
+                        <h3>${data.title} <span class="status-badge status-${status.toLowerCase()}">${status}</span></h3>
                         <span class="date-badge">${dateStr}</span>
                     </div>
                     <div class="message-preview">${data.message}</div>
                     <div class="actions">
+                        <button class="btn-sm btn-status" onclick="window.openStatusModal('${data.id}')">Update Status</button>
                         <button class="btn-sm btn-edit" onclick="window.editAnnouncement('${data.id}')">Edit</button>
                         <button class="btn-sm btn-del" onclick="window.delAnnouncement('${data.id}')">Delete</button>
                     </div>
@@ -180,13 +257,19 @@
             const data = {
                 title: title,
                 message: message,
-                posted_at: Timestamp.fromDate(postDate)
+                status: 'Published',
+                postedBy: 'web_admin',
+                submittedDate: Timestamp.now(),
+                scheduledDate: Timestamp.fromDate(postDate),
+                posted_at: Timestamp.fromDate(postDate),
+                approvedBy: 'system',
+                prevStatus: 'Pending',
+                announcement_id: docId || ''
             };
 
             let ref;
             if(docId) {
                 ref = doc(db, COL_ANNOUNCEMENTS, docId);
-                data.announcement_id = docId;
             } else {
                 ref = doc(collection(db, COL_ANNOUNCEMENTS));
                 data.announcement_id = ref.id;
@@ -248,6 +331,41 @@
     window.delAnnouncement = delAnnouncement;
     window.editAnnouncement = editAnnouncement;
     window.clearForm = clearForm;
+
+    // Status Update Modal Functions
+    window.openStatusModal = (id) => {
+        const data = window.allAnnouncements.find(a => a.id === id);
+        if (!data) return;
+
+        document.getElementById('statusDocId').value = id;
+        document.getElementById('statusAnnouncementTitle').innerText = data.title;
+        document.getElementById('currentStatusDisplay').innerText = data.status || 'Pending';
+        document.getElementById('currentStatusDisplay').className = 'status-badge status-' + (data.status || 'pending').toLowerCase();
+        document.getElementById('newStatusSelect').value = data.status || 'Published';
+
+        document.getElementById('statusModal').style.display = 'flex';
+    };
+
+    window.closeStatusModal = () => {
+        document.getElementById('statusModal').style.display = 'none';
+    };
+
+    window.confirmStatusUpdate = async () => {
+        const id = document.getElementById('statusDocId').value;
+        const newStatus = document.getElementById('newStatusSelect').value;
+
+        try {
+            await updateDoc(doc(db, COL_ANNOUNCEMENTS, id), {
+                status: newStatus,
+                updatedAt: Timestamp.now()
+            });
+            alert('Status updated to ' + newStatus + '!');
+            closeStatusModal();
+            loadAnnouncements();
+        } catch (e) {
+            alert('Error updating status: ' + e.message);
+        }
+    };
 </script>
 
 </body>

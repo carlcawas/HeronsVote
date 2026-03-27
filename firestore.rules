@@ -1,0 +1,194 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to validate election data structure
+    function isValidElection() {
+      return request.resource.data.keys().hasAll([
+        'name', 'type', 'college_id', 'start', 'end',
+        'status', 'ongoing', 'submittedDate', 'prevStatus', 'election_id'
+      ]);
+    }
+    
+    // Helper function to validate candidate data structure
+    function isValidCandidate() {
+      return request.resource.data.keys().hasAll([
+        'name', 'age', 'position', 'pos_rank', 'slate', 'slate_id', 
+        'college_id', 'election_id', 'advocacy', 'platform', 
+        'img', 'year', 'vote_count', 'candidate_id', 'status'
+      ]);
+    }
+    
+    // Helper function to validate slate data structure
+    function isValidSlate() {
+      return request.resource.data.keys().hasAll([
+        'name', 'slogan', 'platform', 'advocacy', 'img', 'election_id', 'slate_id'
+      ]);
+    }
+    
+    // Helper function to validate proposal data structure
+    function isValidProposal() {
+      return request.resource.data.keys().hasAll([
+        'name', 'type', 'start', 'end', 'status', 'ongoing',
+        'vote_count', 'proposal_id', 'submittedDate',
+        'comparison', 'rationale', 'resources', 'summary', 'remarks', 'prevStatus'
+      ]);
+    }
+    
+    // Helper function to validate announcement data structure
+    function isValidAnnouncement() {
+      return request.resource.data.keys().hasAll([
+        'title', 'message', 'status', 'postedBy', 'submittedDate', 
+        'scheduledDate', 'posted_at', 'approvedBy', 'prevStatus'
+      ]);
+    }
+    
+    match /executives/{executiveId} {
+      allow read: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['umakEmail', 'pw', 'hasOldPw']);
+      allow create, delete: if true;
+    }
+    
+    match /commissioners/{commissionerId} {
+      allow read: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['umakEmail', 'pw', 'hasOldPw']);
+      allow create, delete: if true;
+    }
+
+    // Users can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+      match /read_status/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Colleges - allow read/write for web admin
+    match /colleges/{collegeId} {
+      allow read: if true;
+      allow write: if true;
+      
+      // Officials subcollection
+      match /officials/{officialId} {
+        allow read: if true;
+        allow write: if true;
+      }
+    }
+    
+    // Elections - allow read/write with structure validation
+    match /elections/{electionId} {
+      allow read: if true;
+
+      allow create: if isValidElection() && request.resource.data.status == 'Posted';
+
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'name', 'type', 'college_id', 'start', 'end',
+        'status', 'ongoing', 'prevStatus', 'submittedDate', 'election_id'
+      ]);
+
+      allow delete: if true;
+      
+      // VOTES subcollection - users can only write their own vote
+      match /votes/{voteId} {
+        allow read: if true;
+        allow create: if request.auth != null && request.auth.uid == voteId;
+        allow update, delete: if false;
+      }
+      
+      // STATS subcollection - allow writes for vote counting
+      match /stats/{statId} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if false;
+      }
+      
+      // RESULTS subcollection
+      match /results/{resultId} {
+        allow read: if true;
+        allow write: if true;
+      }
+      
+      // SLATES subcollection
+      match /slates/{slateId} {
+        allow read: if true;
+        allow create, update, delete: if true;
+      }
+
+      // CANDIDATES subcollection
+      match /candidates/{candidateId} {
+        allow read: if true;
+        allow create, update, delete: if true;
+      }
+    }
+    
+    // Proposals - allow read/write with structure validation
+    match /proposals/{proposalId} {
+      allow read: if true;
+
+      allow create: if isValidProposal();
+
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'name', 'type', 'start', 'end', 'status', 'ongoing',
+        'prevStatus', 'submittedDate', 'remarks', 'comparison',
+        'rationale', 'resources', 'summary', 'vote_count'
+      ]);
+      
+      allow delete: if true;
+      
+      // VOTES subcollection for proposals
+      match /votes/{voteId} {
+        allow read: if true;
+        allow create: if request.auth != null && request.auth.uid == voteId;
+        allow update, delete: if false;
+      }
+      
+      // STATS subcollection for proposals
+      match /stats/{statId} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if false;
+      }
+    }
+
+    // Candidates collection - allow read/write with structure validation
+    match /candidates/{candidateId} {
+      allow read: if true;
+      allow create: if isValidCandidate();
+      allow update, delete: if true;
+    }
+
+    // University officials
+    match /university_officials/{officialId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Slates - allow read/write with structure validation
+    match /slates/{slateId} {
+      allow read: if true;
+      allow create: if isValidSlate();
+      allow update, delete: if true;
+      
+      // Candidates subcollection
+      match /candidates/{candidateId} {
+        allow read: if true;
+        allow write: if true;
+      }
+    }
+    
+    // Announcements - allow read/write with structure validation
+    match /announcements/{announcementId} {
+      allow read: if true;
+      
+      allow create: if isValidAnnouncement();
+      
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'title', 'message', 'status', 'scheduledDate', 'approvedBy', 
+        'prevStatus', 'posted_at', 'returnedDate', 'remarks'
+      ]);
+      
+      allow delete: if true;
+    }
+  }
+}

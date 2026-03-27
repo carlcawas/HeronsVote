@@ -329,7 +329,7 @@
                 year: document.getElementById('year').value,
                 election_id: electionId,
                 slate_id: document.getElementById('slate_id').value,
-                slate: document.getElementById('slate_name').value, 
+                slate: document.getElementById('slate_name').value,
                 position: document.getElementById('position').value,
                 pos_rank: Number(document.getElementById('pos_rank').value),
                 college_id: document.getElementById('college_id').value,
@@ -337,13 +337,14 @@
                 advocacy: document.getElementById('advocacy').value,
                 img: imgPath,
                 vote_count: Number(document.getElementById('vote_count').value),
+                status: 'Posted',
+                candidate_id: docId || ''
             };
 
             const batch = writeBatch(db);
             let candRef;
             if (docId) {
                 candRef = doc(db, COL_CANDIDATES, docId);
-                newData.candidate_id = docId;
             } else {
                 candRef = doc(collection(db, COL_CANDIDATES));
                 newData.candidate_id = candRef.id;

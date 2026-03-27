@@ -8,7 +8,7 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-const INTERVAL = 1 * 1000; // Every second
+const INTERVAL = 60 * 1000; // Every 1 minute
 
 async function updateOngoingStatus() {
   const now = admin.firestore.Timestamp.now();

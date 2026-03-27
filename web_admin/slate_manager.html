@@ -217,10 +217,13 @@
                 imgPath = fullPath;
             }
 
-            const data = { 
-                name, slogan, platform, advocacy, 
-                img: imgPath, 
-                election_id: electionId 
+            const data = {
+                name,
+                slogan,
+                platform,
+                advocacy,
+                img: imgPath,
+                election_id: electionId
             };
 
             const batch = writeBatch(db);

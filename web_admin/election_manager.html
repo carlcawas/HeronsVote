@@ -162,12 +162,20 @@
         if(!name || !start || !end) return alert("Missing fields.");
 
         try {
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+
             const data = {
-                name, type, 
+                name,
+                type,
                 college_id: type === 'college' ? collegeId : "",
-                start: Timestamp.fromDate(new Date(start)),
-                end: Timestamp.fromDate(new Date(end)),
-                ongoing: document.getElementById('ongoing').checked
+                start: Timestamp.fromDate(startDate),
+                end: Timestamp.fromDate(endDate),
+                ongoing: document.getElementById('ongoing').checked,
+                status: 'Posted',
+                submittedDate: Timestamp.now(),
+                prevStatus: 'Pending',
+                election_id: docId || ''
             };
 
             let ref = docId ? doc(db, COL_ELECTIONS, docId) : doc(collection(db, COL_ELECTIONS));

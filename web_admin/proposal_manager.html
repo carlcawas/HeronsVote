@@ -225,11 +225,16 @@
                 rationale: rationale,
                 resources: resources,
                 comparison: comparison,
-                type: "proposal", // Fixed type
-                start: Timestamp.fromDate(startDate),
-                end: Timestamp.fromDate(endDate),
+                type: "proposal",
+                status: 'Posted',
                 ongoing: ongoing,
-                vote_count: Number(voteCount)
+                vote_count: Number(voteCount),
+                proposal_id: docId || '',
+                submittedDate: Timestamp.now(),
+                prevStatus: 'Pending',
+                remarks: '',
+                start: Timestamp.fromDate(startDate),
+                end: Timestamp.fromDate(endDate)
             };
 
             let ref;

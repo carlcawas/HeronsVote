@@ -1,17 +1,15 @@
 import 'dart:io';
-import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:heronsvote/screens/registration_verified.dart';
 import 'package:image/image.dart' as img;
 import 'package:heronsvote/services/model_handler.dart';
+import '../screens/registration_verified.dart';
 
 const int MODEL_INPUT_SIZE = 160;
-const double MIN_EYE_DISTANCE = 25.0;
 
 class RegistrationStep3 extends StatefulWidget {
   final String? uid;
@@ -28,19 +26,23 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   late final Animation<Offset> _contentSlide;
   late final Animation<double> _contentFade;
 
-  // Model Handler
-  late final ModelHandler _modelHandler;
+  // Pipeline components
+  ModelHandler? _modelHandler;
   bool _modelsReady = false;
-
+  
+  // Camera
   CameraController? _cameraController;
   bool _cameraInitialized = false;
   bool _processing = false;
   late final FaceDetector _faceDetector;
+  
+  // Liveness frames collection
+  int _framesCollected = 0;
+  static const int minFramesForLiveness = 2;
 
   @override
   void initState() {
     super.initState();
-    // Save user's registration step
     _saveRegisterStep();
 
     _panelController = AnimationController(
@@ -70,17 +72,17 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       if (mounted) _contentController.forward();
     });
 
+    // Initialize face detector with landmarks
     final options = FaceDetectorOptions(
-      enableLandmarks: false,
-      enableContours: false,
+      enableLandmarks: true,
+      enableContours: true,
       enableTracking: false,
-      enableClassification: false,
-      performanceMode: FaceDetectorMode.fast,
+      enableClassification: true,
+      performanceMode: FaceDetectorMode.accurate,
     );
     _faceDetector = FaceDetector(options: options);
-    
-    _initCameraAndPermission();
 
+    _initCameraAndPermission();
     _initializeModels();
   }
 
@@ -90,15 +92,16 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     _contentController.dispose();
     _cameraController?.dispose();
     _faceDetector.close();
-    _modelHandler.dispose();
+    _modelHandler?.dispose();
     super.dispose();
   }
 
   Future<void> _initializeModels() async {
     _modelHandler = ModelHandler();
-    await _modelHandler.loadModels();
+    await _modelHandler!.loadModels();
     if (!mounted) return;
     setState(() => _modelsReady = true);
+    print('[Registration] Models loaded, ready for capture');
   }
 
   Future<void> _saveRegisterStep() async {
@@ -125,13 +128,15 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       _cameraController = CameraController(
         front,
-        ResolutionPreset.medium,
+        ResolutionPreset.high, // Higher resolution for better quality
         enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.nv21, // Better for processing
       );
 
       await _cameraController!.initialize();
       if (!mounted) return;
       setState(() => _cameraInitialized = true);
+      print('[Registration] Camera initialized');
     } catch (e) {
       _showError("Failed to initialize camera: $e");
     }
@@ -139,243 +144,216 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<void> _onCapturePressed() async {
-  if (_cameraController == null || !_cameraController!.value.isInitialized) {
-    _showError("Camera not ready.");
-    return;
-  }
-
-  if (_processing || _cameraController!.value.isTakingPicture) return;
-  setState(() => _processing = true);
-
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    _showError("User not logged in.");
-    setState(() => _processing = false);
-    return;
-  }
-
-  if (!_modelsReady) {
-    _showError("Loading validation models. Please try again.");
-    setState(() => _processing = false);
-    return;
-  }
-
-  try {
-    // Capture image
-    XFile raw;
-    try {
-      raw = await _cameraController!.takePicture();
-    } catch (e) {
-      _showError("Camera busy. Try again.");
-      return;
-    }
-
-    final File file = File(raw.path);
-    try {
-      await _cameraController!.pausePreview();
-    } catch (_) {}
-
-    // Brightness check
-    if (await _isImageTooDark(file)) {
-      _showError("Surrounding is too dark. Please move to a brighter area.");
-      await _cameraController!.resumePreview();
-      return;
-    }
-
-    // Decode image
-    final imageBytes = await file.readAsBytes();
-    final decoded = img.decodeImage(imageBytes);
-    if (decoded == null) {
-      _showError("Failed to decode image.");
-      await _cameraController!.resumePreview();
-      return;
-    }
-
-    // Sharpness check
-    if (_imageSharpness(decoded) < 80) {
-      _showError("Image is blurry. Keep the camera stable.");
-      await _cameraController!.resumePreview();
-      return;
-    }
-
-    // Segmentation foreground check
-    final segOutput = await _modelHandler?.runSegmentation(file);
-    if (segOutput == null || !_isForegroundGood(segOutput)) {
-      _showError("Face not clear from background. Move closer.");
-      await _cameraController!.resumePreview();
-      return;
-    }
-
-    // ----- FACE VALIDATION USING FACENET 512 -----
-    // Resize to model input
-    final resized = img.copyResize(decoded, width: MODEL_INPUT_SIZE, height: MODEL_INPUT_SIZE);
-    final tempDir = Directory.systemTemp;
-    final alignedFile = File('${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_aligned.jpg');
-    await alignedFile.writeAsBytes(img.encodeJpg(resized));
-
-    // Run Facenet 512 TFLite model
-    final embedding = await _modelHandler?.runFaceEmbedding(alignedFile);
-    if (embedding == null || embedding.length != 512) {
-      _showError("Embedding generation failed.");
-      await _cameraController!.resumePreview();
-      alignedFile.deleteSync();
-      return;
-    }
-
-    final inputImage = InputImage.fromFilePath(file.path);
-    final faces = await _faceDetector.processImage(inputImage);
-
-    if (faces.isEmpty) {
-      _showError("No face detected.");
-      await _cameraController!.resumePreview();
-      alignedFile.deleteSync();
-      return;
-    }
-
-    if (faces.length > 1) {
-      _showError("Multiple faces detected. Please ensure only you are in the frame.");
-      await _cameraController!.resumePreview();
-      alignedFile.deleteSync();
-      return;
-    }
-
-    final face = faces.first;
-    
-    if (face.headEulerAngleY == null || face.headEulerAngleX == null || face.headEulerAngleZ == null) {
-      _showError("Could not determine face orientation.");
-      await _cameraController!.resumePreview();
-      alignedFile.deleteSync();
-      return;
-    }
-
-    // Allow a 12-degree margin of error for looking straight ahead
-    // Y = Yaw (left/right), X = Pitch (up/down), Z = Roll (tilt)
-    if (face.headEulerAngleY!.abs() > 12 || face.headEulerAngleX!.abs() > 12 || face.headEulerAngleZ!.abs() > 12) {
-      _showError("Face not properly oriented. Please look straight at the camera.");
-      await _cameraController!.resumePreview();
-      alignedFile.deleteSync();
-      return;
-    }
-
-    // Normalize embedding
-    final double norm = sqrt(embedding.fold(0.0, (prev, e) => prev + e * e));
-    final normalizedEmbedding = embedding.map((e) => e / norm).toList();
-
-    // Store to Firebase
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-      'faceEmbedding': normalizedEmbedding,
-      'faceEmbeddingUpdatedAt': FieldValue.serverTimestamp(),
-    });
-
-    // Cleanup
-    try {
-      await file.delete();
-      await alignedFile.delete();
-    } catch (_) {}
-
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 0),
-        pageBuilder: (_, __, ___) => RegistrationVerified(uid: user.uid),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
       ),
     );
-  } catch (e) {
-    _showError("Failed to capture and process face: $e");
+  }
+
+  void _showSuccess(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ============================================
+  // MAIN CAPTURE AND PROCESSING FLOW
+  // ============================================
+  Future<void> _onCapturePressed() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      _showError("Camera not ready.");
+      return;
+    }
+
+    if (_processing) {
+      print('[Registration] Already processing, ignoring tap');
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showError("User not logged in.");
+      return;
+    }
+
+    if (!_modelsReady) {
+      _showError("Loading validation models. Please wait...");
+      return;
+    }
+
+    setState(() => _processing = true);
+    _framesCollected = 0;
+
     try {
-      await _cameraController?.resumePreview();
-    } catch (_) {}
-  } finally {
-    if (mounted) setState(() => _processing = false);
-  }
-}
+      // Reset liveness detector for new session
+      _modelHandler!.resetLiveness();
 
-  // Check if the foreground is good
-  bool _isForegroundGood(List<List<List<List<double>>>> mask) {
-    final height = mask[0].length;
-    final width = mask[0][0].length;
+      // Collect multiple frames for liveness detection
+      _showSuccess('Please hold steady for 2 seconds...');
+      
+      await _collectFramesForLiveness();
 
-    int foreground = 0;
-    final total = height * width;
+      // After collecting frames, capture final high-quality image
+      print('[Registration] Capturing final image...');
+      final XFile raw = await _cameraController!.takePicture();
+      final File file = File(raw.path);
 
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        if (mask[0][y][x][0] > 0.5) {
-          foreground++;
+      // Decode image for processing
+      final imageBytes = await file.readAsBytes();
+      final decoded = img.decodeImage(imageBytes);
+      
+      if (decoded == null) {
+        _showError("Failed to decode image.");
+        return;
+      }
+
+      print('[Registration] Image decoded: ${decoded.width}x${decoded.height}');
+
+      // Detect face with landmarks
+      final inputImage = InputImage.fromFile(file);
+      final faces = await _faceDetector.processImage(inputImage);
+
+      if (faces.isEmpty) {
+        _showError("No face detected. Please face the camera directly.");
+        return;
+      }
+
+      if (faces.length > 1) {
+        _showError("Multiple faces detected. Please ensure only you are in the frame.");
+        return;
+      }
+
+      final face = faces.first;
+      final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
+
+      print('[Registration] Face detected with ${landmarks.length} landmarks');
+
+      // Run complete registration pipeline
+      print('[Registration] Running registration pipeline...');
+      final result = await _modelHandler!.processRegistration(
+        image: decoded,
+        face: face,
+        landmarks: landmarks,
+      );
+
+      // Handle pipeline result
+      if (!result.success) {
+        _showError(result.message);
+        print('[Registration] Pipeline failed at ${result.stage}: ${result.message}');
+        
+        // Show detailed feedback if available
+        if (result.qualityResult != null && !result.qualityResult!.isOverallQualityOk) {
+          print('[Registration] Quality feedback: ${result.qualityResult!.getFeedback()}');
         }
+        if (result.livenessResult != null) {
+          print('[Registration] Liveness: ${result.livenessResult!.message}');
+        }
+        return;
       }
+
+      // SUCCESS: Store encrypted embedding to Firebase
+      print('[Registration] Storing encrypted embedding to Firebase...');
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'faceEmbeddingEncrypted': result.encryptedEmbedding,
+        'faceEmbeddingVersion': 'facenet_512_v1',
+        'faceEmbeddingEncryptedAt': FieldValue.serverTimestamp(),
+        'registrationCompletedAt': FieldValue.serverTimestamp(),
+      });
+
+      print('[Registration] Registration completed successfully!');
+      _showSuccess('Face registered successfully!');
+
+      // Cleanup
+      try {
+        await file.delete();
+      } catch (_) {}
+
+      // Navigate to success screen
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 0),
+          pageBuilder: (_, __, ___) => RegistrationVerified(uid: user.uid),
+        ),
+      );
+
+    } catch (e) {
+      print('[Registration] ERROR: $e');
+      _showError("Failed to process face: $e");
+    } finally {
+      if (mounted) setState(() => _processing = false);
+      _framesCollected = 0;
     }
-
-    final ratio = foreground / total;
-
-    return ratio > 0.30;
   }
 
-  // Brightness check
-  Future<bool> _isImageTooDark(File file) async {
-    final bytes = await file.readAsBytes();
-    final image = img.decodeImage(bytes);
-    if (image == null) return true;
+  // ============================================
+  // COLLECT MULTIPLE FRAMES FOR LIVENESS
+  // ============================================
+  Future<void> _collectFramesForLiveness() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
 
-    double total = 0.0;
-    int count = 0;
+    final stopwatch = Stopwatch()..start();
+    const collectionDuration = Duration(milliseconds: 1000); // Reduced from 2000ms
 
-    final int strideX = max(1, image.width ~/ 40);
-    final int strideY = max(1, image.height ~/ 40);
+    while (stopwatch.elapsed < collectionDuration) {
+      try {
+        // Capture frame
+        final XFile raw = await _cameraController!.takePicture();
+        final File file = File(raw.path);
+        final imageBytes = await file.readAsBytes();
+        final decoded = img.decodeImage(imageBytes);
 
-    for (int y = 0; y < image.height; y += strideY) {
-      for (int x = 0; x < image.width; x += strideX) {
-        final img.Pixel pixel = image.getPixel(x, y);
-        final int r = pixel.r.toInt();
-        final int g = pixel.g.toInt();
-        final int b = pixel.b.toInt();
-        final int avg = ((r + g + b) / 3).round();
-        total += avg;
-        count++;
+        if (decoded == null) {
+          continue;
+        }
+
+        // Detect face
+        final inputImage = InputImage.fromFile(file);
+        final faces = await _faceDetector.processImage(inputImage);
+
+        if (faces.isNotEmpty) {
+          final face = faces.first;
+          final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
+          
+          // Process frame through liveness detector
+          final livenessResult = await _modelHandler!.processFrameForLiveness(
+            image: decoded,
+            face: face,
+            landmarks: landmarks,
+          );
+
+          _framesCollected = livenessResult.framesCollected ?? 0;
+          
+          print('[Liveness] Frames: $_framesCollected, Ready: ${livenessResult.isReadyForAnalysis}');
+
+          if (livenessResult.isReadyForAnalysis && livenessResult.isLive) {
+            print('[Liveness] Liveness verified!');
+            break;
+          }
+        }
+
+        // Small delay between frames
+        await Future.delayed(const Duration(milliseconds: 100));
+      } catch (e) {
+        print('[Liveness] Frame collection error: $e');
       }
     }
 
-    final double avgBrightness = count == 0 ? 0.0 : total / count;
-
-    // can be adjusted to be more/less strict
-    // 45 - less strict ~~~ 80 - more strict
-    return avgBrightness < 75.0;
-  }
-
-  // Blur detection
-  double _imageSharpness(img.Image image) {
-    double sum = 0.0;
-    double sumSq = 0.0;
-    int count = 0;
-
-    final int stride = max(1, (min(image.width, image.height) ~/ 80));
-
-    for (int y = 1; y < image.height - 1; y += stride) {
-      for (int x = 1; x < image.width - 1; x += stride) {
-        final double gray = img.getLuminance(image.getPixel(x, y)).toDouble();
-
-        final double laplacian =
-            gray * 4.0 -
-            img.getLuminance(image.getPixel(x - 1, y)) -
-            img.getLuminance(image.getPixel(x + 1, y)) -
-            img.getLuminance(image.getPixel(x, y - 1)) -
-            img.getLuminance(image.getPixel(x, y + 1));
-
-        sum += laplacian;
-        sumSq += laplacian * laplacian;
-        count++;
-      }
-    }
-
-    if (count == 0) return 0.0;
-    final double mean = sum / count;
-    final double variance = (sumSq / count) - (mean * mean);
-    return variance;
+    stopwatch.stop();
+    print('[Liveness] Collection completed in ${stopwatch.elapsedMilliseconds}ms');
   }
 
   @override
@@ -385,7 +363,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       backgroundColor: const Color(0xFFF9F2D7),
 
       appBar: AppBar(
-        //appbar back button
         toolbarHeight: 72,
         backgroundColor: const Color(0xFFF9F2D7),
         elevation: 0,
@@ -427,7 +404,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
               child: Stack(
                 children: [
                   Hero(
-                    tag: 'bluePanel', // <--- 2. USE THE SAME TAG
+                    tag: 'bluePanel',
                     child: Material(
                       type: MaterialType.transparency,
                       child: Container(
@@ -496,44 +473,56 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                   width: 2,
                                 ),
                               ),
-                              //camera area
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(30),
-                                child:
-                                    _cameraInitialized &&
-                                        _cameraController != null
+                                child: _cameraInitialized && _cameraController != null
                                     ? Stack(
                                         fit: StackFit.expand,
                                         children: [
                                           FittedBox(
                                             fit: BoxFit.cover,
                                             child: SizedBox(
-                                              width:
-                                                  _cameraController!
-                                                      .value
-                                                      .previewSize
-                                                      ?.height ??
-                                                  100,
-                                              height:
-                                                  _cameraController!
-                                                      .value
-                                                      .previewSize
-                                                      ?.width ??
-                                                  100,
-                                              child: CameraPreview(
-                                                _cameraController!,
-                                              ),
+                                              width: _cameraController!.value.previewSize?.height ?? 100,
+                                              height: _cameraController!.value.previewSize?.width ?? 100,
+                                              child: CameraPreview(_cameraController!),
                                             ),
                                           ),
                                           if (_processing)
                                             Positioned.fill(
                                               child: Container(
-                                                color: Colors.black.withOpacity(
-                                                  0.4,
+                                                color: Colors.black.withOpacity(0.4),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    const CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                    ),
+                                                    const SizedBox(height: 16),
+                                                    Text(
+                                                      _framesCollected >= minFramesForLiveness
+                                                          ? 'Analyzing...'
+                                                          : 'Collecting frames ($_framesCollected/$minFramesForLiveness)',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 14,
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                                child: const Center(
-                                                  child:
-                                                      CircularProgressIndicator(),
+                                              ),
+                                            ),
+                                          // Face overlay guide
+                                          if (!_processing)
+                                            Center(
+                                              child: Container(
+                                                width: 200,
+                                                height: 250,
+                                                decoration: BoxDecoration(
+                                                  border: Border.all(
+                                                    color: Colors.white.withOpacity(0.5),
+                                                    width: 2,
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(100),
                                                 ),
                                               ),
                                             ),
@@ -559,7 +548,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
                                   child: SizedBox(
                                     width: double.infinity,
                                     height: 56,
-
                                     child: Center(
                                       child: Text(
                                         _processing
@@ -592,7 +580,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   }
 }
 
-//progress step indicator
+// Progress step indicator widget
 class StepProgressIndicator extends StatelessWidget {
   final int currentStep;
   final int totalSteps;
@@ -605,25 +593,20 @@ class StepProgressIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // SIZES
     const double innerCircleSize = 32.0;
     const double gapSize = 4.0;
-    const double outerCircleSize = innerCircleSize + (gapSize * 2); // 40.0 px
+    const double outerCircleSize = innerCircleSize + (gapSize * 2);
 
     const Color activeColor = Color(0xFF354372);
     const Color inactiveColor = Color(0xFFD6DAE5);
     const Color checkIconColor = Colors.white;
 
-    // Calculate the total number of gaps (e.g., 4 steps = 3 gaps)
     int totalIntervals = totalSteps - 1;
 
-    // Calculate current progress
     double progressValue;
     if (currentStep >= totalSteps) {
-      // If last step, fill line completely
       progressValue = 1.0;
     } else {
-      // Otherwise, fill to current step PLUS half of the next gap (+ 0.5)
       progressValue = ((currentStep - 1) + 0.5) / totalIntervals;
     }
 
@@ -632,8 +615,6 @@ class StepProgressIndicator extends StatelessWidget {
       height: outerCircleSize,
       child: Stack(
         children: [
-          // LAYER 1: The Outer Containers (Bottom)
-          // These sit BEHIND the line.
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(totalSteps, (index) {
@@ -641,36 +622,29 @@ class StepProgressIndicator extends StatelessWidget {
                 width: outerCircleSize,
                 height: outerCircleSize,
                 decoration: const BoxDecoration(
-                  color: inactiveColor, // outer circle color
+                  color: inactiveColor,
                   shape: BoxShape.circle,
                 ),
               );
             }),
           ),
 
-          // LAYER 2: The Continuous Line (Middle)
-          // This sits ON TOP of Layer 1, so it is not erased.
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: outerCircleSize / 2,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: outerCircleSize / 2),
             child: Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(1),
                 child: Container(
-                  // <-- Add Container for the border
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: inactiveColor, //border color
+                      color: inactiveColor,
                       width: 2.0,
                     ),
                   ),
                   child: LinearProgressIndicator(
                     value: progressValue,
                     backgroundColor: inactiveColor,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      activeColor,
-                    ),
+                    valueColor: const AlwaysStoppedAnimation<Color>(activeColor),
                     minHeight: 2,
                   ),
                 ),
@@ -678,8 +652,6 @@ class StepProgressIndicator extends StatelessWidget {
             ),
           ),
 
-          // LAYER 3: The Inner Circles (Top)
-          // This sits ON TOP of the Line.
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(totalSteps, (index) {
@@ -695,24 +667,16 @@ class StepProgressIndicator extends StatelessWidget {
                     width: innerCircleSize,
                     height: innerCircleSize,
                     decoration: BoxDecoration(
-                      color: (isActive || isCompleted)
-                          ? activeColor
-                          : inactiveColor,
+                      color: (isActive || isCompleted) ? activeColor : inactiveColor,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: isCompleted
-                          ? const Icon(
-                              Icons.check,
-                              size: 12,
-                              color: checkIconColor,
-                            )
+                          ? const Icon(Icons.check, size: 12, color: checkIconColor)
                           : Text(
                               '$stepNumber',
                               style: TextStyle(
-                                color: (isActive)
-                                    ? Colors.white
-                                    : const Color(0xFF404040),
+                                color: isActive ? Colors.white : const Color(0xFF404040),
                                 fontWeight: FontWeight.w100,
                                 fontSize: 14,
                                 fontFamily: 'Geist',

@@ -89,23 +89,29 @@ class AnnouncementProvider {
 
     final readIds = await _firebaseService.getReadAnnouncementIds(userId);
 
-    return querySnapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      final timestamp = data['posted_at'] as Timestamp?;
-      final dateTime = timestamp?.toDate() ?? DateTime.now();
+    // Filter only Published announcements and map to Announcement model
+    return querySnapshot.docs
+        .where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['status'] == 'Published';
+        })
+        .map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final timestamp = data['posted_at'] as Timestamp?;
+          final dateTime = timestamp?.toDate() ?? DateTime.now();
 
-      final day = dateTime.day.toString().padLeft(2, '0');
-      final month = _getMonthAbbreviate(dateTime.month);
+          final day = dateTime.day.toString().padLeft(2, '0');
+          final month = _getMonthAbbreviate(dateTime.month);
 
-      return Announcement(
-        id: doc.id,
-        title: data['title'] ?? 'No Title',
-        dateDay: day,
-        dateMonth: month,
-        description: data['message'] ?? 'No Description',
-        isNew: !readIds.contains(doc.id),
-      );
-    }).toList();
+          return Announcement(
+            id: doc.id,
+            title: data['title'] ?? 'No Title',
+            dateDay: day,
+            dateMonth: month,
+            description: data['message'] ?? 'No Description',
+            isNew: !readIds.contains(doc.id),
+          );
+        }).toList();
   }
 
   Future<void> markAsRead({
