@@ -62,9 +62,9 @@ class CustomHeader extends StatelessWidget {
               ),
               
               const SizedBox(width: 16),
+
               
-              SizedBox(
-                width: 250,
+              Expanded( //fixed overflow
                 child: Text(
                   title,
                   style: const TextStyle(
@@ -74,9 +74,13 @@ class CustomHeader extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
+                  softWrap: false,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 24),
+
+
             ],
           ),
         ),

@@ -111,7 +111,7 @@ class ModelHandler {
 
       // STEP 3: Extract Embedding
       print('[ModelHandler] Step 3/3: Extracting embedding...');
-      final embedding = await extractEmbedding(image);
+      final embedding = await extractEmbedding(image, face);
       
       if (embedding.length != 512) {
         return RegistrationPipelineResult(
@@ -218,7 +218,7 @@ class ModelHandler {
 
       // STEP 3: Extract Live Embedding
       print('[ModelHandler] Step 3/4: Extracting live embedding...');
-      final liveEmbedding = await extractEmbedding(image);
+      final liveEmbedding = await extractEmbedding(image, face);
       
       if (liveEmbedding.length != 512) {
         return VerificationPipelineResult(
@@ -247,9 +247,9 @@ class ModelHandler {
       print('[ModelHandler] Euclidean Distance: ${distance.toStringAsFixed(4)}');
 
       // Threshold check - optimized for FaceNet 512 with proper normalization
-      // Cosine similarity: 0.60 allows for variations in lighting, angle, expression
+      // Cosine similarity: 0.50 allows for variations in lighting, angle, expression
       // Euclidean distance: 1.5 is standard for FaceNet512 with normalized input
-      const double similarityThreshold = 0.60;
+      const double similarityThreshold = 0.50;
       const double distanceThreshold = 1.5;
 
       print('[ModelHandler] Thresholds: similarity >= $similarityThreshold, distance <= $distanceThreshold');
@@ -284,10 +284,22 @@ class ModelHandler {
   // ============================================
   /// EMBEDDING EXTRACTION (FaceNet 512)
   // ============================================
-  Future<List<double>> extractEmbedding(img.Image image) async {
+  Future<List<double>> extractEmbedding(img.Image image, Face face) async {
     if (_faceNetInterpreter == null) {
       throw Exception('FaceNet interpreter not loaded');
     }
+
+    // Get face bounding box
+    final rect = face.boundingBox;
+    
+    // Crop face from image with some padding
+    final int padding = (rect.width * 0.15).toInt();
+    final int x = (rect.left - padding).clamp(0, image.width - 1).toInt();
+    final int y = (rect.top - padding).clamp(0, image.height - 1).toInt();
+    final int w = (rect.width + 2 * padding).toInt().clamp(1, image.width - x);
+    final int h = (rect.height + 2 * padding).toInt().clamp(1, image.height - y);
+    
+    final img.Image faceImage = img.copyCrop(image, x: x, y: y, width: w, height: h);
 
     // Get model input dimensions
     var inputShape = _faceNetInterpreter!.getInputTensor(0).shape;
@@ -295,7 +307,7 @@ class ModelHandler {
     int width = inputShape[2];
 
     // Preprocess image
-    final input = _preprocessImageToList(image, width, height);
+    final input = _preprocessImageToList(faceImage, width, height);
 
     // Allocate output buffer
     var outputShape = _faceNetInterpreter!.getOutputTensor(0).shape;
@@ -380,9 +392,8 @@ class ModelHandler {
     // Resize image to model input size
     img.Image resized = img.copyResize(image, width: width, height: height);
     
-    // Flip horizontally to normalize front-camera images
-    // Front cameras capture mirrored images, this ensures consistency
-    img.Image flipped = img.flipHorizontal(resized);
+    // Note: Removed flipHorizontal here because we want consistent treatment of cropped faces.
+    // The camera image itself is handled according to platform defaults.
 
     var input = List.generate(
       1,
@@ -397,7 +408,7 @@ class ModelHandler {
     // This maps [0, 255] to [-1, 1]
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
-        final pixel = flipped.getPixel(x, y);
+        final pixel = resized.getPixel(x, y);
         input[0][y][x][0] = (pixel.r / 127.5) - 1.0;  // R channel
         input[0][y][x][1] = (pixel.g / 127.5) - 1.0;  // G channel
         input[0][y][x][2] = (pixel.b / 127.5) - 1.0;  // B channel

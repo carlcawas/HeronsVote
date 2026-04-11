@@ -37,7 +37,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   
   // Verification state
   int _verificationAttempts = 0;
-  static const int maxVerificationAttempts = 3;
+  static const int maxVerificationAttempts = 10;
   int _framesCollected = 0;
   static const int minFramesForLiveness = 2;
 
@@ -171,6 +171,10 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
 
       // Capture final image
       print('[Verification] Capturing final image...');
+      
+      // Give camera a moment to focus after liveness frames
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       final XFile raw = await _cameraController!.takePicture();
       await _cameraController!.pausePreview();
       final File file = File(raw.path);
@@ -270,9 +274,9 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
         await _cameraController!.resumePreview();
       } catch (_) {}
       
-      if (!e.toString().contains("already voted")) {
+      /*if (!e.toString().contains("already voted")) {
         _verificationAttempts++;
-      }
+      }*/
     } finally {
       if (mounted) setState(() => _processing = false);
       _framesCollected = 0;

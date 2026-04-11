@@ -205,6 +205,10 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
       // After collecting frames, capture final high-quality image
       print('[Registration] Capturing final image...');
+      
+      // Give camera a moment to focus after liveness frames
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       final XFile raw = await _cameraController!.takePicture();
       final File file = File(raw.path);
 

@@ -7,7 +7,7 @@ class FaceQualityChecker {
   // Quality thresholds - relaxed for better real-world performance
   static const double minBrightness = 50.0;  // Lowered from 60
   static const double maxBrightness = 220.0; // Raised from 200
-  static const double minSharpness = 80.0;   // Lowered from 100
+  static const double minSharpness = 30.0;   // Lowered from 80 for better real-world performance
   static const double maxFaceAngle = 20.0;   // Raised from 15 degrees
   static const double minFaceSizeRatio = 0.20; // Lowered from 0.25
   static const double maxOcclusionRatio = 0.20; // Raised from 0.15

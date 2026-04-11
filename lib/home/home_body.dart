@@ -1010,14 +1010,19 @@ class _HomeBodyState extends State<HomeBody> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF404040),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF404040),
+                  ),
                 ),
               ),
+              const SizedBox(width: 12),
               Padding(
                 padding: EdgeInsets.only(right: 28),
                 child: GestureDetector( //see all

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile.dart';
+import 'election_history.dart';
 
 class ElectionSelectionPage extends StatefulWidget {
   final String uid;
@@ -177,15 +178,20 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
 
               const SizedBox(height: 30),
 
-              Text(
-                widget.isResultMode ? 'All Elections' : 'Active Election',
-                style: const TextStyle(
-                  color: Color(0xFF404040),
-                  fontSize: 14,
-                  fontFamily: 'Geist',
-                  fontWeight: FontWeight.w500,
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0),
+                child: Text(
+                  widget.isResultMode ? 'All Elections' : 'Active Election',
+                  style: const TextStyle(
+                    color: Color(0xFF404040),
+                    fontSize: 14,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
+
+              
 
               const SizedBox(height: 12),
 
@@ -242,7 +248,72 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 50),
+              const SizedBox(height: 32),
+              
+              if (widget.isResultMode) ...[
+
+                Padding(
+                  padding: const EdgeInsets.only(left: 4.0),
+                  child: const Text(
+                    'Election History',
+                    style: TextStyle(
+                      color: Color(0xFF404040),
+                      fontSize: 14,
+                      fontFamily: 'Geist',
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7F7),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          /*Navigator.push(
+                            context, 
+                            MaterialPageRoute(
+                              builder: (context) => ElectionHistory(uid: widget.uid),
+                            ),
+                          );*/
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'View Election History',
+                                style: TextStyle(
+                                  color: Color(0xFF404040),
+                                  fontSize: 16,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+
+
+
+
+
+
             ],
           ),
         ),

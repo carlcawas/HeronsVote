@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:heronsvote/services/firebase_service.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 import 'header.dart';
 
@@ -195,6 +196,25 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   bool _loading = true;
   bool _isOffline = false;
 
+  final List<Announcement> _skeletonAnnouncements = [
+    Announcement(
+      id: 's1',
+      title: 'Loading Announcement Title',
+      dateDay: '00',
+      dateMonth: 'Jan',
+      description: 'This is a placeholder description for the skeleton loading effect. It should be long enough to show multiple lines.',
+      isNew: true,
+    ),
+    Announcement(
+      id: 's2',
+      title: 'Another Loading Title',
+      dateDay: '00',
+      dateMonth: 'Jan',
+      description: 'This is another placeholder description for the skeleton loading effect.',
+      isNew: true,
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -285,12 +305,10 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(backgroundColor: Colors.white, body: Center(child: CircularProgressIndicator()));
-    }
+    final announcementsToDisplay = _loading ? _skeletonAnnouncements : _announcements;
 
-    final newAnnouncements = _announcements.where((a) => a.isNew).toList();
-    final readAnnouncements = _announcements.where((a) => !a.isNew).toList();
+    final newAnnouncements = announcementsToDisplay.where((a) => a.isNew).toList();
+    final readAnnouncements = announcementsToDisplay.where((a) => !a.isNew).toList();
 
     final newDateGroups = _groupAnnouncementsByDate(
       newAnnouncements,
@@ -317,52 +335,46 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
             Expanded(
               child: Builder(builder: (context) {
                 
-                // Check Offline
-                if (_isOffline) {
+                // Check Offline (only show if not loading)
+                if (!_loading && _isOffline) {
                    return _buildOfflineWidget();
                 }
 
-                // Check Loading
-                if (_loading) {
-                   return const Center(child: CircularProgressIndicator());
-                }
-
-                // Check Empty
-                if (_announcements.isEmpty) {
+                // Check Empty (only show if not loading)
+                if (!_loading && _announcements.isEmpty) {
                    return const Center(child: Text('No announcements available.'));
                 }
             
                 // Body
-                return SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-                        _AnnouncementSection(
-                          title: 'New',
-                          color: const Color(0xFFF2A464),
-                          dateGroups: newDateGroups,
-                          totalCount: newAnnouncements.length,
-                          userId: widget.userId,
-                          onMarkAsRead: moveToRead,
-                          
-                          //initiallyExpanded: false,
-                        ),
-                        const SizedBox(height: 16),
-                        _AnnouncementSection(
-                          title: 'Read',
-                          color: const Color(0xFF74B6F9),
-                          dateGroups: readDateGroups,
-                          totalCount: readAnnouncements.length,
-                          userId: widget.userId,
-                          onMarkAsRead: moveToRead,
-                          
-                          //initiallyExpanded: false,
-                        ),
-                        const SizedBox(height: 32),
-                      ],
+                return Skeletonizer(
+                  enabled: _loading,
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 16),
+                          _AnnouncementSection(
+                            title: 'New',
+                            color: const Color(0xFFF2A464),
+                            dateGroups: newDateGroups,
+                            totalCount: newAnnouncements.length,
+                            userId: widget.userId,
+                            onMarkAsRead: moveToRead,
+                          ),
+                          const SizedBox(height: 16),
+                          _AnnouncementSection(
+                            title: 'Read',
+                            color: const Color(0xFF74B6F9),
+                            dateGroups: readDateGroups,
+                            totalCount: readAnnouncements.length,
+                            userId: widget.userId,
+                            onMarkAsRead: moveToRead,
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -537,13 +549,17 @@ class _AnnouncementSectionState extends State<_AnnouncementSection> {
                     color: const Color(0xFFEEEEEE),
                     borderRadius: BorderRadius.circular(50),
                   ),
-                  child: Icon(
-                    _isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: const Color(0xFF747474),
-                    size: 20,//expand icon size
+                  child: Skeleton.ignore(
+                    child: Icon(
+                      _isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: const Color(0xFF747474),
+                      size: 20,//expand icon size
+                    ),
                   ),
+
+                  
                 ),
               ],
             ),
@@ -971,14 +987,17 @@ class _TimelineIndicator extends StatelessWidget {
               ],
             ),
             alignment: Alignment.center,
-            child: Text(
-              day,
-              style: const TextStyle(
-                color: Color(0xFFF8F8F8),
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
+            child: Skeleton.ignore(
+              child: Text(
+                day,
+                style: const TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
               ),
             ),
+            
           ),
           if (showVerticalLine)
             AnimatedContainer(
@@ -1132,11 +1151,14 @@ class _AnnouncementCard extends StatefulWidget {
                             color: const Color(0xFFECECEC),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(
-                            Icons.check,
-                            size: 24,
-                            color: Color(0xFF404040),
+                          child:Skeleton.ignore(
+                            child: const Icon(
+                              Icons.check,
+                              size: 24,
+                              color: Color(0xFF404040),
+                            ),
                           ),
+
                         ),
                       ),
                     )
@@ -1192,14 +1214,17 @@ class _AnnouncementCard extends StatefulWidget {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
-                    child: Text(
-                      _isContentExpanded ? "See less" : "See more",
-                      style: const TextStyle(
-                        color: Color(0xFF404040),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    child: Skeleton.ignore(
+                      child: Text(
+                        _isContentExpanded ? "See less" : "See more",
+                        style: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
+
                   ),
                 ),
               ),

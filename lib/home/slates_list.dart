@@ -4,6 +4,7 @@ import '../services/firebase_service.dart';
 import 'slates_details.dart';
 import 'header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class SlateListPage extends StatelessWidget {
   final String electionId;

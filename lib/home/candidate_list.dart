@@ -5,6 +5,7 @@ import 'candidate_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class CandidateListPage extends StatefulWidget {
   final String positionTitle;
@@ -24,12 +25,18 @@ class _CandidateListPageState extends State<CandidateListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
+  bool _skeletonVisible = true;
+
   late Future<String> _collegeIdFuture;
 
   @override
   void initState() {
     super.initState();
     _collegeIdFuture = _getUserId();
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _skeletonVisible = false);
+    });
   }
 
   @override
@@ -156,18 +163,49 @@ class _CandidateListPageState extends State<CandidateListPage> {
                         widget.positionTitle,
                         targetCollegeId,
                       ),
+
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+
+                        //added for skeleton
+                        //bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                        bool isLoading = snapshot.connectionState == ConnectionState.waiting || _skeletonVisible;
+                        //
+
+if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+  for (final doc in snapshot.data!.docs) {
+    final data = doc.data() as Map<String, dynamic>;
+    final filePath = data['img'] as String?;
+    if (filePath != null && filePath.isNotEmpty) {
+      try {
+        final url = Supabase.instance.client.storage
+            .from('images')
+            .getPublicUrl(filePath);
+        precacheImage(NetworkImage(url), context);
+      } catch (_) {}
+    }
+  }
+}
+
+                        //bool isLoading = true;
+
+                        /*if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());
-                        }
+                        }*/
 
                         if (snapshot.hasError) {
                           return Center(child: Text('Error: ${snapshot.error}'));
                         }
 
-                        final docs = snapshot.data?.docs ?? [];
+                        //final docs = snapshot.data?.docs ?? [];
 
-                        if (docs.isEmpty) {
+                        //added fro skeleton
+                        final List<QueryDocumentSnapshot?> docs = isLoading
+                          ? List.generate(4, (index) => null)
+                          : snapshot.data?.docs ?? [];
+                        //
+
+                        //added !isLoading && for skeleton
+                        if (!isLoading && docs.isEmpty) {
                           return Padding(
                             padding: const EdgeInsets.all(24.0),
                             child: Center(
@@ -183,95 +221,138 @@ class _CandidateListPageState extends State<CandidateListPage> {
                           );
                         }
 
-                        List<QueryDocumentSnapshot> filteredDocs = docs.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final name = (data['name'] as String? ?? '').toLowerCase();
-                          final slate = (data['slate'] as String? ?? '').toLowerCase();
+                        List<Widget> candidateItems = [];
+  
+                        if (!isLoading) {
+                          List<QueryDocumentSnapshot?> filteredDocs = docs.where((doc) {
+                            final data = doc!.data() as Map<String, dynamic>;
+                            final name = (data['name'] as String? ?? '').toLowerCase();
+                            final slate = (data['slate'] as String? ?? '').toLowerCase();
+                            return name.contains(_searchQuery) || slate.contains(_searchQuery);
+                          }).toList();
 
-                          return name.contains(_searchQuery) || slate.contains(_searchQuery);
-                        }).toList();
-                        
-                        if (filteredDocs.isEmpty) {
-                           return const Padding(
-                            padding: EdgeInsets.all(30.0),
-                            child: Center(
-                              child: Text(
-                                "No candidates found matching your search.",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                          );
-                        }
-                        
-                        // Sorting
-                        filteredDocs.sort((a, b) {
-                          final dataA = a.data() as Map<String, dynamic>;
-                          final dataB = b.data() as Map<String, dynamic>;
 
-                          String slateA = dataA['slate'] ?? '';
-                          if (slateA.trim().isEmpty) slateA = 'Independent';
+                        /*List<QueryDocumentSnapshot> filteredDocs = docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final name = (data['name'] as String? ?? '').toLowerCase();
+                            final slate = (data['slate'] as String? ?? '').toLowerCase();
+
+                            return name.contains(_searchQuery) || slate.contains(_searchQuery);
+                          }).toList();
                           
-                          String slateB = dataB['slate'] ?? '';
-                          if (slateB.trim().isEmpty) slateB = 'Independent';
+                          if (filteredDocs.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.all(30.0),
+                              child: Center(
+                                child: Text(
+                                  "No candidates found matching your search.",
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            );
+                          }*/
+                          
+                          // Sorting
+                          filteredDocs.sort((a, b) {
 
-                          bool isIndependentA = slateA == 'Independent';
-                          bool isIndependentB = slateB == 'Independent';
+                            final dataA = a!.data() as Map<String, dynamic>;  // ✅ added !
+                            final dataB = b!.data() as Map<String, dynamic>;  // ✅ added !
 
-                          // Sort by Slate
-                          if (!isIndependentA && isIndependentB) return -1;
-                          if (isIndependentA && !isIndependentB) return 1;
+                            //final dataA = a.data() as Map<String, dynamic>;
+                            //final dataB = b.data() as Map<String, dynamic>;
 
-                          // Sort Alphabetically
-                          String nameA = dataA['name'] ?? '';
-                          String nameB = dataB['name'] ?? '';
-                          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
-                        });
+                            String slateA = dataA['slate'] ?? '';
+                            if (slateA.trim().isEmpty) slateA = 'Independent';
+                            
+                            String slateB = dataB['slate'] ?? '';
+                            if (slateB.trim().isEmpty) slateB = 'Independent';
 
-                        // Map Firestore documents to CandidateListItem widgets
-                        final candidateItems = filteredDocs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
+                            bool isIndependentA = slateA == 'Independent';
+                            bool isIndependentB = slateB == 'Independent';
 
-                          String? college = data['college_id'] as String?;
-                          final year = data['year'];
+                            // Sort by Slate
+                            if (!isIndependentA && isIndependentB) return -1;
+                            if (isIndependentA && !isIndependentB) return 1;
 
-                          if (college == null || college.isEmpty) {
-                            college = 'USC';
-                          }
+                            // Sort Alphabetically
+                            String nameA = dataA['name'] ?? '';
+                            String nameB = dataB['name'] ?? '';
+                            return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+                          });
 
-                          String fullDetails;
-                          if (college != null && year != null) {
-                            fullDetails = '$college - $year Year';
-                          } else if (college != null) {
-                            fullDetails = college.toString();
-                          } else {
-                            fullDetails = "";
-                          }
+                          // Map Firestore documents to CandidateListItem widgets
 
-                          String slateVal = data['slate'] as String? ?? '';
-                          if (slateVal.trim().isEmpty) {
-                            slateVal = 'Independent';
-                          }
+                          //final 
+                          candidateItems = filteredDocs.map((doc) {
 
-                          final candidate = Candidate(
-                            name: data['name'] ?? 'MissingNo?',
-                            role: data['position'] ?? widget.positionTitle,
-                            details: fullDetails,
-                            age: data['age']?.toString() ?? 'N/A',
-                            year: data['year'] ?? 'N/A',
-                            college: data['college_id'] ?? 'N/A',
-                            img: data['img'] as String?,
-                            partylist: slateVal,
-                            advocacy: data['advocacy'] ?? 'No advocacy provided.',
-                            platform: data['platform'] ?? 'No platform provided.',
-                          );
+                            final data = doc!.data() as Map<String, dynamic>;  // ✅ added !
 
-                          return CandidateListItem(
-                            candidate: candidate,
-                            partylistName: candidate.partylist,
-                          );
-                        }).toList();
+                            //final data = doc.data() as Map<String, dynamic>;
 
-                        return Column(children: candidateItems);
+                            String? college = data['college_id'] as String?;
+                            final year = data['year'];
+
+                            if (college == null || college.isEmpty) {
+                              college = 'USC';
+                            }
+
+                            String fullDetails;
+                            if (college != null && year != null) {
+                              fullDetails = '$college - $year Year';
+                            } else if (college != null) {
+                              fullDetails = college.toString();
+                            } else {
+                              fullDetails = "";
+                            }
+
+                            String slateVal = data['slate'] as String? ?? '';
+                            if (slateVal.trim().isEmpty) {
+                              slateVal = 'Independent';
+                            }
+
+                            final candidate = Candidate(
+                              name: data['name'] ?? 'MissingNo?',
+                              role: data['position'] ?? widget.positionTitle,
+                              details: fullDetails,
+                              age: data['age']?.toString() ?? 'N/A',
+                              year: data['year'] ?? 'N/A',
+                              college: data['college_id'] ?? 'N/A',
+                              img: data['img'] as String?,
+                              partylist: slateVal,
+                              advocacy: data['advocacy'] ?? 'No advocacy provided.',
+                              platform: data['platform'] ?? 'No platform provided.',
+                            );
+
+                            return CandidateListItem(
+                              candidate: candidate,
+                              partylistName: candidate.partylist,
+                            );
+                          }).toList();
+
+                        } else {
+                          candidateItems = List.generate(4, (index) {
+                            return CandidateListItem(
+                              candidate: Candidate(
+                                name: "Loading Candidate Name",
+                                role: widget.positionTitle,
+                                details: "College - Year Level",
+                                age: "N/A",
+                                year: "N/A",
+                                college: "N/A",
+                                partylist: "Party List Name",
+                                advocacy: "",
+                                platform: "",
+                              ),
+                              partylistName: "Party List Name",
+                            );
+                          });
+                        }
+
+                        return Skeletonizer(
+                          enabled: isLoading,
+                          child: Column(children: candidateItems),
+                        );
+
                       },
                     );
                   },
@@ -365,60 +446,68 @@ class CandidateListItem extends StatelessWidget {
 
               // Candidate Details
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      candidate.name,
-                      style: const TextStyle(
-                        color: Color(0xFF404040),
-                        fontSize: 16,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        candidate.name,
+                        style: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontSize: 16,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
+                      const SizedBox(height: 2),
 
-                    Text(
-                      candidate.details,
-                      style: TextStyle(
-                        color: const Color(0xFF404040).withOpacity(0.7),
-                        fontSize: 14,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w500,
+                      Text(
+                        candidate.details,
+                        style: TextStyle(
+                          color: const Color(0xFF404040).withOpacity(0.7),
+                          fontSize: 14,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      partylistName,
-                      style: TextStyle(
-                        color: const Color(0xFF404040).withOpacity(0.7),
-                        fontSize: 14,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 2),
+                      Text(
+                        partylistName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: const Color(0xFF404040).withOpacity(0.7),
+                          fontSize: 14,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                )
               ),
 
               // Right arrow button
-              Container(
-                width: 40,
-                height: 93,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0),
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 18,
+              Skeleton.ignore( //hug lang ng skeleton ognore para di makita
+                child: Container(
+                  width: 40,
+                  height: 93,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
-              ),
+              )
+   
             ],
           ),
         ),
@@ -452,25 +541,36 @@ Widget _buildSupabaseImageWidget({
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
-            return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+            //for smooth loading
+            return AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: child,
+            );
+            //return const Center(child: CircularProgressIndicator(strokeWidth: 2));
           },
           errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Icon(
-                Icons.person,
-                size: iconSize,
-                color: Colors.grey,
+            return Skeleton.ignore(
+              child: Center(
+                child: Icon(
+                  Icons.person,
+                  size: iconSize,
+                  color: Colors.grey,
+                ),
               ),
             );
+          
           },
         )
-      : Center(
+      : Skeleton.ignore(
+        child: Center(
           child: Icon(
             Icons.person,
             size: iconSize,
             color: Colors.grey,
           ),
-        );
+        ),
+      );
 
   return Container(
     width: width,

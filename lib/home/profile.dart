@@ -280,81 +280,86 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
 
                     // STATUS & INFO SECTION
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Verification Status Card
-                        Expanded(
-                          flex: 6,
-                          child: Container(
-                            height: 170,
-                            padding: const EdgeInsets.only(
-                              top: 19,
-                              left: 20,
-                              right: 20,
-                              bottom: 19,
+                    IntrinsicHeight(
+
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Verification Status Card
+                          Expanded(
+                            flex: 6,
+                            child: Container(
+                              //height: 170,
+                              padding: const EdgeInsets.only(
+                                top: 19,
+                                left: 20,
+                                right: 20,
+                                bottom: 19,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _cardColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Verification status:",
+                                    style: TextStyle(
+                                      color: _textColor,
+                                      fontSize: 16,
+                                      fontFamily: 'Geist',
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 15),
+
+                                  isVerified
+                                      ? SvgPicture.asset(
+                                          'assets/check.svg',
+                                          height: 60,
+                                          width: 60,
+                                        )
+                                      : SvgPicture.asset(
+                                          'assets/unverifiedIcon.svg',
+                                          height: 60,
+                                          width: 60,
+                                        ),
+
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    isVerified ? "Verified" : "Not Verified",
+                                    style: TextStyle(
+                                      color: const Color(0xFF747474),
+                                      fontSize: 14,
+                                      fontFamily: 'Geist',
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: _cardColor,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          //Info
+                          Expanded(
+                            flex: 4,
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  "Verification status:",
-                                  style: TextStyle(
-                                    color: _textColor,
-                                    fontSize: 16,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 15),
-
-                                isVerified
-                                    ? SvgPicture.asset(
-                                        'assets/check.svg',
-                                        height: 60,
-                                        width: 60,
-                                      )
-                                    : SvgPicture.asset(
-                                        'assets/unverifiedIcon.svg',
-                                        height: 60,
-                                        width: 60,
-                                      ),
-
+                                _buildSmallInfoCard(college),
                                 const SizedBox(height: 10),
-                                Text(
-                                  isVerified ? "Verified" : "Not Verified",
-                                  style: TextStyle(
-                                    color: const Color(0xFF747474),
-                                    fontSize: 14,
-                                    fontFamily: 'Geist',
-                                  ),
-                                ),
+                                _buildSmallInfoCard(yearLevel),
+                                const SizedBox(height: 10),
+                                _buildSmallInfoCard(semester),
                               ],
                             ),
                           ),
-                        ),
+                        ],
+                      ),
 
-                        const SizedBox(width: 12),
-
-                        //Info
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            children: [
-                              _buildSmallInfoCard(college),
-                              const SizedBox(height: 10),
-                              _buildSmallInfoCard(yearLevel),
-                              const SizedBox(height: 10),
-                              _buildSmallInfoCard(semester),
-                            ],
-                          ),
-                        ),
-                      ],
                     ),
 
                     const SizedBox(height: 12),

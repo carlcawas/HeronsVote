@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'slates_list.dart';
 import 'candidate_profile.dart';
 import 'sample_data.dart' as profile_data;
+import 'package:skeletonizer/skeletonizer.dart';
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;
@@ -18,6 +19,16 @@ class SlateDetailsPage extends StatefulWidget {
 class _SlateDetailsPageState extends State<SlateDetailsPage> {
   double _scrollOffset = 0.0;
   final double scrollThreshold = 0.5;
+
+  //addedSkeleton
+  bool _skeletonVisible = true;
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _skeletonVisible = false);
+    });
+  }
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is ScrollUpdateNotification) {
@@ -96,23 +107,69 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
                     stream: slateDocRef.collection('candidates').orderBy('pos_rank').snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) return const Text("Error loading candidates");
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
 
-                      final docs = snapshot.data!.docs;
-                      if (docs.isEmpty) {
+                      //addedSkeleton + image preload step2
+                      //bool isLoading = snapshot.connectionState == ConnectionState.waiting || _skeletonVisible;
+                      bool isLoading = (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) || _skeletonVisible;
+                      if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                        for (final doc in snapshot.data!.docs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final filePath = data['img_path'] as String?;
+                          if (filePath != null && filePath.isNotEmpty) {
+                            try {
+                              final url = Supabase.instance.client.storage
+                                  .from('images')
+                                  .getPublicUrl(filePath);
+                              precacheImage(NetworkImage(url), context);
+                            } catch (_) {}
+                          }
+                        }
+                      }
+                      final List<Map<String, dynamic>?> items = isLoading
+                      ? List.generate(4, (index) => null)
+                      : snapshot.data!.docs
+                          .map((doc) => doc.data() as Map<String, dynamic>)
+                          .toList();
+                      
+                      /*if (!snapshot.hasData) { -> remove dis
+                        return const Center(child: CircularProgressIndicator());
+                      }*/
+
+                      //end
+
+                      //final docs = snapshot.data!.docs;  -> addSkeleton remove this
+                      
+                      // addSkeleton add (!isLoading && 
+                      if (!isLoading && items.isEmpty) {
                         return const Text("No candidates found in this slate.");
                       }
 
-                      return Column(
-                        children: docs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final candidate = Candidate.fromMap(data);
+                      //addedSkeleton enclose column
+                      return Skeletonizer (
+                        enabled: isLoading, 
+                        child: Column(
+                          children: items.map((docData) {
 
+                          if (docData == null) {
+                            return CandidateListItem(
+                              candidate: Candidate(
+                                name: "Loading Candidate Name",
+                                role: "Position Title",
+                                party: "Party Name",
+                                details: "College - Year",
+                                imgPath: null,
+                              ),
+                            );
+
+                          }
+
+                          final candidate = Candidate.fromMap(docData);
                           return CandidateListItem(candidate: candidate);
-                        }).toList(),
+                          }).toList(),
+                          
+                        ),
                       );
+
                     },
                   ),
 
@@ -412,57 +469,63 @@ class CandidateListItem extends StatelessWidget {
               const SizedBox(width: 15),
               // Text
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      candidate.role,
-                      style: const TextStyle(
-                        color: Color(0xFF404040),
-                        fontSize: 18,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        candidate.role,
+                        style: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontSize: 18,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      candidate.name,
-                      style: const TextStyle(
-                        color: Color(0xFF747474),
-                        fontSize: 12,
-                        fontFamily: 'Geist',
-                        height: 20 / 12,
-                        fontWeight: FontWeight.w500,
+                      Text(
+                        candidate.name,
+                        style: const TextStyle(
+                          color: Color(0xFF747474),
+                          fontSize: 12,
+                          fontFamily: 'Geist',
+                          height: 20 / 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${candidate.details}\n${candidate.party}',
-                      style: const TextStyle(
-                        color: Color(0xFF747474),
-                        fontSize: 12,
-                        fontFamily: 'Geist',
-                        height: 20 / 12,
-                        fontWeight: FontWeight.w500,
+                      Text(
+                        '${candidate.details}\n${candidate.party}',
+                        style: const TextStyle(
+                          color: Color(0xFF747474),
+                          fontSize: 12,
+                          fontFamily: 'Geist',
+                          height: 20 / 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                
               ),
               // Arrow
-              Container(
-                width: 40,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0),
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: const Center(
-                  child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+              Skeleton.ignore(
+                child: Container(
+                  width: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                  ),
                 ),
               ),
             ],
