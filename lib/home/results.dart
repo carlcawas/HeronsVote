@@ -571,7 +571,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
           ),
       ],
     );
-  }
+ }
 
   Widget _buildPieAndLegend(int cast, int total) {
     double percentage = total == 0 ? 0 : cast / total;

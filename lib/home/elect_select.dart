@@ -278,12 +278,12 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
-                          /*Navigator.push(
+                          Navigator.push(
                             context, 
                             MaterialPageRoute(
-                              builder: (context) => ElectionHistory(uid: widget.uid),
+                              builder: (context) => ElectionHistoryPage(uid: widget.uid),
                             ),
-                          );*/
+                          );
                         },
                         child: const Padding(
                           padding: EdgeInsets.symmetric(vertical: 24, horizontal: 24),
