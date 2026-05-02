@@ -1,3 +1,18 @@
-{
-    "cmake.sourceDirectory": "C:/Users/Mikarin/HeronsVote/linux"
+﻿{
+    "java.project.resourceFilters":  [
+                                         "node_modules",
+                                         ".git",
+                                         "build",
+                                         ".dart_tool"
+                                     ],
+    "java.import.gradle.enabled":  false,
+    "java.import.exclusions":  [
+                                   "**/android/**",
+                                   "**/node_modules/**"
+                               ],
+    "java.import.gradle.java.home":  "C:/Program Files/Android/Android Studio/jbr",
+    "gradle.java.home":  "C:/Program Files/Android/Android Studio/jbr",
+    "java.import.gradle.wrapper.enabled":  true,
+    "java.jdt.ls.androidSupport.enabled":  "off",
+    "java.jdt.ls.java.home":  "C:/Program Files/Android/Android Studio/jbr"
 }

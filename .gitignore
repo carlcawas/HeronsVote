@@ -45,3 +45,13 @@ app.*.map.json
 
 # Firebase admin SDK keys (do NOT commit)
 heronsvote-firebase-adminsdk-*.json
+node_modules/
+**/node_modules/
+android/.gradle/
+android/local.properties
+ios/Pods/
+ios/.symlinks/
+**/.DS_Store
+**/.idea/
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
