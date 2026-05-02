@@ -7,6 +7,7 @@ typedef ElectionContentBuilder = Widget Function(
   BuildContext context,
   Map<String, dynamic> electionData,
   VoidCallback? onBack,
+  Future<void> Function()? onRefresh,
 );
 
 class ElectionGateway extends StatefulWidget {
@@ -35,6 +36,14 @@ class _ElectionGatewayState extends State<ElectionGateway> {
   Future<List<Map<String, dynamic>>>? _electionsFuture;
   Map<String, dynamic>? _selectedElection;
 
+  Future<void> _refreshElections() async {
+    setState(() {
+      _selectedElection = null;
+      _electionsFuture = widget.fetchElections(widget.uid);
+    });
+    await _electionsFuture;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,26 +56,41 @@ class _ElectionGatewayState extends State<ElectionGateway> {
       future: _electionsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF354372)));
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF354372)),
+          );
         }
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
         }
-
         final elections = snapshot.data ?? [];
 
         if (elections.isEmpty) {
-          // NOTE: If in Result Mode, you might want to show "No results yet" instead
           return Center(child: Text(widget.emptyMessage));
         }
 
-        // Multiple elections -> Show Selection List
-        if (elections.length > 1 && _selectedElection == null) {
+        if (widget.isResultMode && elections.length > 1 && _selectedElection == null) {
+          // Results mode: show list first when multiple elections exist.
           return ElectionSelectionPage(
             uid: widget.uid,
             activeElections: elections,
-            // 2. PASS THE FLAG HERE
-            isResultMode: widget.isResultMode, 
+            isResultMode: widget.isResultMode,
+            onRefresh: _refreshElections,
+            onElectionSelected: (selected) {
+              setState(() {
+                _selectedElection = selected;
+              });
+            },
+          );
+        }
+
+        if (!widget.isResultMode && elections.length > 1 && _selectedElection == null) {
+          // Voting mode: keep in-tab selection flow.
+          return ElectionSelectionPage(
+            uid: widget.uid,
+            activeElections: elections,
+            isResultMode: widget.isResultMode,
+            onRefresh: _refreshElections,
             onElectionSelected: (selected) {
               setState(() {
                 _selectedElection = selected;
@@ -76,21 +100,19 @@ class _ElectionGatewayState extends State<ElectionGateway> {
         }
 
         // Single election or Selected -> Show Target Page
-        else {
-          final targetElection = _selectedElection ?? elections.first;
-
-          return widget.contentBuilder(
-            context,
-            targetElection,
-            elections.length > 1
-                ? () {
-                    setState(() {
-                      _selectedElection = null;
-                    });
-                  }
-                : null,
-          );
-        }
+        final targetElection = _selectedElection ?? elections.first;
+        return widget.contentBuilder(
+          context,
+          targetElection,
+          elections.length > 1
+              ? () {
+                  setState(() {
+                    _selectedElection = null;
+                  });
+                }
+              : null,
+          widget.isResultMode ? null : _refreshElections,
+        );
       },
     );
   }

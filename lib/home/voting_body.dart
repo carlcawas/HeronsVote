@@ -443,12 +443,14 @@ class VotingHomePage extends StatefulWidget {
   final String uid;
   final Map<String, dynamic> electionData;
   final VoidCallback? onBack;
+  final Future<void> Function()? onRefresh;
 
   const VotingHomePage({
     super.key,
     required this.uid,
     required this.electionData,
     this.onBack,
+    this.onRefresh,
   });
 
   @override
@@ -799,16 +801,19 @@ class _VotingHomePageState extends State<VotingHomePage> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(
-                left: 25.0,
-                right: 25.0,
-                bottom: 120.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
+            child: RefreshIndicator(
+              onRefresh: widget.onRefresh ?? () async {},
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(
+                  left: 25.0,
+                  right: 25.0,
+                  bottom: 120.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
                   // Election Info Card
                   Container(
                     width: double.infinity,
@@ -891,34 +896,35 @@ class _VotingHomePageState extends State<VotingHomePage> {
                     ),
                   ),
 
-                  if (isProposalMode)
-                    _buildProposalBody(includeButton: false)
-                  else
-                    Column(
-                      children: positions.map((pos) {
-                        final candidatesForPos = allCandidates
-                            .where((c) => c.role == pos)
-                            .toList();
+                    if (isProposalMode)
+                      _buildProposalBody(includeButton: false)
+                    else
+                      Column(
+                        children: positions.map((pos) {
+                          final candidatesForPos = allCandidates
+                              .where((c) => c.role == pos)
+                              .toList();
 
-                        if (!_selectedCandidates.containsKey(pos)) {
-                          _selectedCandidates[pos] = null;
-                        }
+                          if (!_selectedCandidates.containsKey(pos)) {
+                            _selectedCandidates[pos] = null;
+                          }
 
-                        final hasError = _showErrors &&
-                            _selectedCandidates[pos] == null;
+                          final hasError = _showErrors &&
+                              _selectedCandidates[pos] == null;
 
-                        return PositionVoteItem(
-                          positionTitle: pos,
-                          selectedCandidate: _selectedCandidates[pos],
-                          onSelectCandidate: () => _handleSelectCandidate(
-                            pos,
-                            candidatesForPos,
-                          ),
-                          hasError: hasError,
-                        );
-                      }).toList(),
-                    ),
-                ],
+                          return PositionVoteItem(
+                            positionTitle: pos,
+                            selectedCandidate: _selectedCandidates[pos],
+                            onSelectCandidate: () => _handleSelectCandidate(
+                              pos,
+                              candidatesForPos,
+                            ),
+                            hasError: hasError,
+                          );
+                        }).toList(),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

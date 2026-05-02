@@ -111,9 +111,10 @@
     let supabase = null;
     try { if (supabaseUrl && supabaseUrl.startsWith("http")) supabase = window.supabase.createClient(supabaseUrl, supabaseKey); } catch (err) {}
     
-    const COL_SLATES = "slates";
-    const COL_CANDIDATES = "candidates";
-    const COL_ELECTIONS = "elections";
+const COL_SLATES = "slates";
+const COL_CANDIDATES = "candidates";
+const COL_ELECTIONS = "elections";
+const selectedSlateIds = new Set();
     let selectedFile = null; 
 
     const fileInput = document.getElementById('imgFile');
@@ -170,6 +171,7 @@
                 const el = document.createElement('div');
                 el.className = 'slate-item';
                 el.innerHTML = `
+                    <div style="margin-right:8px; align-self:flex-start;"><input type="checkbox" class="bulk-slate-cb" data-id="${d.id}" ${selectedSlateIds.has(d.id) ? 'checked' : ''}></div>
                     ${imgUrl ? `<img src="${imgUrl}" class="slate-img">` : '<div class="slate-img"></div>'}
                     <div class="slate-info">
                         <h3>${data.name}</h3>
@@ -184,8 +186,25 @@
                 `;
                 listDiv.appendChild(el);
             }
+            document.querySelectorAll('.bulk-slate-cb').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const id = e.target.dataset.id;
+                    if (e.target.checked) selectedSlateIds.add(id);
+                    else selectedSlateIds.delete(id);
+                });
+            });
             window.allSlates = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } catch (e) { listDiv.innerHTML = "Error loading slates."; }
+    }
+
+    async function bulkDeleteSlates() {
+        if (selectedSlateIds.size === 0) return alert("Select at least one slate.");
+        if (!confirm(`Delete ${selectedSlateIds.size} slate(s)?`)) return;
+        for (const id of [...selectedSlateIds]) {
+            await delSlate(id, true);
+        }
+        selectedSlateIds.clear();
+        await loadSlates();
     }
 
     async function saveSlate() {
@@ -241,46 +260,18 @@
                 data.slate_id = ref.id;
             }
             batch.set(ref, data, { merge: true });
-
-            // 3. SYNC: Election Participation (Snapshot)
-            
-            // A. If moved elections, remove from old 'slates' subcollection
+            // 3. If moved elections, cascade election_id to all member candidates.
             if (oldElectionId && oldElectionId !== electionId) {
-                batch.delete(doc(db, COL_ELECTIONS, oldElectionId, "slates", slateId));
-                
-                // B. CASCADING UPDATE: Move ALL candidates to new election
                 const q = query(collection(db, COL_CANDIDATES), where("slate_id", "==", slateId));
                 const candidates = await getDocs(q);
                 candidates.forEach(c => {
-                    // Update Candidate Doc
                     batch.update(c.ref, { election_id: electionId });
-                    
-                    // Remove from old election candidates
-                    batch.delete(doc(db, COL_ELECTIONS, oldElectionId, "candidates", c.id));
-                    
-                    // Add to new election candidates
-                    const newElecCand = doc(db, COL_ELECTIONS, electionId, "candidates", c.id);
-                    const cData = c.data();
-                    cData.election_id = electionId;
-                    batch.set(newElecCand, cData);
 
-                    // *** NEW: Update Candidate inside Slate Subcollection ***
+                    // Keep slate member mirror in sync
                     const slateMemberRef = doc(db, COL_SLATES, slateId, "candidates", c.id);
-                    batch.update(slateMemberRef, { election_id: electionId });
+                    batch.set(slateMemberRef, { election_id: electionId }, { merge: true });
                 });
             }
-
-            // C. Add/Update in NEW election 'slates' subcollection
-            // Syncing name, img, AND the new text fields to the snapshot
-            batch.set(doc(db, COL_ELECTIONS, electionId, "slates", slateId), {
-                name: name,
-                img: imgPath,
-                slogan: slogan,
-                platform: platform,
-                advocacy: advocacy,
-                slate_id: slateId
-            });
-
             await batch.commit();
             alert("Saved!");
             clearForm();
@@ -291,8 +282,8 @@
         }
     }
 
-    async function delSlate(id) {
-        if (confirm("Delete this slate? Members will become Independent.")) {
+    async function delSlate(id, skipConfirm = false) {
+        if (skipConfirm || confirm("Delete this slate? Members will become Independent.")) {
             try {
                 const slate = window.allSlates.find(s => s.id === id);
                 const batch = writeBatch(db);
@@ -308,12 +299,7 @@
                     });
                 });
 
-                // 2. Delete from Elections ('slates' subcollection)
-                if (slate && slate.election_id) {
-                    batch.delete(doc(db, COL_ELECTIONS, slate.election_id, "slates", id));
-                }
-
-                // 3. Delete Slate Doc
+                // 2. Delete Slate Doc
                 batch.delete(doc(db, COL_SLATES, id));
 
                 await batch.commit();
@@ -360,11 +346,33 @@
         selectedFile = null;
     }
 
-    window.loadSlates = loadSlates;
-    window.saveSlate = saveSlate;
-    window.delSlate = delSlate;
+window.loadSlates = loadSlates;
+window.saveSlate = saveSlate;
+window.delSlate = delSlate;
+const slateRefreshBtn = document.querySelector('button[onclick="loadSlates()"]');
+if (slateRefreshBtn && !document.getElementById('bulkSlateBar')) {
+    const bar = document.createElement('div');
+    bar.id = 'bulkSlateBar';
+    bar.style.cssText = 'display:flex; gap:8px; margin:8px 0; align-items:center; flex-wrap:wrap;';
+    bar.innerHTML = `
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px;"><input type="checkbox" id="selectAllSlates"> Select all</label>
+        <button id="bulkDeleteSlatesBtn" style="width:auto; background:#d32f2f; padding:6px 10px;">Delete Selected</button>
+    `;
+    slateRefreshBtn.insertAdjacentElement('afterend', bar);
+    document.getElementById('selectAllSlates').addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.bulk-slate-cb').forEach(cb => {
+            cb.checked = checked;
+            const id = cb.dataset.id;
+            if (checked) selectedSlateIds.add(id);
+            else selectedSlateIds.delete(id);
+        });
+    });
+    document.getElementById('bulkDeleteSlatesBtn').addEventListener('click', bulkDeleteSlates);
+}
     window.editSlate = editSlate;
     window.clearForm = clearForm;
 </script>
 </body>
 </html>
+

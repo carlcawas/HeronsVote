@@ -84,21 +84,47 @@ class AnnouncementProvider {
   static const String collectionName = 'announcements';
   final FirebaseService _firebaseService = FirebaseService();
 
+  DateTime? _parseAnnouncementDate(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Timestamp) return raw.toDate();
+    if (raw is DateTime) return raw;
+    if (raw is String) {
+      final parsed = DateTime.tryParse(raw);
+      return parsed;
+    }
+    return null;
+  }
+
   Future<List<Announcement>> getAnnouncements(String userId) async {
     final querySnapshot = await _firebaseService.getAnnouncements();
 
     final readIds = await _firebaseService.getReadAnnouncementIds(userId);
+    final now = DateTime.now();
 
-    // Filter only Published announcements and map to Announcement model
-    return querySnapshot.docs
+    // Visible to voters only when scheduledDate is now/past and status is Published.
+    final visibleDocs = querySnapshot.docs
         .where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return data['status'] == 'Published';
+          if (data['status'] != 'Published') return false;
+          final scheduled = _parseAnnouncementDate(data['scheduledDate']);
+          if (scheduled == null) return false;
+          return !scheduled.isAfter(now);
         })
+        .toList();
+
+    visibleDocs.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+      final aDate = _parseAnnouncementDate(aData['scheduledDate']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = _parseAnnouncementDate(bData['scheduledDate']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+
+    final announcements = visibleDocs
         .map((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final timestamp = data['posted_at'] as Timestamp?;
-          final dateTime = timestamp?.toDate() ?? DateTime.now();
+          final dateTime =
+              _parseAnnouncementDate(data['scheduledDate']) ?? DateTime.now();
 
           final day = dateTime.day.toString().padLeft(2, '0');
           final month = _getMonthAbbreviate(dateTime.month);
@@ -111,7 +137,10 @@ class AnnouncementProvider {
             description: data['message'] ?? 'No Description',
             isNew: !readIds.contains(doc.id),
           );
-        }).toList();
+        })
+        .toList();
+
+    return announcements;
   }
 
   Future<void> markAsRead({
@@ -142,6 +171,7 @@ String _getMonthAbbreviate(int month) {
   ];
   return months[month - 1];
 }
+
 
 // App
 class AnnouncementApp extends StatelessWidget {

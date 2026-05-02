@@ -54,6 +54,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
         ? '${widget.positionTitle.substring(0, 25)}...'
         : widget.positionTitle;
 
+    final bool isProposalOptionsOnly = widget.isProposal;
     List<VotingCandidate> displayedCandidates = widget.candidates;
 
     if (widget.electionType == 'college' && widget.userCollege != null) {
@@ -62,7 +63,7 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
       }).toList();
     }
     
-    if (_searchQuery.isNotEmpty) {
+    if (!isProposalOptionsOnly && _searchQuery.isNotEmpty) {
       displayedCandidates = displayedCandidates.where((candidate) {
         final name = candidate.name.toLowerCase();
         final partylist = candidate.partylist.toLowerCase();
@@ -123,58 +124,58 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                     ),
                   ),
 
-                  // Search bar 
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value.toLowerCase();
-                        });
-                      },
-                      style: const TextStyle(
-                        fontFamily: 'Geist',
-                        fontSize: 14,
-                        color: Color(0xFF404040),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: "Search name or slate...",
-                        hintStyle: TextStyle(
+                  if (!isProposalOptionsOnly)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value.toLowerCase();
+                          });
+                        },
+                        style: const TextStyle(
                           fontFamily: 'Geist',
-                          color: Colors.grey.withOpacity(0.8),
                           fontSize: 14,
+                          color: Color(0xFF404040),
                         ),
-                        prefixIcon: const Icon(Icons.search, color: Color(0xFF747474)),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _searchQuery = "";
-                                  });
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFFF7F7F7),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
+                        decoration: InputDecoration(
+                          hintText: "Search name or slate...",
+                          hintStyle: TextStyle(
+                            fontFamily: 'Geist',
+                            color: Colors.grey.withOpacity(0.8),
+                            fontSize: 14,
+                          ),
+                          prefixIcon: const Icon(Icons.search, color: Color(0xFF747474)),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = "";
+                                    });
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFFF7F7F7),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(50),
+                            borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(50),
+                            borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(50),
+                            borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
                   displayedCandidates.isEmpty
                       ? Center(
@@ -297,10 +298,12 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                 ),
               ),
              ),
-             Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
+             Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
@@ -309,6 +312,8 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                   border: Border.all(
                     color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9),
                     width: 2,
+                  ),
+                ),
                   ),
                 ),
               ),
@@ -454,16 +459,23 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
               ),
             ),
 
-            Positioned(
-              top: 12, 
-              right: 12,
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFDFDFE1),
-                  border: Border.all(color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9), width: 2),
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected ? const Color(0xFF5C6AA0) : const Color(0xFFDFDFE1),
+                      border: Border.all(
+                        color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9),
+                        width: 2,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -504,10 +516,12 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
               ),
              ),
              // Radio Button
-             Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
+             Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
@@ -516,6 +530,8 @@ class _CandidateSelectionPageState extends State<CandidateSelectionPage> {
                   border: Border.all(
                     color: isSelected ? const Color(0xFFAAB3D0) : const Color(0xFFD9D9D9),
                     width: 2,
+                  ),
+                ),
                   ),
                 ),
               ),

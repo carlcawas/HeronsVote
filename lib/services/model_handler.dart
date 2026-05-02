@@ -53,6 +53,7 @@ class ModelHandler {
     required img.Image image,
     required Face face,
     required List<FaceLandmark>? landmarks,
+    bool skipLivenessCheck = false,
   }) async {
     print('[ModelHandler] Starting registration pipeline...');
     final stopwatch = Stopwatch()..start();
@@ -78,35 +79,38 @@ class ModelHandler {
         );
       }
 
-      // STEP 2: Liveness Check
-      print('[ModelHandler] Step 2/3: Liveness check...');
-      final livenessResult = await _livenessDetector.processFrame(
-        image: image,
-        face: face,
-        landmarks: landmarks,
-      );
-
-      print('[ModelHandler] Liveness Confidence: ${(livenessResult.confidence * 100).toStringAsFixed(1)}%');
-      print('[ModelHandler] Liveness OK: ${livenessResult.isLive}');
-
-      if (!livenessResult.isReadyForAnalysis) {
-        return RegistrationPipelineResult(
-          success: false,
-          stage: 'liveness_check',
-          message: 'Please hold steady.',
-          livenessResult: livenessResult,
-          qualityResult: qualityResult,
+      LivenessFrameResult? livenessResult;
+      if (!skipLivenessCheck) {
+        // STEP 2: Liveness Check
+        print('[ModelHandler] Step 2/3: Liveness check...');
+        livenessResult = await _livenessDetector.processFrame(
+          image: image,
+          face: face,
+          landmarks: landmarks,
         );
-      }
 
-      if (!livenessResult.isLive) {
-        return RegistrationPipelineResult(
-          success: false,
-          stage: 'liveness_check',
-          message: livenessResult.message,
-          livenessResult: livenessResult,
-          qualityResult: qualityResult,
-        );
+        print('[ModelHandler] Liveness Confidence: ${(livenessResult.confidence * 100).toStringAsFixed(1)}%');
+        print('[ModelHandler] Liveness OK: ${livenessResult.isLive}');
+
+        if (!livenessResult.isReadyForAnalysis) {
+          return RegistrationPipelineResult(
+            success: false,
+            stage: 'liveness_check',
+            message: 'Please hold steady.',
+            livenessResult: livenessResult,
+            qualityResult: qualityResult,
+          );
+        }
+
+        if (!livenessResult.isLive) {
+          return RegistrationPipelineResult(
+            success: false,
+            stage: 'liveness_check',
+            message: livenessResult.message,
+            livenessResult: livenessResult,
+            qualityResult: qualityResult,
+          );
+        }
       }
 
       // STEP 3: Extract Embedding

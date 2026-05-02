@@ -247,10 +247,11 @@
         document.getElementById('uploadStatus').innerText = "Image selected (will be uploaded on Save)";
     });
     
-    const COL_CANDIDATES = "candidates"; 
-    const COL_ELECTIONS = "elections";
-    const COL_SLATES = "slates";
-    const COL_COLLEGES = "colleges"; // UPDATED: Plural as requested
+const COL_CANDIDATES = "candidates";
+const COL_ELECTIONS = "elections";
+const COL_SLATES = "slates";
+const COL_COLLEGES = "colleges"; // UPDATED: Plural as requested
+const selectedCandidateIds = new Set();
 
     window.onload = async () => {
         await loadDropdowns();
@@ -286,7 +287,7 @@
             collegeSelect.innerHTML = '<option value="">-- Select Target --</option>';
             
             // 1. Add USC Option at the top
-            collegeSelect.innerHTML += '<option value="_USC_" style="font-weight:bold; color:#02569B;">★ University Student Council (USC)</option>';
+            collegeSelect.innerHTML += '<option value="_USC_" style="font-weight:bold; color:#02569B;">☁EUniversity Student Council (USC)</option>';
             
             // 2. Add Colleges
             snap.forEach(doc => {
@@ -338,7 +339,9 @@
                 img: imgPath,
                 vote_count: Number(document.getElementById('vote_count').value),
                 status: 'Posted',
-                candidate_id: docId || ''
+                candidate_id: docId || '',
+                date_submitted: docId ? (window.allCandidates?.find(x => x.id === docId)?.date_submitted || new Date().toISOString()) : new Date().toISOString(),
+                date_updated: new Date().toISOString()
             };
 
             const batch = writeBatch(db);
@@ -350,20 +353,6 @@
                 newData.candidate_id = candRef.id;
             }
             batch.set(candRef, newData, { merge: true });
-
-            if (oldElectionId && oldElectionId !== electionId) {
-                batch.delete(doc(db, COL_ELECTIONS, oldElectionId, "candidates", newData.candidate_id));
-            }
-            const elecRef = doc(db, COL_ELECTIONS, electionId, "candidates", newData.candidate_id);
-            batch.set(elecRef, {
-                name: newData.name,
-                position: newData.position,
-                img: newData.img,
-                slate: newData.slate || "Independent",
-                candidate_id: newData.candidate_id,
-                vote_count: newData.vote_count
-            });
-
             if (oldSlateId && oldSlateId !== newData.slate_id) {
                 batch.delete(doc(db, COL_SLATES, oldSlateId, "candidates", newData.candidate_id));
             }
@@ -386,7 +375,7 @@
     // LIST CANDIDATES
     document.getElementById('btnRefresh').addEventListener('click', loadCandidates);
 
-    async function loadCandidates() {
+async function loadCandidates() {
         const listDiv = document.getElementById('candidatesList');
         listDiv.innerHTML = "Loading...";
         try {
@@ -395,6 +384,7 @@
             listDiv.innerHTML = "";
             if(snap.empty) { listDiv.innerHTML = "<p style='text-align:center'>No candidates.</p>"; return; }
 
+            const frag = document.createDocumentFragment();
             snap.forEach(docSnap => {
                 const d = docSnap.data();
                 let imgUrl = "";
@@ -406,6 +396,7 @@
                 const item = document.createElement('div');
                 item.className = 'candidate-item';
                 item.innerHTML = `
+                    <div style="margin-right: 8px;"><input type="checkbox" class="bulk-candidate-cb" data-id="${docSnap.id}" ${selectedCandidateIds.has(docSnap.id) ? 'checked' : ''}></div>
                     <div style="margin-right: 10px;">
                        ${imgUrl ? `<img src="${imgUrl}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">` : '<div style="width:40px; height:40px; background:#eee; border-radius:50%;"></div>'}
                     </div>
@@ -419,10 +410,28 @@
                         <button class="btn-sm btn-del" onclick="window.deleteCandidate('${docSnap.id}')">Delete</button>
                     </div>
                 `;
-                listDiv.appendChild(item);
+                frag.appendChild(item);
+            });
+            listDiv.appendChild(frag);
+            document.querySelectorAll('.bulk-candidate-cb').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const id = e.target.dataset.id;
+                    if (e.target.checked) selectedCandidateIds.add(id);
+                    else selectedCandidateIds.delete(id);
+                });
             });
             window.allCandidates = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } catch (e) { listDiv.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`; }
+    }
+
+    async function bulkDeleteCandidates() {
+        if (selectedCandidateIds.size === 0) return alert("Select at least one candidate.");
+        if (!confirm(`Delete ${selectedCandidateIds.size} candidate(s)?`)) return;
+        for (const id of [...selectedCandidateIds]) {
+            await window.deleteCandidate(id, true);
+        }
+        selectedCandidateIds.clear();
+        await loadCandidates();
     }
 
     // PROMOTION LOGIC
@@ -490,12 +499,6 @@
                 batch.delete(slateMemberRef);
             }
 
-            // 4. Remove from Election Subcollection (if exists)
-            if (c.election_id) {
-                const elecMemberRef = doc(db, COL_ELECTIONS, c.election_id, "candidates", id);
-                batch.delete(elecMemberRef);
-            }
-
             await batch.commit();
             
             alert(`Successfully promoted ${c.name}!`);
@@ -543,22 +546,41 @@
     };
 
     // DELETE
-    window.deleteCandidate = async (id) => {
-        if (!confirm("Delete candidate?")) return;
+    window.deleteCandidate = async (id, skipConfirm = false) => {
+        if (!skipConfirm && !confirm("Delete candidate?")) return;
         const c = window.allCandidates.find(x => x.id === id);
         try {
             const batch = writeBatch(db);
             batch.delete(doc(db, COL_CANDIDATES, id));
-            if (c && c.slate_id) batch.delete(doc(db, COL_SLATES, c.slate_id, "candidates", id));
-            if (c && c.election_id) batch.delete(doc(db, COL_ELECTIONS, c.election_id, "candidates", id));
-            await batch.commit();
+            if (c && c.slate_id) batch.delete(doc(db, COL_SLATES, c.slate_id, "candidates", id));            await batch.commit();
             if (c && c.img && supabase) await supabase.storage.from('images').remove([c.img]);
             loadCandidates();
             if(document.getElementById('docId').value === id) clearForm();
         } catch (e) { alert("Error: " + e.message); }
     };
 
-    document.getElementById('btnClear').addEventListener('click', clearForm);
+document.getElementById('btnClear').addEventListener('click', clearForm);
+const refreshBtn = document.getElementById('btnRefresh');
+if (refreshBtn && !document.getElementById('bulkCandidateBar')) {
+    const bar = document.createElement('div');
+    bar.id = 'bulkCandidateBar';
+    bar.style.cssText = 'display:flex; gap:8px; margin:8px 0; align-items:center; flex-wrap:wrap;';
+    bar.innerHTML = `
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px;"><input type="checkbox" id="selectAllCandidates"> Select all</label>
+        <button id="bulkDeleteCandidatesBtn" style="width:auto; background:#d32f2f; padding:6px 10px;">Delete Selected</button>
+    `;
+    refreshBtn.insertAdjacentElement('afterend', bar);
+    document.getElementById('selectAllCandidates').addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.bulk-candidate-cb').forEach(cb => {
+            cb.checked = checked;
+            const id = cb.dataset.id;
+            if (checked) selectedCandidateIds.add(id);
+            else selectedCandidateIds.delete(id);
+        });
+    });
+    document.getElementById('bulkDeleteCandidatesBtn').addEventListener('click', bulkDeleteCandidates);
+}
     function clearForm() {
         document.getElementById('docId').value = "";
         document.getElementById('originalSlateId').value = "";
@@ -588,3 +610,6 @@
 
 </body>
 </html>
+
+
+

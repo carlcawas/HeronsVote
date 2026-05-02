@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -10,6 +11,32 @@ import 'package:heronsvote/services/model_handler.dart';
 import 'voting_models.dart';
 import 'vote_submitted.dart';
 import 'header.dart';
+
+class _CapturedVerificationFrame {
+  final File file;
+  final img.Image image;
+  final Face face;
+  final List<FaceLandmark> landmarks;
+  final double score;
+
+  _CapturedVerificationFrame({
+    required this.file,
+    required this.image,
+    required this.face,
+    required this.landmarks,
+    required this.score,
+  });
+}
+
+class _BurstVerificationResult {
+  final _CapturedVerificationFrame? frame;
+  final VerificationPipelineResult result;
+
+  _BurstVerificationResult({
+    required this.frame,
+    required this.result,
+  });
+}
 
 class FaceVerificationPage extends StatefulWidget {
   final Map<String, VotingCandidate?> selectedCandidates;
@@ -39,7 +66,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   int _verificationAttempts = 0;
   static const int maxVerificationAttempts = 3;
   int _framesCollected = 0;
-  static const int minFramesForLiveness = 2;
+  static const int minFramesForLiveness = 3;
 
   @override
   void initState() {
@@ -165,51 +192,16 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       
       final String encryptedStoredEmbedding = doc.data()!['faceEmbeddingEncrypted'];
 
-      // Collect frames for liveness detection
-      _showSuccess('Please hold steady for 2 seconds...');
-      await _collectFramesForLiveness();
-
-      // Capture final image
-      print('[Verification] Capturing final image...');
-      final XFile raw = await _cameraController!.takePicture();
-      await _cameraController!.pausePreview();
-      final File file = File(raw.path);
-
-      // Decode image
-      final imageBytes = await file.readAsBytes();
-      final decoded = img.decodeImage(imageBytes);
-      
-      if (decoded == null) {
-        throw "Failed to decode image.";
-      }
-
-      print('[Verification] Image decoded: ${decoded.width}x${decoded.height}');
-
-      // Detect face
-      final inputImage = InputImage.fromFile(file);
-      final faces = await _faceDetector.processImage(inputImage);
-
-      if (faces.isEmpty) {
-        throw "No face detected. Please face the camera directly.";
-      }
-
-      if (faces.length > 1) {
-        throw "Multiple faces detected. Please ensure only you are in the frame.";
-      }
-
-      final face = faces.first;
-      final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
-
-      print('[Verification] Face detected with ${landmarks.length} landmarks');
-
-      // Run verification pipeline
-      print('[Verification] Running verification pipeline...');
-      final result = await _modelHandler.processVerification(
-        image: decoded,
-        face: face,
-        landmarks: landmarks,
+      // Registration-matching flow: burst capture + analyze + anti-shake
+      final burst = await _verifyWithBurst(
         encryptedStoredEmbedding: encryptedStoredEmbedding,
+        attempts: 3,
+        minSuccessRequired: 2,
       );
+      if (burst == null) {
+        throw "Face verification failed. Please try again.";
+      }
+      final result = burst.result;
 
       // Handle result
       if (!result.success) {
@@ -255,10 +247,12 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       
       _showSuccess('Face verified! Submitting vote...');
       
-      // Cleanup
-      try {
-        await file.delete();
-      } catch (_) {}
+      // Cleanup accepted frame temp file
+      if (burst.frame != null) {
+        try {
+          await burst.frame!.file.delete();
+        } catch (_) {}
+      }
 
       // Submit vote
       await _submitFinalVote();
@@ -279,57 +273,200 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
     }
   }
 
-  // ============================================
-  // COLLECT FRAMES FOR LIVENESS
-  // ============================================
-  Future<void> _collectFramesForLiveness() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return;
-    }
+  Future<_BurstVerificationResult?> _verifyWithBurst({
+    required String encryptedStoredEmbedding,
+    int attempts = 3,
+    int minSuccessRequired = 2,
+  }) async {
+    _BurstVerificationResult? bestSuccess;
+    VerificationPipelineResult? lastFailure;
+    final Map<String, int> failureCounts = {};
+    int successCount = 0;
 
-    final stopwatch = Stopwatch()..start();
-    const collectionDuration = Duration(milliseconds: 1000); // Reduced from 2000ms
+    Offset? previousCenter;
+    int unstableTransitions = 0;
+    int stableFrameCount = 0;
 
-    while (stopwatch.elapsed < collectionDuration) {
-      try {
-        final XFile raw = await _cameraController!.takePicture();
-        final File file = File(raw.path);
-        final imageBytes = await file.readAsBytes();
-        final decoded = img.decodeImage(imageBytes);
+    for (int i = 0; i < attempts; i++) {
+      final frame = await _captureVerificationFrame();
+      _framesCollected = i + 1;
+      if (mounted) setState(() {});
 
-        if (decoded == null) continue;
-
-        final inputImage = InputImage.fromFile(file);
-        final faces = await _faceDetector.processImage(inputImage);
-
-        if (faces.isNotEmpty) {
-          final face = faces.first;
-          final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
-          
-          final livenessResult = await _modelHandler.processFrameForLiveness(
-            image: decoded,
-            face: face,
-            landmarks: landmarks,
-          );
-
-          _framesCollected = livenessResult.framesCollected ?? 0;
-          
-          print('[Liveness] Frames: $_framesCollected, Ready: ${livenessResult.isReadyForAnalysis}');
-
-          if (livenessResult.isReadyForAnalysis && livenessResult.isLive) {
-            print('[Liveness] Liveness verified!');
-            break;
-          }
-        }
-
-        await Future.delayed(const Duration(milliseconds: 100));
-      } catch (e) {
-        print('[Liveness] Frame collection error: $e');
+      if (frame == null) {
+        await Future.delayed(const Duration(milliseconds: 90));
+        continue;
       }
+
+      final bbox = frame.face.boundingBox;
+      final center = Offset(bbox.left + (bbox.width / 2.0), bbox.top + (bbox.height / 2.0));
+      if (previousCenter != null) {
+        final dx = center.dx - previousCenter!.dx;
+        final dy = center.dy - previousCenter!.dy;
+        final movement = math.sqrt((dx * dx) + (dy * dy));
+        final diagonal = math.sqrt(
+          (frame.image.width * frame.image.width) +
+              (frame.image.height * frame.image.height),
+        );
+        final normalizedMovement = diagonal == 0 ? 0.0 : movement / diagonal;
+        if (normalizedMovement > 0.16) {
+          unstableTransitions++;
+        } else {
+          stableFrameCount++;
+        }
+      } else {
+        stableFrameCount++;
+      }
+      previousCenter = center;
+
+      final result = await _modelHandler.processVerification(
+        image: frame.image,
+        face: frame.face,
+        landmarks: frame.landmarks,
+        encryptedStoredEmbedding: encryptedStoredEmbedding,
+      );
+
+      if (result.success) {
+        successCount++;
+        if (bestSuccess == null || frame.score > bestSuccess.frame!.score) {
+          if (bestSuccess != null) {
+            try {
+              await bestSuccess.frame!.file.delete();
+            } catch (_) {}
+          }
+          bestSuccess = _BurstVerificationResult(frame: frame, result: result);
+        } else {
+          try {
+            await frame.file.delete();
+          } catch (_) {}
+        }
+      } else {
+        lastFailure = result;
+        failureCounts[result.message] = (failureCounts[result.message] ?? 0) + 1;
+        try {
+          await frame.file.delete();
+        } catch (_) {}
+      }
+
+      await Future.delayed(const Duration(milliseconds: 90));
     }
 
-    stopwatch.stop();
-    print('[Liveness] Collection completed in ${stopwatch.elapsedMilliseconds}ms');
+    if (successCount >= minSuccessRequired && bestSuccess != null) {
+      if (unstableTransitions > 0 && stableFrameCount < minSuccessRequired) {
+        return _BurstVerificationResult(
+          frame: null,
+          result: VerificationPipelineResult(
+            success: false,
+            stage: 'stability_check',
+            message: 'Too much movement. Hold your phone steady.',
+          ),
+        );
+      }
+      return bestSuccess;
+    }
+
+    if (unstableTransitions >= 2) {
+      return _BurstVerificationResult(
+        frame: null,
+        result: VerificationPipelineResult(
+          success: false,
+          stage: 'stability_check',
+          message: 'Too much movement. Hold your phone steady.',
+        ),
+      );
+    }
+
+    if (failureCounts.isNotEmpty) {
+      String topMessage = failureCounts.entries.first.key;
+      int topCount = failureCounts.entries.first.value;
+      for (final e in failureCounts.entries) {
+        if (e.value > topCount) {
+          topMessage = e.key;
+          topCount = e.value;
+        }
+      }
+      return _BurstVerificationResult(
+        frame: null,
+        result: VerificationPipelineResult(
+          success: false,
+          stage: 'frame_validation',
+          message: topMessage,
+        ),
+      );
+    }
+
+    if (lastFailure != null) {
+      return _BurstVerificationResult(frame: null, result: lastFailure);
+    }
+
+    return null;
+  }
+
+  Future<_CapturedVerificationFrame?> _captureVerificationFrame() async {
+    try {
+      final XFile raw = await _cameraController!.takePicture();
+      final file = File(raw.path);
+      final imageBytes = await file.readAsBytes();
+      final decoded = img.decodeImage(imageBytes);
+      if (decoded == null) {
+        try {
+          await file.delete();
+        } catch (_) {}
+        return null;
+      }
+
+      final inputImage = InputImage.fromFile(file);
+      final faces = await _faceDetector.processImage(inputImage);
+      if (faces.length != 1) {
+        try {
+          await file.delete();
+        } catch (_) {}
+        return null;
+      }
+      final face = faces.first;
+      final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
+      final score = _scoreFace(face, decoded);
+
+      return _CapturedVerificationFrame(
+        file: file,
+        image: decoded,
+        face: face,
+        landmarks: landmarks,
+        score: score,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  double _scoreFace(Face face, img.Image image) {
+    final box = face.boundingBox;
+    final imageArea = math.max(1, image.width * image.height).toDouble();
+    final faceArea = math.max(1, box.width * box.height).toDouble();
+    final areaRatio = (faceArea / imageArea).clamp(0.0, 1.0);
+
+    final centerX = box.left + (box.width / 2.0);
+    final centerY = box.top + (box.height / 2.0);
+    final distToCenter = math.sqrt(
+      math.pow(centerX - (image.width / 2.0), 2) +
+          math.pow(centerY - (image.height / 2.0), 2),
+    );
+    final maxDist = math.sqrt(
+      math.pow(image.width / 2.0, 2) + math.pow(image.height / 2.0, 2),
+    );
+    final centerScore = (1.0 - (distToCenter / maxDist)).clamp(0.0, 1.0);
+
+    final yawPenalty = ((face.headEulerAngleY ?? 0.0).abs() / 45.0).clamp(0.0, 1.0);
+    final pitchPenalty = ((face.headEulerAngleX ?? 0.0).abs() / 35.0).clamp(0.0, 1.0);
+    final yawPitchScore = (1.0 - ((yawPenalty + pitchPenalty) / 2.0)).clamp(0.0, 1.0);
+
+    final leftEye = (face.leftEyeOpenProbability ?? 0.6).clamp(0.0, 1.0);
+    final rightEye = (face.rightEyeOpenProbability ?? 0.6).clamp(0.0, 1.0);
+    final eyeScore = ((leftEye + rightEye) / 2.0).clamp(0.0, 1.0);
+
+    return (areaRatio * 0.35) +
+        (centerScore * 0.30) +
+        (yawPitchScore * 0.25) +
+        (eyeScore * 0.10);
   }
 
   // ============================================
@@ -389,13 +526,6 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           'total_votes_cast': FieldValue.increment(1),
           'by_year_level': {userYear: FieldValue.increment(1)},
         }, SetOptions(merge: true));
-
-        if (isProposal) {
-          final proposalRef = firestore.collection('proposals').doc(widget.electionId);
-          transaction.update(proposalRef, {
-            'vote_count': FieldValue.increment(1),
-          });
-        }
 
         widget.selectedCandidates.forEach((position, candidate) {
           if (candidate != null) {

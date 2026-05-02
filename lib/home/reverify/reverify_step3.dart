@@ -164,7 +164,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
   Future<void> _onCapturePressed() async {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      _showError("Camera not ready.");
+      _showError("Camera is not ready.");
       return;
     }
     if (_processing) return;
@@ -185,7 +185,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
     try {
       _modelHandler!.resetLiveness();
-      _showSuccess('Please hold steady for 2 seconds...');
+      _showSuccess('Please be steady for 2 seconds...');
       await _collectFramesForLiveness();
 
       print('[Reverify] Capturing final image...');

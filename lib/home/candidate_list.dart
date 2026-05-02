@@ -50,6 +50,8 @@ class _CandidateListPageState extends State<CandidateListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isProposalOptionsOnly =
+        widget.positionTitle.toLowerCase().contains('proposal');
     return FutureBuilder<String>(
       future: _collegeIdFuture, 
       builder: (context, userSnapshot) {
@@ -65,57 +67,58 @@ class _CandidateListPageState extends State<CandidateListPage> {
           onBack: () => Navigator.pop(context),
           items: [
             // Search bar (customize niyo nalang :DD)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
-                style: const TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 14,
-                  color: Color(0xFF404040),
-                ),
-                decoration: InputDecoration(
-                  hintText: "Search name or slate...",
-                  hintStyle: TextStyle(
+            if (!isProposalOptionsOnly)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value.toLowerCase();
+                    });
+                  },
+                  style: const TextStyle(
                     fontFamily: 'Geist',
-                    color: Colors.grey.withOpacity(0.8),
                     fontSize: 14,
+                    color: Color(0xFF404040),
                   ),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF747474)),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = "";
-                            });
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: const Color(0xFFF7F7F7),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(50),
-                    borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(50),
-                    borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(50),
-                    borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
+                  decoration: InputDecoration(
+                    hintText: "Search name or slate...",
+                    hintStyle: TextStyle(
+                      fontFamily: 'Geist',
+                      color: Colors.grey.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                    prefixIcon: const Icon(Icons.search, color: Color(0xFF747474)),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 20, color: Colors.grey),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = "";
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: const Color(0xFFF7F7F7),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(50),
+                      borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(50),
+                      borderSide: const BorderSide(color: Color(0xFFEEEEEE), width: 1),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(50),
+                      borderSide: const BorderSide(color: Color(0xFF5C6AA0), width: 1),
+                    ),
                   ),
                 ),
               ),
-            ),
 
             // Check if there is an ongoing USC Election
             StreamBuilder<QuerySnapshot>(

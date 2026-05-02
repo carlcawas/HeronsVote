@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -10,6 +11,32 @@ import 'package:heronsvote/services/model_handler.dart';
 import '../screens/registration_verified.dart';
 
 const int MODEL_INPUT_SIZE = 160;
+
+class _CapturedFaceFrame {
+  final File file;
+  final img.Image image;
+  final Face face;
+  final List<FaceLandmark> landmarks;
+  final double score;
+
+  _CapturedFaceFrame({
+    required this.file,
+    required this.image,
+    required this.face,
+    required this.landmarks,
+    required this.score,
+  });
+}
+
+class _BurstRegistrationResult {
+  final _CapturedFaceFrame? frame;
+  final RegistrationPipelineResult pipelineResult;
+
+  _BurstRegistrationResult({
+    required this.frame,
+    required this.pipelineResult,
+  });
+}
 
 class RegistrationStep3 extends StatefulWidget {
   final String? uid;
@@ -36,9 +63,9 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   bool _processing = false;
   late final FaceDetector _faceDetector;
   
-  // Liveness frames collection
+  // Progress counter for burst processing
   int _framesCollected = 0;
-  static const int minFramesForLiveness = 2;
+  static const int minFramesForLiveness = 3;
 
   @override
   void initState() {
@@ -147,11 +174,28 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: Colors.red,
+        backgroundColor: Colors.black,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
       ),
     );
+  }
+
+  String _toUserFriendlyError(String raw) {
+    final msg = raw.toLowerCase();
+    if (msg.contains('multiple face')) return 'Only one face should be in the view.';
+    if (msg.contains('no face')) return 'No face found. Please face the camera directly.';
+    if (msg.contains('cover') || msg.contains('occl')) return 'Captured face is partially covered.';
+    if (msg.contains('angle') || msg.contains('yaw') || msg.contains('pitch')) return 'Please face the camera straight.';
+    if (msg.contains('blur') || msg.contains('sharp')) return 'Image is blurry. Please be steady.';
+    if (msg.contains('light') || msg.contains('dark') || msg.contains('exposure')) return 'Lighting is too low. Please move to a brighter place.';
+    if (msg.contains('stability') || msg.contains('movement')) return 'Too much movement. Please hold your phone steady.';
+    if (msg.contains('smile')) return 'Please smile and try again.';
+    if (msg.contains('camera not ready')) return 'Camera is not ready yet.';
+    if (msg.contains('user not logged')) return 'Please log in again.';
+    if (msg.contains('loading validation models')) return 'Please wait a moment and try again.';
+    if (msg.contains('failed to process face')) return 'Could not read your face. Try again.';
+    return 'Face check failed. Please try again.';
   }
 
   void _showSuccess(String msg) {
@@ -159,10 +203,54 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: Colors.green,
+        backgroundColor: Colors.black,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  Future<void> _showAcceptedFacePreview(File imageFile) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Colors.black87,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Registered Face Preview',
+            style: TextStyle(color: Colors.white, fontFamily: 'Geist', fontSize: 16),
+          ),
+          content: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              imageFile,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(
+                width: 220,
+                height: 260,
+                child: Center(
+                  child: Text(
+                    'Preview unavailable.',
+                    style: TextStyle(color: Colors.white70, fontFamily: 'Geist'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Continue',
+                style: TextStyle(color: Colors.white, fontFamily: 'Geist'),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -171,7 +259,7 @@ class _RegistrationStep3State extends State<RegistrationStep3>
   // ============================================
   Future<void> _onCapturePressed() async {
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      _showError("Camera not ready.");
+      _showError(_toUserFriendlyError("camera not ready"));
       return;
     }
 
@@ -182,12 +270,12 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _showError("User not logged in.");
+      _showError(_toUserFriendlyError("user not logged in"));
       return;
     }
 
     if (!_modelsReady) {
-      _showError("Loading validation models. Please wait...");
+      _showError(_toUserFriendlyError("loading validation models"));
       return;
     }
 
@@ -195,60 +283,28 @@ class _RegistrationStep3State extends State<RegistrationStep3>
     _framesCollected = 0;
 
     try {
-      // Reset liveness detector for new session
+      // Reset liveness state for this session.
       _modelHandler!.resetLiveness();
 
-      // Collect multiple frames for liveness detection
-      _showSuccess('Please hold steady for 2 seconds...');
-      
-      await _collectFramesForLiveness();
-
-      // After collecting frames, capture final high-quality image
-      print('[Registration] Capturing final image...');
-      final XFile raw = await _cameraController!.takePicture();
-      final File file = File(raw.path);
-
-      // Decode image for processing
-      final imageBytes = await file.readAsBytes();
-      final decoded = img.decodeImage(imageBytes);
-      
-      if (decoded == null) {
-        _showError("Failed to decode image.");
-        return;
-      }
-
-      print('[Registration] Image decoded: ${decoded.width}x${decoded.height}');
-
-      // Detect face with landmarks
-      final inputImage = InputImage.fromFile(file);
-      final faces = await _faceDetector.processImage(inputImage);
-
-      if (faces.isEmpty) {
-        _showError("No face detected. Please face the camera directly.");
-        return;
-      }
-
-      if (faces.length > 1) {
-        _showError("Multiple faces detected. Please ensure only you are in the frame.");
-        return;
-      }
-
-      final face = faces.first;
-      final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
-
-      print('[Registration] Face detected with ${landmarks.length} landmarks');
-
-      // Run complete registration pipeline
-      print('[Registration] Running registration pipeline...');
-      final result = await _modelHandler!.processRegistration(
-        image: decoded,
-        face: face,
-        landmarks: landmarks,
+      // Fast check: capture 3 frames and require at least 2 successful analyses.
+      final captureResult = await _captureAndAnalyzeBurst(
+        attempts: 3,
+        minSuccessRequired: 2,
       );
+      if (captureResult == null || !captureResult.pipelineResult.success) {
+        final msg = _toUserFriendlyError(
+          captureResult?.pipelineResult.message ??
+              "Face capture failed. Keep your face centered and try again.",
+        );
+        _showError(msg);
+        return;
+      }
+      final result = captureResult.pipelineResult;
+      final acceptedFile = captureResult.frame?.file;
 
       // Handle pipeline result
       if (!result.success) {
-        _showError(result.message);
+        _showError(_toUserFriendlyError(result.message));
         print('[Registration] Pipeline failed at ${result.stage}: ${result.message}');
         
         // Show detailed feedback if available
@@ -273,10 +329,16 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       print('[Registration] Registration completed successfully!');
       _showSuccess('Face registered successfully!');
 
+      if (acceptedFile != null && await acceptedFile.exists()) {
+        await _showAcceptedFacePreview(acceptedFile);
+      }
+
       // Cleanup
-      try {
-        await file.delete();
-      } catch (_) {}
+      if (captureResult.frame != null) {
+        try {
+          await captureResult.frame!.file.delete();
+        } catch (_) {}
+      }
 
       // Navigate to success screen
       if (!mounted) return;
@@ -290,70 +352,220 @@ class _RegistrationStep3State extends State<RegistrationStep3>
 
     } catch (e) {
       print('[Registration] ERROR: $e');
-      _showError("Failed to process face: $e");
+      _showError(_toUserFriendlyError("failed to process face"));
     } finally {
       if (mounted) setState(() => _processing = false);
       _framesCollected = 0;
     }
   }
 
-  // ============================================
-  // COLLECT MULTIPLE FRAMES FOR LIVENESS
-  // ============================================
-  Future<void> _collectFramesForLiveness() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return;
-    }
+  Future<_BurstRegistrationResult?> _captureAndAnalyzeBurst({
+    int attempts = 5,
+    int minSuccessRequired = 3,
+  }) async {
+    _BurstRegistrationResult? bestSuccess;
+    RegistrationPipelineResult? lastFailure;
+    int successCount = 0;
+    final Map<String, int> failureCounts = {};
+    Offset? previousCenter;
+    int unstableTransitions = 0;
+    int stableFrameCount = 0;
 
-    final stopwatch = Stopwatch()..start();
-    const collectionDuration = Duration(milliseconds: 1000); // Reduced from 2000ms
+    for (int i = 0; i < attempts; i++) {
+      final frame = await _captureFaceFrame();
+      _framesCollected = i + 1;
+      if (mounted) setState(() {});
 
-    while (stopwatch.elapsed < collectionDuration) {
-      try {
-        // Capture frame
-        final XFile raw = await _cameraController!.takePicture();
-        final File file = File(raw.path);
-        final imageBytes = await file.readAsBytes();
-        final decoded = img.decodeImage(imageBytes);
-
-        if (decoded == null) {
-          continue;
-        }
-
-        // Detect face
-        final inputImage = InputImage.fromFile(file);
-        final faces = await _faceDetector.processImage(inputImage);
-
-        if (faces.isNotEmpty) {
-          final face = faces.first;
-          final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
-          
-          // Process frame through liveness detector
-          final livenessResult = await _modelHandler!.processFrameForLiveness(
-            image: decoded,
-            face: face,
-            landmarks: landmarks,
-          );
-
-          _framesCollected = livenessResult.framesCollected ?? 0;
-          
-          print('[Liveness] Frames: $_framesCollected, Ready: ${livenessResult.isReadyForAnalysis}');
-
-          if (livenessResult.isReadyForAnalysis && livenessResult.isLive) {
-            print('[Liveness] Liveness verified!');
-            break;
-          }
-        }
-
-        // Small delay between frames
-        await Future.delayed(const Duration(milliseconds: 100));
-      } catch (e) {
-        print('[Liveness] Frame collection error: $e');
+      if (frame == null) {
+        await Future.delayed(const Duration(milliseconds: 90));
+        continue;
       }
+
+      // Anti-shake: measure sudden center movement between captured frames.
+      final bbox = frame.face.boundingBox;
+      final center = Offset(
+        bbox.left + (bbox.width / 2.0),
+        bbox.top + (bbox.height / 2.0),
+      );
+      if (previousCenter != null) {
+        final dx = center.dx - previousCenter!.dx;
+        final dy = center.dy - previousCenter!.dy;
+        final movement = math.sqrt((dx * dx) + (dy * dy));
+        final diagonal = math.sqrt(
+          (frame.image.width * frame.image.width) +
+              (frame.image.height * frame.image.height),
+        );
+        final normalizedMovement = diagonal == 0 ? 0.0 : movement / diagonal;
+        if (normalizedMovement > 0.16) {
+          unstableTransitions++;
+        } else {
+          stableFrameCount++;
+        }
+      } else {
+        stableFrameCount++;
+      }
+      previousCenter = center;
+
+      final RegistrationPipelineResult result = await _modelHandler!.processRegistration(
+        image: frame.image,
+        face: frame.face,
+        landmarks: frame.landmarks,
+        skipLivenessCheck: true,
+      );
+
+      if (result.success) {
+        successCount++;
+        if (bestSuccess == null || frame.score > bestSuccess.frame!.score) {
+          if (bestSuccess != null) {
+            try {
+              await bestSuccess.frame!.file.delete();
+            } catch (_) {}
+          }
+          bestSuccess = _BurstRegistrationResult(
+            frame: frame,
+            pipelineResult: result,
+          );
+        } else {
+          try {
+            await frame.file.delete();
+          } catch (_) {}
+        }
+      } else {
+        lastFailure = result;
+        failureCounts[result.message] = (failureCounts[result.message] ?? 0) + 1;
+        try {
+          await frame.file.delete();
+        } catch (_) {}
+      }
+
+      await Future.delayed(const Duration(milliseconds: 90));
     }
 
-    stopwatch.stop();
-    print('[Liveness] Collection completed in ${stopwatch.elapsedMilliseconds}ms');
+    if (bestSuccess != null &&
+        successCount >= minSuccessRequired) {
+      if (unstableTransitions > 0 && stableFrameCount < minSuccessRequired) {
+        return _BurstRegistrationResult(
+          frame: null,
+          pipelineResult: RegistrationPipelineResult(
+            success: false,
+            stage: 'stability_check',
+            message: 'Camera movement is too high. Keep the phone steady and face the camera directly.',
+          ),
+        );
+      }
+      return bestSuccess;
+    }
+
+    if (unstableTransitions >= 2) {
+      return _BurstRegistrationResult(
+        frame: null,
+        pipelineResult: RegistrationPipelineResult(
+          success: false,
+          stage: 'stability_check',
+          message: 'Camera movement is too high. Keep the phone steady and face the camera directly.',
+        ),
+      );
+    }
+
+    if (failureCounts.isNotEmpty) {
+      String topMessage = failureCounts.entries.first.key;
+      int topCount = failureCounts.entries.first.value;
+      for (final entry in failureCounts.entries) {
+        if (entry.value > topCount) {
+          topMessage = entry.key;
+          topCount = entry.value;
+        }
+      }
+      return _BurstRegistrationResult(
+        frame: null,
+        pipelineResult: RegistrationPipelineResult(
+          success: false,
+          stage: 'frame_validation',
+          message: topMessage,
+        ),
+      );
+    }
+
+    if (lastFailure != null) {
+      return _BurstRegistrationResult(frame: null, pipelineResult: lastFailure);
+    }
+
+    return _BurstRegistrationResult(
+      frame: null,
+      pipelineResult: RegistrationPipelineResult(
+        success: false,
+        stage: 'burst_capture',
+        message: 'No valid face frame captured. Ensure your face is visible and directed to the camera.',
+      ),
+    );
+  }
+
+  Future<_CapturedFaceFrame?> _captureFaceFrame() async {
+    try {
+      final XFile raw = await _cameraController!.takePicture();
+      final file = File(raw.path);
+      final imageBytes = await file.readAsBytes();
+      final decoded = img.decodeImage(imageBytes);
+      if (decoded == null) {
+        try {
+          await file.delete();
+        } catch (_) {}
+        return null;
+      }
+
+      final inputImage = InputImage.fromFile(file);
+      final faces = await _faceDetector.processImage(inputImage);
+      if (faces.length != 1) {
+        try {
+          await file.delete();
+        } catch (_) {}
+        return null;
+      }
+
+      final face = faces.first;
+      final landmarks = face.landmarks.values.whereType<FaceLandmark>().toList();
+      final score = _scoreFace(face, decoded);
+      return _CapturedFaceFrame(
+        file: file,
+        image: decoded,
+        face: face,
+        landmarks: landmarks,
+        score: score,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  double _scoreFace(Face face, img.Image image) {
+    final box = face.boundingBox;
+    final imageArea = math.max(1, image.width * image.height).toDouble();
+    final faceArea = math.max(1, box.width * box.height).toDouble();
+    final areaRatio = (faceArea / imageArea).clamp(0.0, 1.0);
+
+    final centerX = box.left + (box.width / 2.0);
+    final centerY = box.top + (box.height / 2.0);
+    final distToCenter = math.sqrt(
+      math.pow(centerX - (image.width / 2.0), 2) +
+          math.pow(centerY - (image.height / 2.0), 2),
+    );
+    final maxDist = math.sqrt(
+      math.pow(image.width / 2.0, 2) + math.pow(image.height / 2.0, 2),
+    );
+    final centerScore = (1.0 - (distToCenter / maxDist)).clamp(0.0, 1.0);
+
+    final yawPenalty = ((face.headEulerAngleY ?? 0.0).abs() / 45.0).clamp(0.0, 1.0);
+    final pitchPenalty = ((face.headEulerAngleX ?? 0.0).abs() / 35.0).clamp(0.0, 1.0);
+    final yawPitchScore = (1.0 - ((yawPenalty + pitchPenalty) / 2.0)).clamp(0.0, 1.0);
+
+    final leftEye = (face.leftEyeOpenProbability ?? 0.6).clamp(0.0, 1.0);
+    final rightEye = (face.rightEyeOpenProbability ?? 0.6).clamp(0.0, 1.0);
+    final eyeScore = ((leftEye + rightEye) / 2.0).clamp(0.0, 1.0);
+
+    return (areaRatio * 0.35) +
+        (centerScore * 0.30) +
+        (yawPitchScore * 0.25) +
+        (eyeScore * 0.10);
   }
 
   @override

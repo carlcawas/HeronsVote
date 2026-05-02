@@ -41,6 +41,22 @@ class _HomeScreenState extends State<HomeScreen> {
   // This is the Firebase service to get user data
   final FirebaseService _firebaseService = FirebaseService();
 
+  ElectionGateway _buildResultsGateway() {
+    return ElectionGateway(
+      uid: widget.uid,
+      emptyMessage: "No results available yet.",
+      isResultMode: true,
+      fetchElections: (uid) => _firebaseService.getRelevantElectionsForUser(uid),
+      contentBuilder: (context, electionData, onBack, onRefresh) {
+        return ElectionResultPage(
+          uid: widget.uid,
+          electionData: electionData,
+          onBack: onBack,
+        );
+      },
+    );
+  }
+
   // home.dart
 
   @override
@@ -60,39 +76,27 @@ class _HomeScreenState extends State<HomeScreen> {
         fetchElections:
             _firebaseService.getActiveElectionsForUser, // Fetches ONGOING only
         isResultMode: false, // Default (Voting logic applied)
-        contentBuilder: (context, electionData, onBack) {
+        contentBuilder: (context, electionData, onBack, onRefresh) {
           return VotingHomePage(
             uid: widget.uid,
             electionData: electionData,
             onBack: onBack,
+            onRefresh: onRefresh,
           );
         },
       ),
 
       // 3. Results Tab (Index 3)
-      ElectionGateway(
-        uid: widget.uid,
-        emptyMessage: "No results available yet.",
-        
-        // CRITICAL CHANGE HERE:
-        isResultMode: true, // <--- MUST BE TRUE to allow clicking even if voted
-
-        // Fetch active AND ended elections here
-        fetchElections: (uid) => _firebaseService.getRelevantElectionsForUser(uid),
-
-        contentBuilder: (context, electionData, onBack) {
-          return ElectionResultPage(
-            uid: widget.uid,
-            electionData: electionData,
-            onBack: onBack,
-          );
-        },
-      ),
+      _buildResultsGateway(),
     ];
   }
 
   void _onItemTapped(int index) {
     setState(() {
+      if (index == 3) {
+        // Always reset Results tab state so list is shown first.
+        _pages[3] = _buildResultsGateway();
+      }
       _selectedIndex = index;
     });
   }

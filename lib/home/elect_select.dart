@@ -7,6 +7,7 @@ class ElectionSelectionPage extends StatefulWidget {
   final String uid;
   final List<Map<String, dynamic>> activeElections; // Or 'elections'
   final Function(Map<String, dynamic>) onElectionSelected;
+  final Future<void> Function()? onRefresh;
   
   // 1. ADD THIS FLAG
   final bool isResultMode; 
@@ -16,6 +17,7 @@ class ElectionSelectionPage extends StatefulWidget {
     required this.uid,
     required this.activeElections,
     required this.onElectionSelected,
+    this.onRefresh,
     this.isResultMode = false, // Default is false (Voting Mode)
   });
 
@@ -118,23 +120,21 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
       );
     }
 
-    // Only show "All Voted" screen if NOT in result mode
-    if (_allVoted && !widget.isResultMode) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(child: VotingCompletePageBody()), // Ensure this class is imported/defined
-      );
-    }
+    // Keep showing the election list even if all active elections were already voted.
+    // This lets users still see ongoing items and their voted/locked state.
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 25.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
+        child: RefreshIndicator(
+          onRefresh: widget.onRefresh ?? () async {},
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 25.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
               
               // HEADER CARD
               Container(
@@ -242,8 +242,9 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 50),
-            ],
+                const SizedBox(height: 50),
+              ],
+            ),
           ),
         ),
       ),
@@ -390,14 +391,22 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
 
   Widget _buildStatusBadge(Map<String, dynamic> election) {
     bool isEnded = false;
+    try {
+      final String status = (election['status'] ?? '').toString();
+      final bool? ongoing = election['ongoing'] as bool?;
 
-    if (election['end'] != null) {
-      try {
+      // Priority: explicit status/ongoing fields.
+      if (status == 'Closed' || ongoing == false) {
+        isEnded = true;
+      } else if (status == 'Ongoing' && ongoing == true) {
+        isEnded = false;
+      } else if (election['end'] != null) {
+        // Fallback: infer from end date only if status fields are missing/ambiguous.
         DateTime end = (election['end'] as Timestamp).toDate();
         isEnded = DateTime.now().isAfter(end);
-      } catch (e) {
-        isEnded = false;
       }
+    } catch (e) {
+      isEnded = false;
     }
 
     final Color bgColor = isEnded 

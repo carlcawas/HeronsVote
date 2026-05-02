@@ -294,7 +294,18 @@ class _RegistrationStep1State extends State<RegistrationStep1>
 
       if (combinedSemMatch != null) semesterRaw = combinedSemMatch.group(1);
 
-      final gender = RegExp(r'gender\s*[:\.]?\s*([a-z]+)(?=\s+date)').firstMatch(pdfText)?.group(1)?.trim();
+      String? extractGender(String source) {
+        final patterns = <RegExp>[
+          RegExp(r'\bgender\s*[:\-]?\s*(male|female|m|f)\b', caseSensitive: false),
+          RegExp(r'\bsex\s*[:\-]?\s*(male|female|m|f)\b', caseSensitive: false),
+        ];
+        for (final p in patterns) {
+          final m = p.firstMatch(source);
+          if (m != null) return m.group(1)?.trim();
+        }
+        return null;
+      }
+      final genderRaw = extractGender(pdfText);
 
       final rawSection = RegExp(r'\b([ivx]{1,4})\s*-\s*([a-z]+)\b', caseSensitive: false).firstMatch(pdfText);
       String? section = rawSection?.group(0)?.toUpperCase().trim();
@@ -315,7 +326,13 @@ class _RegistrationStep1State extends State<RegistrationStep1>
       final programCap = capitalizeWords(program);
       final collegeCap = capitalizeWords(college);
       final collegeId = findCollegeIdFromOCR(collegeCap);
-      final genderCap = capitalizeWords(gender);
+      String normalizeGender(String? input) {
+        final v = (input ?? '').trim().toLowerCase();
+        if (v == 'm' || v == 'male') return 'Male';
+        if (v == 'f' || v == 'female') return 'Female';
+        return 'Unspecified';
+      }
+      final genderCap = normalizeGender(genderRaw);
       final sectionCap = cleanSection(section);
       
       if (yearLevel != null) yearLevel = capitalizeWords(yearLevel);

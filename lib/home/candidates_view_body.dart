@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'sample_data.dart';
 import 'candidate_list.dart';
 import 'propoasl_view.dart';
-import '../services/firebase_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firebase_service.dart';
 
 /// This is the screen for Candidates' fragment
 

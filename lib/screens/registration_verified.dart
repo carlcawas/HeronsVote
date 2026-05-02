@@ -64,6 +64,7 @@ class _RegistrationVerifiedState extends State<RegistrationVerified>
         'registration_step' : 4,
         'registerComplete': true,
         'isVerified' : true,
+        'isEnabled': true,
       }, SetOptions(merge: true));
   }
 

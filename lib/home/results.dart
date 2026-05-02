@@ -80,7 +80,14 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isOngoing = widget.electionData['ongoing'] ?? false;
+    final bool isOngoingFlag = widget.electionData['ongoing'] ?? false;
+    final String publishStatus =
+        (widget.electionData['publishStatus'] ?? '').toString();
+    final Timestamp? endTimestamp = widget.electionData['end'] as Timestamp?;
+    final bool isEndedByDate =
+        endTimestamp != null ? DateTime.now().isAfter(endTimestamp.toDate()) : false;
+    final bool isEnded = isEndedByDate || !isOngoingFlag;
+    final bool isPublished = publishStatus == 'Published';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -152,9 +159,12 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
 
                       return Column(
                         children: [
-                          isOngoing
-                              ? _buildOngoingView(fallbackStats)
-                              : _buildEndedView(fallbackStats),
+                          isEnded
+                              ? _buildEndedView(
+                                  fallbackStats,
+                                  isPublished: isPublished,
+                                )
+                              : _buildOngoingView(fallbackStats),
                           const SizedBox(height: 20),
                           Text(
                             "Error fetching live data. Showing stored data fallback if available.",
@@ -165,9 +175,12 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                     }
 
                     final stats = snapshot.data!;
-                    return isOngoing
-                        ? _buildOngoingView(stats)
-                        : _buildEndedView(stats);
+                    return isEnded
+                        ? _buildEndedView(
+                            stats,
+                            isPublished: isPublished,
+                          )
+                        : _buildOngoingView(stats);
                   },
                 ),
               ],
@@ -341,7 +354,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
     );
   }
 
-  Widget _buildEndedView(TurnoutStats stats) {
+  Widget _buildEndedView(TurnoutStats stats, {required bool isPublished}) {
   final int totalVotes = stats.totalVotesCast;
   final int totalVoters = stats.totalVerifiedVoters;
   
@@ -475,37 +488,67 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
 
         const SizedBox(height: 24),
 
-      FutureBuilder<List<Map<String, dynamic>>>(
-        future: _resultsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Text("Error loading results: ${snapshot.error}");
-          }
+      if (!isPublished) ...[
+        const SizedBox(height: 24),
+        Center(
+          child: Text(
+            "Results are not published yet.",
+            style: TextStyle(
+              color: _subTextColor,
+              fontSize: 16,
+              fontFamily: 'Geist',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ] else
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _resultsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Text("Error loading results: ${snapshot.error}");
+            }
 
-          final resultsData = snapshot.data ?? [];
+            final resultsData = snapshot.data ?? [];
+            final bool isProposal =
+                (widget.electionData['type'] ?? '').toString().toLowerCase() ==
+                'proposal';
 
-          if (resultsData.isEmpty) {
-            return const Center(child: Text("No results available."));
-          }
+            if (resultsData.isEmpty) {
+              if (isProposal) {
+                final proposalFallback = [
+                  {'name': 'Yes', 'votes': 0, 'isWinner': false},
+                  {'name': 'No', 'votes': 0, 'isWinner': false},
+                  {'name': 'Abstain', 'votes': 0, 'isWinner': false},
+                ];
 
-          return ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: resultsData.length,
-            itemBuilder: (context, index) {
-              final positionData = resultsData[index];
-              return _buildPositionResultSection(
-                positionData['position'], // Title
-                positionData['candidates'], // List of candidates
-                showHeader: index == 0,
-              );
-            },
-          );
-        },
-      ),
+                return _buildPositionResultSection(
+                  'Proposal Votes',
+                  proposalFallback,
+                  showHeader: true,
+                );
+              }
+              return const Center(child: Text("No results available."));
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: resultsData.length,
+              itemBuilder: (context, index) {
+                final positionData = resultsData[index];
+                return _buildPositionResultSection(
+                  positionData['position'], // Title
+                  positionData['candidates'], // List of candidates
+                  showHeader: index == 0,
+                );
+              },
+            );
+          },
+        ),
 
       ],
     );

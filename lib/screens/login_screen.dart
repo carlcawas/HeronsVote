@@ -419,7 +419,7 @@ class _LoginScreenState extends State<LoginScreen>
               String? sectionCap = userData['section'];
               Navigator.push(context,
                 MaterialPageRoute(
-                  builder: (_) => 
+                  builder: (_) =>
                   RegistrationStep2(
                     uid: uid,
                     name: nameCap,
@@ -427,7 +427,7 @@ class _LoginScreenState extends State<LoginScreen>
                     collegeId: collegeId!,
                     yearLevel: yearLevel!,
                     semester: semester!,
-                    section: sectionCap!,)),); 
+                    section: sectionCap!,)),);
             case 3:
               Navigator.push(
                 context,

@@ -15,6 +15,26 @@ class FirebaseService {
   factory FirebaseService() => _instance;
   FirebaseService._internal();
 
+  DateTime? _asDateTime(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Timestamp) return raw.toDate();
+    if (raw is DateTime) return raw;
+    return null;
+  }
+
+  bool _isWithinVotingWindow(Map<String, dynamic> data, DateTime now) {
+    final start = _asDateTime(data['start']);
+    final end = _asDateTime(data['end']);
+    if (start == null || end == null) return false;
+    return !now.isBefore(start) && !now.isAfter(end);
+  }
+
+  bool _isWithinResultsClosedWindow(Map<String, dynamic> data, DateTime now) {
+    final end = _asDateTime(data['end']);
+    if (end == null) return false;
+    final twoWeeksAfterEnd = end.add(const Duration(days: 14));
+    return now.isAfter(end) && !now.isAfter(twoWeeksAfterEnd);
+  }
   /// Get specific field value === example use:
   /// String user_name = getField(users, uid, name)
   /// === where users is collection, uid should be unique, name is field
@@ -106,7 +126,9 @@ class FirebaseService {
         .collection('elections')
         .where('type', isEqualTo: 'college')
         .where('college_id', isEqualTo: collegeId)
+        .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
         .limit(1)
         .snapshots();
   }
@@ -116,7 +138,9 @@ class FirebaseService {
     return _firestore
         .collection('elections')
         .where('type', isEqualTo: 'university')
+        .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
         .limit(1)
         .snapshots();
   }
@@ -125,7 +149,9 @@ class FirebaseService {
   Stream<QuerySnapshot> getActiveUniversityProposalStream() {
     return _firestore
         .collection('proposals')
+        .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
         .limit(1)
         .snapshots();
   }
@@ -136,7 +162,9 @@ class FirebaseService {
         .collection('elections')
         .where('type', isEqualTo: 'college')
         .where('college_id', isEqualTo: collegeId)
-        .where('ongoing', isEqualTo: false) // Check for ended elections
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: false)
+        .where('status', isEqualTo: 'Closed')
         .orderBy('end', descending: true) // Get the most recent one
         .limit(1)
         .snapshots();
@@ -147,7 +175,9 @@ class FirebaseService {
     return _firestore
         .collection('elections')
         .where('type', isEqualTo: 'university')
-        .where('ongoing', isEqualTo: false) // Check for ended elections
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: false)
+        .where('status', isEqualTo: 'Closed')
         .orderBy('end', descending: true) // Get the most recent one
         .limit(1)
         .snapshots();
@@ -157,7 +187,9 @@ class FirebaseService {
   Stream<QuerySnapshot> getRecentlyEndedUniversityProposal() {
     return _firestore
         .collection('proposals')
+        .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: false)
+        .where('status', isEqualTo: 'Closed')
         .orderBy('end', descending: true)
         .limit(1)
         .snapshots();
@@ -166,9 +198,8 @@ class FirebaseService {
   /// Get a live stream of all slates for a specific election
   Stream<QuerySnapshot> getSlatesStream(String electionId) {
     return _firestore
-        .collection('elections')
-        .doc(electionId)
         .collection('slates')
+        .where('election_id', isEqualTo: electionId)
         .orderBy('name')
         .snapshots();
   }
@@ -226,38 +257,37 @@ class FirebaseService {
     }
   }
 
-  /// Get img of an slate from election
+  /// Get img of a slate from top-level slates collection
   Future<String?> getSlateImage(String electionId, String slatesId) async {
     try {
-      DocumentSnapshot doc = await _firestore
-          .collection('elections')
-          .doc(electionId)
+      final DocumentSnapshot doc = await _firestore
           .collection('slates')
           .doc(slatesId)
           .get();
 
       if (doc.exists && doc.data() != null) {
-        return (doc.data() as Map<String, dynamic>)['img'] as String?;
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['election_id'] == electionId) {
+          return data['img'] as String?;
+        }
+        print('Slate does not belong to election:  / ');
+        return null;
       } else {
-        print('Official document not found: $electionId/slates/$slatesId');
-        return null; // Document not found
+        print('Slate document not found: slates/');
+        return null;
       }
     } catch (e) {
-      print('Error getting slates img field: $e');
-      return null; // Error occurred
+      print('Error getting slates img field: ');
+      return null;
     }
   }
 
-  /// Gets announcements less than 6 months old with status 'Published'
+  /// Gets announcements visible to voters: status 'Published' and
+  /// scheduledDate <= now (scheduled date onwards).
   Future<QuerySnapshot> getAnnouncements() {
-    final retentionDate = DateTime.now().subtract(Duration(days: 6 * 30));
-    final cutoffTimestamp = Timestamp.fromDate(retentionDate);
-
     return _firestore
         .collection('announcements')
-        .where('posted_at', isGreaterThan: cutoffTimestamp)
         .where('status', isEqualTo: 'Published')
-        .orderBy('posted_at', descending: true)
         .get();
   }
 
@@ -275,7 +305,9 @@ class FirebaseService {
   Stream<QuerySnapshot> getAllProposalsStream() {
     return _firestore
         .collection('proposals')
+        .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
         .orderBy('start', descending: true)
         .snapshots();
   }
@@ -319,13 +351,16 @@ class FirebaseService {
         .snapshots();
   }
 
-  /// Get all active elections
+  /// Get all active elections for Voting tab.
+  /// Visible only while now is between start and end timestamps.
   Future<List<Map<String, dynamic>>> getActiveElectionsForUser(
     String uid,
   ) async {
     List<Map<String, dynamic>> activeElections = [];
 
     try {
+      final now = DateTime.now();
+
       // Get User's College ID first
       String? collegeId;
       DocumentSnapshot userDoc = await _firestore
@@ -340,17 +375,19 @@ class FirebaseService {
       QuerySnapshot uscSnapshot = await _firestore
           .collection('elections')
           .where('type', isEqualTo: 'university')
+          .where('isDraft', isEqualTo: false)
           .where('ongoing', isEqualTo: true)
+          .where('status', isEqualTo: 'Ongoing')
           .get();
 
       for (var doc in uscSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (!_isWithinVotingWindow(data, now)) continue;
         activeElections.add({
           'id': doc.id,
           'type': 'university',
-          'title':
-              (doc.data() as Map<String, dynamic>)['name'] ??
-              'University Election',
-          ...doc.data() as Map<String, dynamic>,
+          'title': data['name'] ?? 'University Election',
+          ...data,
         });
       }
 
@@ -360,17 +397,19 @@ class FirebaseService {
             .collection('elections')
             .where('type', isEqualTo: 'college')
             .where('college_id', isEqualTo: collegeId)
+            .where('isDraft', isEqualTo: false)
             .where('ongoing', isEqualTo: true)
+            .where('status', isEqualTo: 'Ongoing')
             .get();
 
         for (var doc in cscSnapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (!_isWithinVotingWindow(data, now)) continue;
           activeElections.add({
             'id': doc.id,
             'type': 'college',
-            'title':
-                (doc.data() as Map<String, dynamic>)['name'] ??
-                'College Election',
-            ...doc.data() as Map<String, dynamic>,
+            'title': data['name'] ?? 'College Election',
+            ...data,
           });
         }
       }
@@ -378,16 +417,19 @@ class FirebaseService {
       // Get Active Proposals
       QuerySnapshot propSnapshot = await _firestore
           .collection('proposals')
+          .where('isDraft', isEqualTo: false)
           .where('ongoing', isEqualTo: true)
+          .where('status', isEqualTo: 'Ongoing')
           .get();
 
       for (var doc in propSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (!_isWithinVotingWindow(data, now)) continue;
         activeElections.add({
           'id': doc.id,
           'type': 'proposal',
-          'title':
-              (doc.data() as Map<String, dynamic>)['name'] ?? 'Proposal Voting',
-          ...doc.data() as Map<String, dynamic>,
+          'title': data['name'] ?? 'Proposal Voting',
+          ...data,
         });
       }
     } catch (e) {
@@ -487,20 +529,17 @@ class FirebaseService {
     QuerySnapshot snapshot,
     String type,
   ) {
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    final now = DateTime.now();
     List<Map<String, dynamic>> filteredList = [];
 
     for (var doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final Timestamp? endTimeStamp = data['end'] as Timestamp?;
 
-      if (endTimeStamp != null && endTimeStamp.toDate().isAfter(sevenDaysAgo)) {
+      if (_isWithinResultsClosedWindow(data, now)) {
         filteredList.add({
           'id': doc.id,
           'type': type,
-
           'title': data['name'] ?? 'Ended Election',
-
           ...data,
         });
       }
@@ -511,8 +550,17 @@ class FirebaseService {
   //Trust the process
   Future<List<Map<String, dynamic>>> getActiveUniversityElections() async {
     try {
-      final snapshot = await getActiveUniversityElectionStream().first;
-      return _mapSnapshotToElections(snapshot, 'university');
+      final snapshot = await _firestore
+          .collection('elections')
+          .where('type', isEqualTo: 'university')
+          .where('isDraft', isEqualTo: false)
+          .where('ongoing', isEqualTo: true)
+          .where('status', isEqualTo: 'Ongoing')
+          .get();
+      final now = DateTime.now();
+      return _mapSnapshotToElections(snapshot, 'university')
+          .where((item) => _isWithinVotingWindow(item, now))
+          .toList();
     } catch (e) {
       return [];
     }
@@ -523,8 +571,18 @@ class FirebaseService {
   ) async {
     if (collegeId == null) return [];
     try {
-      final snapshot = await getActiveCollegeElectionStream(collegeId).first;
-      return _mapSnapshotToElections(snapshot, 'college');
+      final snapshot = await _firestore
+          .collection('elections')
+          .where('type', isEqualTo: 'college')
+          .where('college_id', isEqualTo: collegeId)
+          .where('isDraft', isEqualTo: false)
+          .where('ongoing', isEqualTo: true)
+          .where('status', isEqualTo: 'Ongoing')
+          .get();
+      final now = DateTime.now();
+      return _mapSnapshotToElections(snapshot, 'college')
+          .where((item) => _isWithinVotingWindow(item, now))
+          .toList();
     } catch (e) {
       return [];
     }
@@ -532,8 +590,16 @@ class FirebaseService {
 
   Future<List<Map<String, dynamic>>> getActiveUniversityProposals() async {
     try {
-      final snapshot = await getActiveUniversityProposalStream().first;
-      return _mapSnapshotToElections(snapshot, 'proposal');
+      final snapshot = await _firestore
+          .collection('proposals')
+          .where('isDraft', isEqualTo: false)
+          .where('ongoing', isEqualTo: true)
+          .where('status', isEqualTo: 'Ongoing')
+          .get();
+      final now = DateTime.now();
+      return _mapSnapshotToElections(snapshot, 'proposal')
+          .where((item) => _isWithinVotingWindow(item, now))
+          .toList();
     } catch (e) {
       return [];
     }
@@ -542,7 +608,14 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>>
   getRecentlyEndedUniversityElections() async {
     try {
-      final snapshot = await getRecentlyEndedUniversityElection().first;
+      final snapshot = await _firestore
+          .collection('elections')
+          .where('type', isEqualTo: 'university')
+          .where('isDraft', isEqualTo: false)
+          .where('ongoing', isEqualTo: false)
+          .where('status', isEqualTo: 'Closed')
+          .orderBy('end', descending: true)
+          .get();
       return _processRecentResults(snapshot, 'university_ended');
     } catch (e) {
       return [];
@@ -553,7 +626,15 @@ class FirebaseService {
     String collegeId,
   ) async {
     try {
-      final snapshot = await getRecentlyEndedCollegeElection(collegeId).first;
+      final snapshot = await _firestore
+          .collection('elections')
+          .where('type', isEqualTo: 'college')
+          .where('college_id', isEqualTo: collegeId)
+          .where('isDraft', isEqualTo: false)
+          .where('ongoing', isEqualTo: false)
+          .where('status', isEqualTo: 'Closed')
+          .orderBy('end', descending: true)
+          .get();
       return _processRecentResults(snapshot, 'college_ended');
     } catch (e) {
       return [];
@@ -563,7 +644,13 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>>
   getRecentlyEndedUniversityProposals() async {
     try {
-      final snapshot = await getRecentlyEndedUniversityProposal().first;
+      final snapshot = await _firestore
+          .collection('proposals')
+          .where('isDraft', isEqualTo: false)
+          .where('ongoing', isEqualTo: false)
+          .where('status', isEqualTo: 'Closed')
+          .orderBy('end', descending: true)
+          .get();
       return _processRecentResults(snapshot, 'proposal_ended');
     } catch (e) {
       return [];
@@ -775,29 +862,57 @@ class FirebaseService {
       final statsSnapshot = results[0];
       final candidatesSnapshot = results[1];
 
-      Map<String, int> positionHierarchy = {};
+      final Map<String, int> positionHierarchy = {};
+      final Map<String, Map<String, dynamic>> candidateLookupByNamePosition = {};
 
+      // 1) Initialize all positions/candidates from canonical candidates collection (vote=0).
       for (var doc in candidatesSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        final String position = data['position'] ?? 'Unknown';
+        final String position = data['position'] ?? 'Unknown Position';
+        final String candidateName = data['name'] ?? 'Unknown';
+        final int rank = (data['pos_rank'] as num?)?.toInt() ?? 999;
 
-        // Debug Raw Value
-        final dynamic rawRank = data['pos_rank'];
+        if (!positionHierarchy.containsKey(position) ||
+            rank < (positionHierarchy[position] ?? 999)) {
+          positionHierarchy[position] = rank;
+        }
 
-        // Safe Parse
-        final int rank = (rawRank as num?)?.toInt() ?? 999;
+        if (!groupedResults.containsKey(position)) {
+          groupedResults[position] = {
+            'candidates': <Map<String, dynamic>>[],
+            'rank': positionHierarchy[position] ?? 999,
+          };
+        }
 
-        positionHierarchy[position] = rank;
+        final candidateRow = {
+          'name': candidateName,
+          'votes': 0,
+          'isWinner': false,
+        };
+        (groupedResults[position]!['candidates'] as List<Map<String, dynamic>>)
+            .add(candidateRow);
 
+        final key = '${position.toLowerCase()}|${candidateName.toLowerCase()}';
+        candidateLookupByNamePosition[key] = candidateRow;
       }
 
+      // Ensure each known position has an abstain row by default (0 votes).
+      groupedResults.forEach((position, result) {
+        final candidates = result['candidates'] as List<Map<String, dynamic>>;
+        final hasAbstain = candidates.any((c) => c['name'] == 'Abstain');
+        if (!hasAbstain) {
+          candidates.add({'name': 'Abstain', 'votes': 0, 'isWinner': false});
+        }
+      });
+
+      // 2) Overlay stat counts (if present).
       for (var doc in statsSnapshot.docs) {
         if (doc.id == 'general') continue;
 
         final data = doc.data() as Map<String, dynamic>;
 
         final String groupKey = (electionType == 'proposal')
-            ? 'CBL'
+            ? (data['position'] ?? 'Proposal')
             : data['position'] ?? 'Unknown Position';
 
         final int votes = (data['total_votes'] as num?)?.toInt() ?? 0;
@@ -805,30 +920,37 @@ class FirebaseService {
 
         final int groupRank = positionHierarchy[groupKey] ?? 999;
 
-        final Map<String, dynamic> candidateData = {
-          'name': candidateName,
-          'votes': votes,
-          'isWinner': false,
-        };
-
         if (!groupedResults.containsKey(groupKey)) {
           groupedResults[groupKey] = {
             'candidates': <Map<String, dynamic>>[],
             'rank': groupRank,
           };
         }
+        // Keep rank synced for late-created groups
+        groupedResults[groupKey]!['rank'] = groupRank;
 
-        groupedResults[groupKey]!['candidates'].add(candidateData);
+        final candidates =
+            groupedResults[groupKey]!['candidates'] as List<Map<String, dynamic>>;
+        final key = '${groupKey.toLowerCase()}|${candidateName.toLowerCase()}';
+        final existing = candidateLookupByNamePosition[key];
+
+        if (existing != null) {
+          existing['votes'] = votes;
+        } else {
+          // Handles stats rows not present in candidates collection (e.g. proposal Yes/No)
+          final newRow = {
+            'name': candidateName,
+            'votes': votes,
+            'isWinner': false,
+          };
+          candidates.add(newRow);
+          candidateLookupByNamePosition[key] = newRow;
+        }
       }
 
-      groupedResults.forEach((groupKey, result) {
+      groupedResults.forEach((_, result) {
         final List<Map<String, dynamic>> candidates =
             result['candidates'] as List<Map<String, dynamic>>;
-
-        final bool hasAbstain = candidates.any((c) => c['name'] == 'Abstain');
-        if (!hasAbstain) {
-          candidates.add({'name': 'Abstain', 'votes': 0, 'isWinner': false});
-        }
 
         candidates.sort((a, b) {
           int votesA = a['votes'] as int;
@@ -869,3 +991,4 @@ class FirebaseService {
     }
   }
 }
+

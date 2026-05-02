@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:heronsvote/screens/registration_step3.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -56,6 +57,14 @@ class _RegistrationStep2State extends State<RegistrationStep2>
   bool _isSectionEmpty = false;
   bool _isSemesterEmpty = false;
   bool _isFormValid = true;
+  Timer? _fieldValidationDebounce;
+
+  void _onFieldChanged() {
+    _fieldValidationDebounce?.cancel();
+    _fieldValidationDebounce = Timer(const Duration(milliseconds: 90), () {
+      if (mounted) _validateFields();
+    });
+  }
 
   void _validateFields() {
     // 1. Calculate the new values first (WITHOUT setState)
@@ -125,6 +134,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
     // college dropdown autofill string
     _selectedCollege = widget.collegeId; // e.g. "CCIS"
     _collegeController.text = collegeMap[widget.collegeId] ?? widget.college; // show full name
+    _validateFields();
 
 
     _panelController = AnimationController(
@@ -158,6 +168,12 @@ class _RegistrationStep2State extends State<RegistrationStep2>
 
   @override
   void dispose() {
+    _fieldValidationDebounce?.cancel();
+    _nameController.dispose();
+    _collegeController.dispose();
+    _yearLevelController.dispose();
+    _semesterController.dispose();
+    _sectionController.dispose();
     _panelController.dispose();
     _contentController.dispose();
     super.dispose();
@@ -211,7 +227,7 @@ class _RegistrationStep2State extends State<RegistrationStep2>
               fontSize: 14,
               fontFamily: 'Geist',
             ),
-            onChanged: (_) => _validateFields(),
+            onChanged: (_) => _onFieldChanged(),
             decoration: InputDecoration(
               hintText: hintText,
               hintStyle: const TextStyle(
@@ -613,8 +629,8 @@ class _RegistrationStep2State extends State<RegistrationStep2>
                                                           color: Color(0xFFF7F7F7),
                                                           borderRadius: BorderRadius.all(Radius.circular(15)),
                                                           border: Border.all (
-                                                            color: _isCollegeEmpty ? Color (0xFFED6C6A) : const Color(0xFFD9D9D9),
-                                                            width: _isCollegeEmpty ? 1.5 : 1.0,
+                                                            color: _isYearLevelEmpty ? const Color(0xFFED6C6A) : const Color(0xFFD9D9D9),
+                                                            width: _isYearLevelEmpty ? 1.5 : 1.0,
                                                           ),
                                                         ),
                                                       ),

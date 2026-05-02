@@ -298,7 +298,7 @@ class _RegistrationStep1State extends State<RegistrationStep1>
         r'semester\s*&?\s*academic year\s*:? ([a-z0-9\s\.\-]+)',
       ).firstMatch(pdfText)?.group(1)?.trim();
       final gender = RegExp(
-        r'gender\s*:? ([a-z]+)',
+        r'Gender\s*:? ([a-z]+)',
       ).firstMatch(pdfText)?.group(1)?.trim();
       final rawSection = RegExp(
         r'\b([ivx]{1,4})\s*-\s*([a-z]+)\b',
