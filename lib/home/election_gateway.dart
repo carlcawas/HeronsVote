@@ -66,6 +66,21 @@ class _ElectionGatewayState extends State<ElectionGateway> {
         final elections = snapshot.data ?? [];
 
         if (elections.isEmpty) {
+          // In results mode, still show the selection screen so users can open
+          // archived election history even when there are no active/recent items.
+          if (widget.isResultMode) {
+            return ElectionSelectionPage(
+              uid: widget.uid,
+              activeElections: elections,
+              isResultMode: widget.isResultMode,
+              onRefresh: _refreshElections,
+              onElectionSelected: (selected) {
+                setState(() {
+                  _selectedElection = selected;
+                });
+              },
+            );
+          }
           return Center(child: Text(widget.emptyMessage));
         }
 

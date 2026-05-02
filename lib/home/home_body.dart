@@ -7,7 +7,6 @@ import '../services/firebase_service.dart';
 import 'slates_list.dart';
 import 'elected_official_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'candidates_view_body.dart';
 import 'profile.dart';
 import '../screens/Rules&Process/votingRules.dart'; 
 import '../screens/Rules&Process/votingProcess.dart';
@@ -62,7 +61,6 @@ class _HomeBodyState extends State<HomeBody> {
   StreamSubscription? _latestUniElecSub; 
 
   // --- Snapshot data holders ---
-  DocumentSnapshot? _userSnapshot;
   QuerySnapshot? _collegeElecSnap;
   QuerySnapshot? _uniElecSnap;
   QuerySnapshot? _proposalSnap;
@@ -166,7 +164,6 @@ class _HomeBodyState extends State<HomeBody> {
 
     _userSub = _firebaseService.getUserStream(_userId).listen((userSnapshot) {
       if (!mounted) return;
-      _userSnapshot = userSnapshot;
       final userData = userSnapshot.data() as Map<String, dynamic>? ?? {};
 
       // Process user data

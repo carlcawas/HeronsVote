@@ -241,14 +241,8 @@ class _CandidateListPageState extends State<CandidateListPage> {
                             college = 'USC';
                           }
 
-                          String fullDetails;
-                          if (college != null && year != null) {
-                            fullDetails = '$college - $year Year';
-                          } else if (college != null) {
-                            fullDetails = college.toString();
-                          } else {
-                            fullDetails = "";
-                          }
+                          final String fullDetails =
+                              year != null ? '$college - $year Year' : college;
 
                           String slateVal = data['slate'] as String? ?? '';
                           if (slateVal.trim().isEmpty) {
@@ -303,27 +297,25 @@ class CandidateListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Future.delayed(const Duration(milliseconds: 100), () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CandidateProfilePage(
-                candidate: Candidate(
-                  name: candidate.name,
-                  age: candidate.age,
-                  year: candidate.year,
-                  college: candidate.college,
-                  img: candidate.img,
-                  partylist: partylistName,
-                  advocacy: candidate.advocacy,
-                  role: candidate.role,
-                  details: candidate.details,
-                  platform: candidate.platform,
-                ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CandidateProfilePage(
+              candidate: Candidate(
+                name: candidate.name,
+                age: candidate.age,
+                year: candidate.year,
+                college: candidate.college,
+                img: candidate.img,
+                partylist: partylistName,
+                advocacy: candidate.advocacy,
+                role: candidate.role,
+                details: candidate.details,
+                platform: candidate.platform,
               ),
             ),
-          );
-        });
+          ),
+        );
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),

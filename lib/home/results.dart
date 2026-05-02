@@ -43,16 +43,22 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
   void initState() {
     super.initState();
     final service = FirebaseService(); 
+    final sourceCollection = widget.electionData['sourceCollection'] as String?;
+    final sourceDocId = widget.electionData['archiveId'] as String?;
     
     _turnoutFuture = service.getTurnoutDataStream(
       electionId: widget.electionData['id'],
       electionType: widget.electionData['type'] ?? 'local',
       userCollege: widget.electionData['college_id'],
+      sourceCollection: sourceCollection,
+      sourceDocId: sourceDocId,
     );
 
     _resultsFuture = service.getElectionDataStream(
       electionId: widget.electionData['id'],
       electionType: widget.electionData['type'] ?? 'local',
+      sourceCollection: sourceCollection,
+      sourceDocId: sourceDocId,
     );
 
     _scrollController.addListener(() {
@@ -135,7 +141,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
             child: Column(
               children: [
                 _buildElectionHeader(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 FutureBuilder<TurnoutStats>(
                   future: _turnoutFuture,
@@ -371,7 +377,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const SizedBox(height: 20),
+      const SizedBox(height: 0),
 
       Container(
         decoration: BoxDecoration(
@@ -517,21 +523,42 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                 (widget.electionData['type'] ?? '').toString().toLowerCase() ==
                 'proposal';
 
-            if (resultsData.isEmpty) {
-              if (isProposal) {
-                final proposalFallback = [
-                  {'name': 'Yes', 'votes': 0, 'isWinner': false},
-                  {'name': 'No', 'votes': 0, 'isWinner': false},
-                  {'name': 'Abstain', 'votes': 0, 'isWinner': false},
-                ];
+              if (resultsData.isEmpty) {
+                if (isProposal) {
+                  final proposalFallback = [
+                    {'name': 'Yes', 'votes': 0, 'isWinner': false},
+                    {'name': 'No', 'votes': 0, 'isWinner': false},
+                    {'name': 'Abstain', 'votes': 0, 'isWinner': false},
+                  ];
 
-                return _buildPositionResultSection(
-                  'Proposal Votes',
-                  proposalFallback,
-                  showHeader: true,
-                );
-              }
-              return const Center(child: Text("No results available."));
+                  return _buildPositionResultSection(
+                    'Proposal Votes',
+                    proposalFallback,
+                    showHeader: true,
+                  );
+                }
+              const defaultPositions = [
+                'Chairperson',
+                'Vice Chairperson',
+                'Secretary',
+                'Treasurer',
+                'Auditor',
+                '1st Year Representative',
+                '2nd Year Representative',
+                '3rd Year Representative',
+                '4th Year Representative',
+              ];
+              return Column(
+                children: defaultPositions.asMap().entries.map((entry) {
+                  return _buildPositionResultSection(
+                    entry.value,
+                    const [
+                      {'name': 'Abstain', 'votes': 0, 'isWinner': false},
+                    ],
+                    showHeader: entry.key == 0,
+                  );
+                }).toList(),
+              );
             }
 
             return ListView.builder(

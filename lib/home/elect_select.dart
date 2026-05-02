@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile.dart';
+import 'election_history.dart';
 
 class ElectionSelectionPage extends StatefulWidget {
   final String uid;
@@ -175,74 +176,147 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                 ),
               ),
 
-              const SizedBox(height: 30),
-
-              Text(
-                widget.isResultMode ? 'All Elections' : 'Active Election',
-                style: const TextStyle(
-                  color: Color(0xFF404040),
-                  fontSize: 14,
-                  fontFamily: 'Geist',
-                  fontWeight: FontWeight.w500,
-                ),
+              SizedBox(
+                height: widget.activeElections.isNotEmpty
+                    ? 30
+                    : (widget.isResultMode ? 18 : 30),
               ),
 
-              const SizedBox(height: 12),
-
-              // LIST CONTAINER
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    itemCount: widget.activeElections.length,
-                    separatorBuilder: (context, index) => const Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Color(0xFFE5E5E5),
-                      indent: 20,
-                      endIndent: 20,
-                    ),
-                    itemBuilder: (context, index) {
-                      final election = widget.activeElections[index];
-                      final String electionId = election['id'] ?? '';
-                      final String type = election['type'] ?? 'election';
-
-                      // IF RESULT MODE: Return clickable tile immediately (no DB check)
-                      if (widget.isResultMode) {
-                        return _buildListTile(
-                          election: election, 
-                          isDisabled: false, 
-                          showVotedBadge: false
-                        );
-                      }
-
-                      // IF VOTING MODE: Check DB for vote status
-                      return FutureBuilder<bool>(
-                        future: _hasUserVoted(electionId, type),
-                        builder: (context, snapshot) {
-                          final bool hasVoted = snapshot.data ?? false;
-                          final bool isChecking = snapshot.connectionState == ConnectionState.waiting;
-                          
-                          return _buildListTile(
-                            election: election, 
-                            isDisabled: hasVoted || isChecking, 
-                            showVotedBadge: hasVoted
-                          );
-                        },
-                      );
-                    },
+              if (widget.activeElections.isNotEmpty) ...[
+                Text(
+                  widget.isResultMode ? 'All Elections' : 'Active Election',
+                  style: const TextStyle(
+                    color: Color(0xFF404040),
+                    fontSize: 14,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ),
-                const SizedBox(height: 50),
+                const SizedBox(height: 12),
+                // LIST CONTAINER
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7F7),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: widget.activeElections.length,
+                      separatorBuilder: (context, index) => const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Color(0xFFE5E5E5),
+                        indent: 20,
+                        endIndent: 20,
+                      ),
+                      itemBuilder: (context, index) {
+                        final election = widget.activeElections[index];
+                        final String electionId = election['id'] ?? '';
+                        final String type = election['type'] ?? 'election';
+
+                        // IF RESULT MODE: Return clickable tile immediately (no DB check)
+                        if (widget.isResultMode) {
+                          return _buildListTile(
+                            election: election,
+                            isDisabled: false,
+                            showVotedBadge: false,
+                          );
+                        }
+
+                        // IF VOTING MODE: Check DB for vote status
+                        return FutureBuilder<bool>(
+                          future: _hasUserVoted(electionId, type),
+                          builder: (context, snapshot) {
+                            final bool hasVoted = snapshot.data ?? false;
+                            final bool isChecking =
+                                snapshot.connectionState == ConnectionState.waiting;
+
+                            return _buildListTile(
+                              election: election,
+                              isDisabled: hasVoted || isChecking,
+                              showVotedBadge: hasVoted,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+
+              if (widget.isResultMode) ...[
+                SizedBox(
+                  height: widget.activeElections.isNotEmpty ? 28 : 12,
+                ),
+                const Text(
+                  'Election History',
+                  style: TextStyle(
+                    color: Color(0xFF404040),
+                    fontSize: 14,
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7F7),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: const Color(0xFFD9D9D9),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(15),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ElectionHistoryPage(uid: widget.uid),
+                          ),
+                        );
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 20,
+                          horizontal: 20,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'View Archived Elections',
+                                style: TextStyle(
+                                  color: Color(0xFF404040),
+                                  fontSize: 16,
+                                  fontFamily: 'Geist',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: Color(0xFF404040),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 50),
               ],
             ),
           ),

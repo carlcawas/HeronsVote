@@ -256,12 +256,15 @@ class _CandidateProfilePageState extends State<CandidateProfilePage> {
 
       // 3. Update UI if data found
       if (data != null && mounted) {
+        final Map<String, dynamic> resolvedData = data!;
         setState(() {
-          displayAge = data!['age']?.toString() ?? 'N/A';
-          displayYear = data!['year']?.toString() ?? 'N/A';
-          displayCollege = data!['college_id'] ?? 'N/A';
-          displayAdvocacy = data!['advocacy'] ?? 'No advocacy details provided.';
-          displayPlatform = data!['platform'] ?? 'No platform details provided.';
+          displayAge = resolvedData['age']?.toString() ?? 'N/A';
+          displayYear = resolvedData['year']?.toString() ?? 'N/A';
+          displayCollege = resolvedData['college_id'] ?? 'N/A';
+          displayAdvocacy =
+              resolvedData['advocacy'] ?? 'No advocacy details provided.';
+          displayPlatform =
+              resolvedData['platform'] ?? 'No platform details provided.';
         });
       }
     } catch (e) {

@@ -697,105 +697,72 @@ class FirebaseService {
     required String electionId,
     required String electionType,
     String? userCollege,
+    String? sourceCollection,
+    String? sourceDocId,
   }) async {
-    String collectionName = 'elections';
+    final String normalizedType = electionType.toLowerCase();
+    final bool isProposal = normalizedType == 'proposal';
+    final bool byCollege = normalizedType == 'university' || isProposal;
 
-    List<String> categoriesToCount = [];
+    String collectionName = 'elections';
+    String targetDocId = electionId;
+    final bool useArchiveSource =
+        sourceCollection == 'archives' && sourceDocId != null;
+    if (useArchiveSource) {
+      collectionName = 'archives';
+      targetDocId = sourceDocId ?? electionId;
+    } else {
+      collectionName = isProposal ? 'proposals' : 'elections';
+    }
 
     try {
-      // --- 1. SETUP CATEGORIES ---
-      if (electionType == 'university') {
+      List<String> categoriesToCount = [];
+      if (byCollege) {
         final collegesSnapshot = await _firestore.collection('colleges').get();
         if (collegesSnapshot.docs.isNotEmpty) {
-          categoriesToCount = collegesSnapshot.docs
-              .map((doc) => doc.id)
-              .toList();
+          categoriesToCount = collegesSnapshot.docs.map((doc) => doc.id).toList();
         } else {
-          categoriesToCount = [
-            'CBFS',
-            'CCIS',
-            'CCSE',
-            'CET',
-            'CGPP',
-            'CHK',
-            'CITE',
-            'CTHM',
-            'IAD',
-            'IDEM',
-            'IIHS',
-            'IOA',
-            'ION',
-            'IOP',
-            'IOPSY',
-            'ISW',
-          ];
+          categoriesToCount = _defaultCollegeBuckets();
         }
       } else {
-        // Local/Proposal Setup
-        collectionName = (electionType == 'proposal')
-            ? 'proposals'
-            : 'elections';
-        categoriesToCount = [
-          'First Year',
-          'Second Year',
-          'Third Year',
-          'Fourth Year',
-        ];
+        categoriesToCount = _defaultYearBuckets();
       }
 
-      Map<String, int> turnoutCounts = {};
+      final Map<String, int> turnoutCounts = {
+        for (final category in categoriesToCount) category: 0,
+      };
 
-      for (var category in categoriesToCount) {
-        turnoutCounts[category] = 0;
-      }
-
-      List<Future<void>> voteTasks = categoriesToCount.map((category) async {
+      final List<Future<void>> voteTasks = categoriesToCount.map((category) async {
         Query voteQuery = _firestore
             .collection(collectionName)
-            .doc(electionId)
+            .doc(targetDocId)
             .collection('votes');
 
-        // Filter votes by the category (College or Year Level)
-        if (electionType == 'university') {
+        if (byCollege) {
           voteQuery = voteQuery.where('user_college_id', isEqualTo: category);
         } else {
           voteQuery = voteQuery.where('user_year_level', isEqualTo: category);
-
-          // Add specific college filter for local elections (e.g., CSC)
-          if (userCollege != null) {
-            voteQuery = voteQuery.where(
-              'user_college_id',
-              isEqualTo: userCollege,
-            );
+          if (userCollege != null && userCollege.trim().isNotEmpty) {
+            voteQuery = voteQuery.where('user_college_id', isEqualTo: userCollege);
           }
         }
 
         final snapshot = await voteQuery.count().get();
         turnoutCounts[category] = snapshot.count ?? 0;
       }).toList();
-
       await Future.wait(voteTasks);
 
-      // Total Voted
-      final int totalVotesCast = turnoutCounts.values.fold(
-        0,
-        (sum, count) => sum + count,
-      );
-
-      // Count Total Users
-      Map<String, int> groupTotalVoters = {};
-
-      List<Future<void>> userTasks = categoriesToCount.map((category) async {
+      final Map<String, int> groupTotalVoters = {};
+      final List<Future<void>> userTasks = categoriesToCount.map((category) async {
         Query<Map<String, dynamic>> query = _firestore
             .collection('users')
             .where('isVerified', isEqualTo: true);
 
-        if (electionType == 'university') {
+        if (byCollege) {
           query = query.where('college_id', isEqualTo: category);
         } else {
           query = query.where('year_level', isEqualTo: category);
-
-          if (userCollege != null) {
+          if (userCollege != null && userCollege.trim().isNotEmpty) {
             query = query.where('college_id', isEqualTo: userCollege);
           }
         }
@@ -803,13 +770,12 @@ class FirebaseService {
         final snapshot = await query.count().get();
         groupTotalVoters[category] = snapshot.count ?? 0;
       }).toList();
-
       await Future.wait(userTasks);
 
-      final int totalVerifiedVoters = groupTotalVoters.values.fold(
-        0,
-        (sum, count) => sum + count,
-      );
+      final int totalVotesCast =
+          turnoutCounts.values.fold(0, (total, value) => total + value);
+      final int totalVerifiedVoters =
+          groupTotalVoters.values.fold(0, (total, value) => total + value);
 
       return TurnoutStats(
         breakdown: turnoutCounts,
@@ -834,18 +800,28 @@ class FirebaseService {
   Future<List<Map<String, dynamic>>> getElectionDataStream({
     required String electionId,
     required String electionType,
+    String? sourceCollection,
+    String? sourceDocId,
   }) async {
-    final String baseCollectionPath = (electionType == 'proposal')
-        ? 'proposals'
-        : 'elections';
-
-
-    final Map<String, Map<String, dynamic>> groupedResults = {};
+    final String normalizedType = electionType.toLowerCase();
+    final bool isProposal = normalizedType == 'proposal';
+    final bool useArchiveSource =
+        sourceCollection == 'archives' && sourceDocId != null;
+    final String baseCollectionPath = useArchiveSource
+        ? 'archives'
+        : (isProposal ? 'proposals' : 'elections');
+    final String targetDocId = useArchiveSource
+        ? (sourceDocId ?? electionId)
+        : electionId;
 
     try {
+      final Map<String, Map<String, dynamic>> groupedResults = {};
+      final Map<String, int> positionHierarchy = {};
+      final Map<String, Map<String, dynamic>> candidateLookupByNamePosition = {};
+
       final Future<QuerySnapshot> statsFuture = _firestore
           .collection(baseCollectionPath)
-          .doc(electionId)
+          .doc(targetDocId)
           .collection('stats')
           .get();
 
@@ -857,53 +833,90 @@ class FirebaseService {
           )
           .get();
 
+      final Future<DocumentSnapshot<Map<String, dynamic>>> electionDocFuture =
+          _firestore.collection(baseCollectionPath).doc(targetDocId).get();
 
-      final results = await Future.wait([statsFuture, candidatesFuture]);
-      final statsSnapshot = results[0];
-      final candidatesSnapshot = results[1];
+      final results = await Future.wait([
+        statsFuture,
+        candidatesFuture,
+        electionDocFuture,
+      ]);
+      final statsSnapshot = results[0] as QuerySnapshot;
+      final candidatesSnapshot = results[1] as QuerySnapshot;
+      final electionDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
+      final electionData = electionDoc.data() ?? {};
+      final proposalPositionTitle =
+          (electionData['name'] ?? electionData['title'] ?? 'Proposal Votes')
+              .toString();
 
-      final Map<String, int> positionHierarchy = {};
-      final Map<String, Map<String, dynamic>> candidateLookupByNamePosition = {};
+      void ensurePosition(String position, int fallbackRank) {
+        if (!groupedResults.containsKey(position)) {
+          groupedResults[position] = {
+            'candidates': <Map<String, dynamic>>[],
+            'rank': fallbackRank,
+          };
+        }
+        final existingRank = groupedResults[position]!['rank'] as int;
+        if (fallbackRank < existingRank) {
+          groupedResults[position]!['rank'] = fallbackRank;
+        }
+      }
+
+      void upsertCandidate({
+        required String position,
+        required String rawName,
+        int votes = 0,
+        String slate = '',
+        int fallbackRank = 999,
+      }) {
+        final candidateName = rawName.trim().isEmpty ? 'Unknown' : rawName.trim();
+        ensurePosition(position, fallbackRank);
+        final key = '${position.toLowerCase()}|${candidateName.toLowerCase()}';
+        final existing = candidateLookupByNamePosition[key];
+        if (existing != null) {
+          existing['votes'] = votes;
+          if ((existing['slate'] as String?)?.trim().isEmpty ?? true) {
+            existing['slate'] = slate;
+          }
+          return;
+        }
+
+        final row = {
+          'name': candidateName,
+          'votes': votes,
+          'isWinner': false,
+          'slate': slate,
+        };
+        (groupedResults[position]!['candidates'] as List<Map<String, dynamic>>).add(
+          row,
+        );
+        candidateLookupByNamePosition[key] = row;
+      }
 
       // 1) Initialize all positions/candidates from canonical candidates collection (vote=0).
       for (var doc in candidatesSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        final String position = data['position'] ?? 'Unknown Position';
-        final String candidateName = data['name'] ?? 'Unknown';
-        final int rank = (data['pos_rank'] as num?)?.toInt() ?? 999;
+        final String position = (data['position'] ?? 'Unknown Position').toString();
+        final String candidateName = (data['name'] ?? 'Unknown').toString();
+        final int dbRank = (data['pos_rank'] as num?)?.toInt() ?? 999;
+        final int canonicalRank = _positionRankFromName(position);
+        final int rank = canonicalRank == 999 ? dbRank : canonicalRank;
+        final String slate =
+            (data['slate'] ?? data['partylist'] ?? 'Independent').toString();
 
         if (!positionHierarchy.containsKey(position) ||
             rank < (positionHierarchy[position] ?? 999)) {
           positionHierarchy[position] = rank;
         }
 
-        if (!groupedResults.containsKey(position)) {
-          groupedResults[position] = {
-            'candidates': <Map<String, dynamic>>[],
-            'rank': positionHierarchy[position] ?? 999,
-          };
-        }
-
-        final candidateRow = {
-          'name': candidateName,
-          'votes': 0,
-          'isWinner': false,
-        };
-        (groupedResults[position]!['candidates'] as List<Map<String, dynamic>>)
-            .add(candidateRow);
-
-        final key = '${position.toLowerCase()}|${candidateName.toLowerCase()}';
-        candidateLookupByNamePosition[key] = candidateRow;
+        upsertCandidate(
+          position: position,
+          rawName: candidateName,
+          votes: 0,
+          slate: slate,
+          fallbackRank: positionHierarchy[position] ?? rank,
+        );
       }
-
-      // Ensure each known position has an abstain row by default (0 votes).
-      groupedResults.forEach((position, result) {
-        final candidates = result['candidates'] as List<Map<String, dynamic>>;
-        final hasAbstain = candidates.any((c) => c['name'] == 'Abstain');
-        if (!hasAbstain) {
-          candidates.add({'name': 'Abstain', 'votes': 0, 'isWinner': false});
-        }
-      });
 
       // 2) Overlay stat counts (if present).
       for (var doc in statsSnapshot.docs) {
@@ -911,57 +924,124 @@ class FirebaseService {
 
         final data = doc.data() as Map<String, dynamic>;
 
-        final String groupKey = (electionType == 'proposal')
-            ? (data['position'] ?? 'Proposal')
-            : data['position'] ?? 'Unknown Position';
+        final String groupKey = isProposal
+            ? (data['position'] ?? proposalPositionTitle).toString()
+            : (data['position'] ?? 'Unknown Position').toString();
 
         final int votes = (data['total_votes'] as num?)?.toInt() ?? 0;
-        final String candidateName = data['name'] ?? 'Unknown';
+        final String candidateName = (data['name'] ?? 'Unknown').toString();
+        final String slate =
+            (data['slate'] ?? data['partylist'] ?? 'Independent').toString();
 
-        final int groupRank = positionHierarchy[groupKey] ?? 999;
+        final int groupRank = positionHierarchy[groupKey] ??
+            (_positionRankFromName(groupKey) == 999
+                ? 999
+                : _positionRankFromName(groupKey));
+        ensurePosition(groupKey, groupRank);
 
-        if (!groupedResults.containsKey(groupKey)) {
-          groupedResults[groupKey] = {
-            'candidates': <Map<String, dynamic>>[],
-            'rank': groupRank,
-          };
-        }
-        // Keep rank synced for late-created groups
-        groupedResults[groupKey]!['rank'] = groupRank;
+        upsertCandidate(
+          position: groupKey,
+          rawName: candidateName,
+          votes: votes,
+          slate: slate,
+          fallbackRank: groupRank,
+        );
+      }
 
-        final candidates =
-            groupedResults[groupKey]!['candidates'] as List<Map<String, dynamic>>;
-        final key = '${groupKey.toLowerCase()}|${candidateName.toLowerCase()}';
-        final existing = candidateLookupByNamePosition[key];
-
-        if (existing != null) {
-          existing['votes'] = votes;
-        } else {
-          // Handles stats rows not present in candidates collection (e.g. proposal Yes/No)
-          final newRow = {
-            'name': candidateName,
-            'votes': votes,
-            'isWinner': false,
-          };
-          candidates.add(newRow);
-          candidateLookupByNamePosition[key] = newRow;
+      // 3) Ensure default rows/positions exist.
+      if (isProposal) {
+        final String proposalPosition = groupedResults.isNotEmpty
+            ? groupedResults.keys.first
+            : proposalPositionTitle;
+        ensurePosition(proposalPosition, _positionRankFromName(proposalPosition));
+        upsertCandidate(
+          position: proposalPosition,
+          rawName: 'Yes',
+          votes: _readExistingVotes(
+            position: proposalPosition,
+            name: 'Yes',
+            lookup: candidateLookupByNamePosition,
+          ),
+          fallbackRank: _positionRankFromName(proposalPosition),
+        );
+        upsertCandidate(
+          position: proposalPosition,
+          rawName: 'No',
+          votes: _readExistingVotes(
+            position: proposalPosition,
+            name: 'No',
+            lookup: candidateLookupByNamePosition,
+          ),
+          fallbackRank: _positionRankFromName(proposalPosition),
+        );
+      } else {
+        for (final position in _defaultPositionOrder()) {
+          ensurePosition(position, _positionRankFromName(position));
         }
       }
 
-      groupedResults.forEach((_, result) {
+      groupedResults.forEach((position, result) {
         final List<Map<String, dynamic>> candidates =
             result['candidates'] as List<Map<String, dynamic>>;
 
-        candidates.sort((a, b) {
-          int votesA = a['votes'] as int;
-          int votesB = b['votes'] as int;
-          return votesB.compareTo(votesA);
+        // Keep exactly one Abstain row (preserve highest votes if duplicates exist).
+        int abstainVotes = 0;
+        String abstainSlate = 'Independent';
+        candidates.removeWhere((candidate) {
+          final isAbstain =
+              (candidate['name']?.toString().toLowerCase().trim() ?? '') ==
+              'abstain';
+          if (isAbstain) {
+            final value = (candidate['votes'] as num?)?.toInt() ?? 0;
+            if (value > abstainVotes) abstainVotes = value;
+            abstainSlate = (candidate['slate']?.toString() ?? abstainSlate);
+          }
+          return isAbstain;
+        });
+        candidateLookupByNamePosition
+            .remove('${position.toLowerCase()}|abstain');
+        upsertCandidate(
+          position: position,
+          rawName: 'Abstain',
+          votes: abstainVotes,
+          slate: abstainSlate,
+          fallbackRank: result['rank'] as int,
+        );
+
+        final refreshedCandidates =
+            groupedResults[position]!['candidates'] as List<Map<String, dynamic>>;
+
+        refreshedCandidates.sort((a, b) {
+          final nameA = (a['name'] ?? '').toString();
+          final nameB = (b['name'] ?? '').toString();
+          final isAbstainA = nameA.toLowerCase() == 'abstain';
+          final isAbstainB = nameB.toLowerCase() == 'abstain';
+          if (isAbstainA && !isAbstainB) return 1;
+          if (!isAbstainA && isAbstainB) return -1;
+
+          final votesA = (a['votes'] as num?)?.toInt() ?? 0;
+          final votesB = (b['votes'] as num?)?.toInt() ?? 0;
+          if (votesA != votesB) return votesB.compareTo(votesA);
+
+          final slateA = _normalizedSlate(a['slate']?.toString());
+          final slateB = _normalizedSlate(b['slate']?.toString());
+          if (slateA != slateB) return slateA.compareTo(slateB);
+
+          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
         });
 
-        // Mark Winner
-        if (candidates.isNotEmpty) {
-          if (candidates.first['name'] != 'Abstain') {
-            candidates.first['isWinner'] = true;
+        final maxVotes = refreshedCandidates.isEmpty
+            ? 0
+            : refreshedCandidates
+                  .map((c) => (c['votes'] as num?)?.toInt() ?? 0)
+                  .reduce((a, b) => a > b ? a : b);
+
+        for (final candidate in refreshedCandidates) {
+          if (maxVotes <= 0) {
+            candidate['isWinner'] = false;
+          } else {
+            candidate['isWinner'] =
+                ((candidate['votes'] as num?)?.toInt() ?? 0) == maxVotes;
           }
         }
       });
@@ -978,17 +1058,91 @@ class FirebaseService {
 
 
       finalResults.sort((a, b) {
-        int rankA = a['rank'] as int;
-        int rankB = b['rank'] as int;
+        final rankA = a['rank'] as int;
+        final rankB = b['rank'] as int;
         return rankA.compareTo(rankB);
       });
-
 
       return finalResults;
     } catch (e, s) {
       print(s);
       return [];
     }
+  }
+
+  int _readExistingVotes({
+    required String position,
+    required String name,
+    required Map<String, Map<String, dynamic>> lookup,
+  }) {
+    final key = '${position.toLowerCase()}|${name.toLowerCase()}';
+    return (lookup[key]?['votes'] as num?)?.toInt() ?? 0;
+  }
+
+  String _normalizedSlate(String? raw) {
+    final value = (raw ?? '').trim();
+    if (value.isEmpty || value.toLowerCase() == 'independent') {
+      return 'zzzz_independent';
+    }
+    return value.toLowerCase();
+  }
+
+  List<String> _defaultYearBuckets() {
+    return const ['First Year', 'Second Year', 'Third Year', 'Fourth Year'];
+  }
+
+  List<String> _defaultCollegeBuckets() {
+    return const [
+      'CBFS',
+      'CCIS',
+      'CCSE',
+      'CET',
+      'CGPP',
+      'CHK',
+      'CITE',
+      'CTHM',
+      'IAD',
+      'IDEM',
+      'IIHS',
+      'IOA',
+      'ION',
+      'IOP',
+      'IOPSY',
+      'ISW',
+    ];
+  }
+
+  List<String> _defaultPositionOrder() {
+    return const [
+      'Chairperson',
+      'Vice Chairperson',
+      'Secretary',
+      'Treasurer',
+      'Auditor',
+      '1st Year Representative',
+      '2nd Year Representative',
+      '3rd Year Representative',
+      '4th Year Representative',
+    ];
+  }
+
+  int _positionRankFromName(String position) {
+    final p = position.toLowerCase().trim();
+    final fixed = <String, int>{
+      'chairperson': 10,
+      'vice chairperson': 20,
+      'secretary': 30,
+      'treasurer': 40,
+      'auditor': 50,
+    };
+    if (fixed.containsKey(p)) return fixed[p]!;
+
+    final match = RegExp(r'(\d+)(st|nd|rd|th)\s+year').firstMatch(p);
+    if (match != null) {
+      final year = int.tryParse(match.group(1) ?? '') ?? 99;
+      return 100 + year;
+    }
+    return 999;
   }
 }
 

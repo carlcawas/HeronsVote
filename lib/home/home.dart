@@ -12,7 +12,6 @@ import 'candidates_view_body.dart';
 
 // TODO: Import your Voting and Results pages
 import 'voting_body.dart';
-import 'elect_select.dart';
 
 // Import pages for the action buttons
 import 'announcement.dart';
