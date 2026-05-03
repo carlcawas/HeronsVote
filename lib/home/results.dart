@@ -204,6 +204,9 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
         widget.electionData['title'] ??
         widget.electionData['name'] ??
         'Election Name';
+    final bool isProposal =
+        (widget.electionData['type'] ?? '').toString().toLowerCase() == 'proposal';
+    final String proposalName = widget.electionData['proposalName'] ?? 'Proposal Name';
 
     final Timestamp? startTimestamp =
         widget.electionData['start'] as Timestamp?;
@@ -243,6 +246,18 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
             ),
           ),
           const SizedBox(height: 4),
+          if (isProposal) ...[
+            Text(
+              proposalName,
+              style: TextStyle(
+                color: _textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Geist',
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
           Text(
             academicYear,
             style: TextStyle(
@@ -252,7 +267,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
               fontFamily: 'Geist',
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             startDate,
             style: TextStyle(
@@ -1042,3 +1057,4 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
     );
   }
 }
+

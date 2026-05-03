@@ -190,6 +190,7 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
             final proposal = Proposal(
               id: doc.id, 
               title: data['name'] ?? 'Untitled Proposal',
+              proposalName: data['proposalName'] ?? 'Proposal Name',
               summary: data['summary'] ?? 'No summary available.',
               rationale: data['rationale'] ?? 'No rationale available.',
               comparison: data['comparison'] ?? 'No comparison available.',
@@ -318,7 +319,7 @@ class ProposalListItem extends StatelessWidget {
                 // proposal Title
                 Expanded(
                   child: Text(
-                    proposal.title,
+                    proposal.proposalName,
                     style: const TextStyle(
                       color: Color(0xFF404040),
                       fontSize: 16,
@@ -352,3 +353,4 @@ class ProposalListItem extends StatelessWidget {
     );
   }
 }
+

@@ -276,6 +276,7 @@ class Position {
 class Proposal {
   final String id;
   final String title;
+  final String proposalName;
   final String? summary;
   final String? rationale;
   final String? comparison;
@@ -285,6 +286,7 @@ class Proposal {
   Proposal({
     required this.id,
     required this.title,
+    this.proposalName = 'Proposal Name',
     this.summary,
     this.rationale,
     this.comparison,

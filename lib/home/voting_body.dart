@@ -470,6 +470,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
   late String _electionTitle;
   late String _electionPeriod;
+  late String _proposalDisplayName;
   bool _isProposal = false;
 
   // preload information
@@ -480,6 +481,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
     super.initState();
     _electionTitle = widget.electionData['title'] ?? 'Election Voting';
     _isProposal = widget.electionData['type'] == 'proposal';
+    _proposalDisplayName = widget.electionData['proposalName'] ?? 'Proposal Name';
 
     // Date Handling
     if (widget.electionData['start'] != null &&
@@ -999,13 +1001,14 @@ class _VotingHomePageState extends State<VotingHomePage> {
 
   Widget _buildProposalBody({bool includeButton = true}) {
     final String proposalTitle = _electionTitle;
+    final String proposalDisplayTitle = _proposalDisplayName;
 
     final hasError = _showErrors && _selectedCandidates[proposalTitle] == null;
 
     return Column(
       children: [
         PositionVoteItem(
-          positionTitle: proposalTitle,
+          positionTitle: proposalDisplayTitle,
           selectedCandidate: _selectedCandidates[proposalTitle],
           onSelectCandidate: () =>
               _handleSelectCandidate(proposalTitle, _getProposalOptions()),
@@ -1122,3 +1125,4 @@ class _VotingHomePageState extends State<VotingHomePage> {
     );
   }
 }
+

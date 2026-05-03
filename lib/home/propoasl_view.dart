@@ -47,6 +47,8 @@ class _ProposalViewPageState extends State<ProposalViewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildProposalInfoCard(),
+                  const SizedBox(height: 20),
                   // Compile all available proposal details
                   ..._buildProposalSections(),
                   const SizedBox(height: 30),
@@ -84,6 +86,44 @@ class _ProposalViewPageState extends State<ProposalViewPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProposalInfoCard() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F7F7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7E8E9), width: 0.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 18, bottom: 18, left: 20, right: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.proposal.title,
+              style: const TextStyle(
+                color: Color(0xFF404040),
+                fontSize: 38 / 2,
+                fontFamily: 'Geist',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.proposal.proposalName,
+              style: const TextStyle(
+                color: Color(0xFF404040),
+                fontSize: 16,
+                fontFamily: 'Geist',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

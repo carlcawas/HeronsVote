@@ -345,7 +345,7 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
             children: [
               Expanded(
                 child: Text(
-                  election['title'] ?? 'Election',
+                  (election['type'] == 'proposal' ? election['proposalName'] : election['title']) ?? (election['type'] == 'proposal' ? 'Proposal Name' : 'Election'),
                   style: TextStyle(
                     // Grey out only if disabled in voting mode
                     color: isDisabled && showVotedBadge 
@@ -565,3 +565,4 @@ class VotingCompletePageBody extends StatelessWidget {
     );
   }
 }
+
