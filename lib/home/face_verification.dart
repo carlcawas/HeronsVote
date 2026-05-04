@@ -472,6 +472,19 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   // ============================================
   // SUBMIT VOTE AFTER VERIFICATION
   // ============================================
+  Future<void> _writeVoteLog({
+    required FirebaseFirestore firestore,
+    required String electionName,
+    required String initiatorName,
+  }) async {
+    await firestore.collection('logs').add({
+      'desc': 'Successfully voted for election: $electionName',
+      'initiator': initiatorName,
+      'role': 'Voter',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> _submitFinalVote() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -487,6 +500,13 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
       final userData = userDoc.data()!;
       final String userYear = userData['year_level'] ?? 'Unknown';
       final String userCollege = userData['college_id'] ?? 'Unknown';
+      final String initiatorName =
+          userData['name'] ?? userData['fullName'] ?? user.displayName ?? 'Unknown User';
+
+      final electionDoc = await firestore.collection(collectionPath).doc(widget.electionId).get();
+      final electionData = electionDoc.data() ?? <String, dynamic>{};
+      final String electionName =
+          electionData['name'] ?? electionData['title'] ?? electionData['proposalName'] ?? 'Election';
 
       await firestore.runTransaction((transaction) async {
         final ballotRef = firestore
@@ -564,6 +584,12 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
           }
         });
       });
+
+      await _writeVoteLog(
+        firestore: firestore,
+        electionName: electionName,
+        initiatorName: initiatorName,
+      );
 
       if (!mounted) return;
 
