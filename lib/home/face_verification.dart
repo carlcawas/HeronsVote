@@ -64,7 +64,7 @@ class _FaceVerificationPageState extends State<FaceVerificationPage> {
   
   // Verification state
   int _verificationAttempts = 0;
-  static const int maxVerificationAttempts = 3;
+  static const int maxVerificationAttempts = 10;
   int _framesCollected = 0;
   static const int minFramesForLiveness = 3;
 

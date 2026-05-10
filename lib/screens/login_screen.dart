@@ -20,6 +20,9 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+//addRik
+bool _isDialogOpen = false;
+
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
   late TapGestureRecognizer _termsTapRecognizer;
@@ -272,6 +275,14 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+//addRik
+  void _closeDialog() {
+    if (_isDialogOpen && mounted) {
+      Navigator.pop(context);
+      _isDialogOpen = false;
+    }
+  }
+
   Future<void> _loginAuth(BuildContext context) async {
     if (_isSigningIn || _isProcessingEmail) return;
     setState(() => _isSigningIn = true);
@@ -301,6 +312,9 @@ class _LoginScreenState extends State<LoginScreen>
       setState(() {
         _isSigningIn = false;
         _isProcessingEmail = true;
+
+        //addedRik
+        _isDialogOpen = true;
       });
 
       // Show loading screen for email processing
@@ -325,14 +339,25 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ),
-      );
+      ).then((_) => _isDialogOpen = false); //addRik from ;
 
-      if (!email.toLowerCase().endsWith('@umak.edu.ph')) {
+      const List<String> adminExceptions = [
+        'reyes.rhic.rr@gmail.com'
+      ];
+
+      final String emailLower = email.toLowerCase();
+      bool isUmakEmail = emailLower.endsWith('@umak.edu.ph');
+      bool isAllowedAdmin = adminExceptions.contains(emailLower);
+
+      if (!isUmakEmail && !isAllowedAdmin) {
         await FirebaseAuth.instance.signOut();
         await _googleSignIn.signOut();
 
         if (!mounted) return;
-        Navigator.pop(context);
+
+        //Navigator.pop(context);
+        _closeDialog();
+
         setState(() => _isProcessingEmail = false);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +406,7 @@ class _LoginScreenState extends State<LoginScreen>
       final registerComplete = updatedData?['registerComplete'] ?? false;
 
       if (!mounted) return;
-      Navigator.pop(context);
+      _closeDialog();
       setState(() => _isProcessingEmail = false);
 
       // Successful login
@@ -419,7 +444,7 @@ class _LoginScreenState extends State<LoginScreen>
               String? sectionCap = userData['section'];
               Navigator.push(context,
                 MaterialPageRoute(
-                  builder: (_) =>
+                  builder: (_) => 
                   RegistrationStep2(
                     uid: uid,
                     name: nameCap,
@@ -427,7 +452,7 @@ class _LoginScreenState extends State<LoginScreen>
                     collegeId: collegeId!,
                     yearLevel: yearLevel!,
                     semester: semester!,
-                    section: sectionCap!,)),);
+                    section: sectionCap!,)),); 
             case 3:
               Navigator.push(
                 context,
@@ -448,7 +473,10 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e, st) {
       if (mounted) {
-        Navigator.pop(context);
+
+        //Navigator.pop(context);
+        _closeDialog();
+
         setState(() {
           _isSigningIn = false;
           _isProcessingEmail = false;

@@ -661,90 +661,91 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
   Widget _buildPieAndLegend(int cast, int total) {
     double percentage = total == 0 ? 0 : cast / total;
 
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
-          child: Container(
-            height: 156,
-            width: 156,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: _bgColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: 1.0), // Spin from 0 to 1 full turn
-                duration: const Duration(milliseconds: 1500), // 1.5 seconds
-                curve: Curves.easeOutExpo, // Starts fast, slows down smoothly
-                builder: (context, value, child) {
-                  // 2. APPLY ROTATION
-                  return Transform.rotate(
-                    angle: value * 2 * 3.14159, // Convert progress (0-1) to Radians (0-360)
-                    child: child,
-                  );
-                },
-                child: RotatedBox(
-                  quarterTurns: 2,
-                  child: CircularPercentIndicator(
-                    radius: 68.0,
-                    lineWidth: 136.0,
-                    percent: percentage.clamp(0.0, 1.0),
-                    backgroundColor: _redAccent,
-                    progressColor: _blueHighlight,
-                    circularStrokeCap: CircularStrokeCap.butt,
-                    animation: true,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _bgColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0), // Spin from 0 to 1 full turn
+                  duration: const Duration(milliseconds: 1500), // 1.5 seconds
+                  curve: Curves.easeOutExpo, // Starts fast, slows down smoothly
+                  builder: (context, value, child) {
+                    // 2. APPLY ROTATION
+                    return Transform.rotate(
+                      angle: value * 2 * 3.14159, // Convert progress (0-1) to Radians (0-360)
+                      child: child,
+                    );
+                  },
+                  child: RotatedBox(
+                    quarterTurns: 2,
+                    child: CircularPercentIndicator(
+                      radius: 68.0,
+                      lineWidth: 136.0,
+                      percent: percentage.clamp(0.0, 1.0),
+                      backgroundColor: _redAccent,
+                      progressColor: _blueHighlight,
+                      circularStrokeCap: CircularStrokeCap.butt,
+                      animation: true,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 6,
-          child: Column(
-            children: [
-              _buildSummaryCardGroup(percentage),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: _bgColor,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Rating",
-                      style: TextStyle(
-                        color: _subTextColor,
-                        fontWeight: FontWeight.w400,
-                        fontFamily: 'Geist',
-                        fontSize: 14,
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 6,
+            child: Column(
+              children: [
+                _buildSummaryCardGroup(percentage),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _bgColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Rating",
+                        style: TextStyle(
+                          color: _subTextColor,
+                          fontWeight: FontWeight.w400,
+                          fontFamily: 'Geist',
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    Text(
-                      "${(percentage * 100).toStringAsFixed(0)}%",
-                      style: TextStyle(
-                        color: _textColor,
-                        fontWeight: FontWeight.w400,
-                        fontFamily: 'Geist',
-                        fontSize: 14,
+                      Text(
+                        "${(percentage * 100).toStringAsFixed(0)}%",
+                        style: TextStyle(
+                          color: _textColor,
+                          fontWeight: FontWeight.w400,
+                          fontFamily: 'Geist',
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

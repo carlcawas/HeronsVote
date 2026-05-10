@@ -4,50 +4,91 @@ import '../services/firebase_service.dart';
 import 'slates_details.dart';
 import 'header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
-class SlateListPage extends StatelessWidget {
+class SlateListPage extends StatefulWidget {
   final String electionId;
   const SlateListPage({super.key, required this.electionId});
 
   @override
+  State<SlateListPage> createState() => _SlateListPageState();
+}
+
+class _SlateListPageState extends State<SlateListPage> {
+  final FirebaseService service = FirebaseService();
+  late Future<QuerySnapshot> _slatesFuture;
+  bool _skeletonVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _slatesFuture = service.getSlates(widget.electionId);
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _skeletonVisible = false);
+    });
+  }
+
+  Future<void> _refreshSlates() async {
+    final next = service.getSlates(widget.electionId);
+    setState(() {
+      _slatesFuture = next;
+    });
+    await next;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
-    final FirebaseService service = FirebaseService();
     
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          StreamBuilder<QuerySnapshot>(
-            stream: service.getSlatesStream(electionId),
+          FutureBuilder<QuerySnapshot>(
+            future: _slatesFuture,
             builder: (context, snap) {
               if (snap.hasError) {
                 return Center(child: Text('Error loading slates'));
               }
-              if (!snap.hasData) {
-                return Center(child: CircularProgressIndicator());
-              }
+              
+              bool isLoading = (snap.connectionState == ConnectionState.waiting && !snap.hasData) || _skeletonVisible;
 
-              final slates =
-                  snap.data!.docs.map(Slate.fromFirestore).toList();
-              if (slates.isEmpty) {
+              final List<Slate> slates = isLoading 
+                  ? List.generate(3, (index) => Slate(
+                      id: 'loading',
+                      name: 'Loading Slate Name',
+                      slogan: 'Loading slogan...',
+                      advocacy: '',
+                      platform: '',
+                      candidates: [],
+                    ))
+                  : snap.data!.docs.map(Slate.fromFirestore).toList();
+
+              if (!isLoading && slates.isEmpty) {
                 return Center(child: Text('No slates found'));
               }
 
-              return ListView.builder(
-                padding: EdgeInsets.only(
-                  top: topPadding + 85,
-                  left: 24,
-                  right: 24,
-                  bottom: 22,
-                ),
-                itemCount: slates.length,
-                itemBuilder: (_, i) => SlateListItem(
-                  slate: slates[i],
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SlateDetailsPage(slate: slates[i]),
+              return Skeletonizer(
+                enabled: isLoading,
+                child: RefreshIndicator(
+                  onRefresh: _refreshSlates,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      top: topPadding + 85,
+                      left: 24,
+                      right: 24,
+                      bottom: 22,
+                    ),
+                    itemCount: slates.length,
+                    itemBuilder: (_, i) => SlateListItem(
+                      slate: slates[i],
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SlateDetailsPage(slate: slates[i]),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -153,18 +194,20 @@ class SlateListItem extends StatelessWidget {
                 ),
               ),
               // Right arrow button
-              Container(
-                width: 40,
-                height: 93,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0), 
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 18,
+              Skeleton.ignore(
+                child: Container(
+                  width: 40,
+                  height: 93,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6AA0), 
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
               ),

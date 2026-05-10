@@ -60,10 +60,10 @@ class CustomHeader extends StatelessWidget {
               
               const SizedBox(width: 16),
               
-              SizedBox(
-                width: 250,
+              Expanded(
                 child: Text(
                   title,
+                  // TO
                   style: const TextStyle(
                     color: Color(0xFF404040),
                     fontFamily: 'Geist',
@@ -71,9 +71,12 @@ class CustomHeader extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
+                  softWrap: false,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 24),
+              
             ],
           ),
         ),

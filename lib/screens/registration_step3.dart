@@ -329,10 +329,6 @@ class _RegistrationStep3State extends State<RegistrationStep3>
       print('[Registration] Registration completed successfully!');
       _showSuccess('Face registered successfully!');
 
-      if (acceptedFile != null && await acceptedFile.exists()) {
-        await _showAcceptedFacePreview(acceptedFile);
-      }
-
       // Cleanup
       if (captureResult.frame != null) {
         try {

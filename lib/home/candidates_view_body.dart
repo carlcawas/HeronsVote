@@ -20,6 +20,21 @@ class CandidatesViewBody extends StatefulWidget {
 class _CandidatesViewBodyState extends State<CandidatesViewBody> {
   
   ContentView _selectedView = ContentView.candidates;
+  late Future<QuerySnapshot> _proposalsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _proposalsFuture = FirebaseService().getAllProposalsOnce();
+  }
+
+  Future<void> _refreshProposals() async {
+    final next = FirebaseService().getAllProposalsOnce();
+    setState(() {
+      _proposalsFuture = next;
+    });
+    await next;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,12 +174,32 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
 
   // builder proposal
   Widget _buildProposalsList({Key? key}) {
-    return StreamBuilder<QuerySnapshot>(
+    return FutureBuilder<QuerySnapshot>(
       key: key,
-      stream: FirebaseService().getAllProposalsStream(),
+      future: _proposalsFuture,
       builder: (context, snapshot) {
+        Widget buildRefreshableFallback(String message) {
+          return RefreshIndicator(
+            onRefresh: _refreshProposals,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  children: [
+                    SizedBox(
+                      height: constraints.maxHeight,
+                      child: Center(child: Text(message)),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        }
+
         if (snapshot.hasError) {
-          return const Center(child: Text("Error loading proposals"));
+          return buildRefreshableFallback("Error loading proposals");
         }
         
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -174,14 +209,17 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
         // if no proposals
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
-          return const Center(child: Text("No proposals available"));
+          return buildRefreshableFallback("No proposals available");
         }
 
         // list builder
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
+        return RefreshIndicator(
+          onRefresh: _refreshProposals,
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
             // Get the document data
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
@@ -197,8 +235,9 @@ class _CandidatesViewBodyState extends State<CandidatesViewBody> {
               resources: data['resources'] ?? 'No resources available.',
             );
 
-            return ProposalListItem(proposal: proposal);
-          },
+              return ProposalListItem(proposal: proposal);
+            },
+          ),
         );
       },
     );

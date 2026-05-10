@@ -5,6 +5,7 @@ import 'candidate_profile.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class CandidateListPage extends StatefulWidget {
   final String positionTitle;
@@ -23,13 +24,19 @@ class CandidateListPage extends StatefulWidget {
 class _CandidateListPageState extends State<CandidateListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  bool _skeletonVisible = true;
 
   late Future<String> _collegeIdFuture;
+  late Future<Map<String, QuerySnapshot>> _candidatesFuture;
 
   @override
   void initState() {
     super.initState();
     _collegeIdFuture = _getUserId();
+    _candidatesFuture = _loadCandidates();
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _skeletonVisible = false);
+    });
   }
 
   @override
@@ -48,10 +55,49 @@ class _CandidateListPageState extends State<CandidateListPage> {
     return collegeId;
   }
 
+  Future<Map<String, QuerySnapshot>> _loadCandidates() async {
+    final userCollegeId = await _collegeIdFuture;
+    final service = FirebaseService();
+    final results = await Future.wait([
+      service.getActiveUniversityElection(),
+      service.getActiveCollegeElection(userCollegeId),
+    ]);
+
+    final uscSnapshot = results[0];
+    final cscSnapshot = results[1];
+
+    String targetCollegeId = "none";
+    final isUscActive = uscSnapshot.docs.isNotEmpty;
+    final isCscActive = cscSnapshot.docs.isNotEmpty;
+
+    if (isUscActive) {
+      targetCollegeId = "";
+    } else if (isCscActive) {
+      targetCollegeId = userCollegeId;
+    }
+
+    QuerySnapshot candidatesSnapshot = await service.getCandidatesByPosition(
+      widget.positionTitle,
+      targetCollegeId,
+    );
+
+    return {
+      'usc': uscSnapshot,
+      'csc': cscSnapshot,
+      'candidates': candidatesSnapshot,
+    };
+  }
+
+  Future<void> _refreshCandidates() async {
+    final next = _loadCandidates();
+    setState(() {
+      _candidatesFuture = next;
+    });
+    await next;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool isProposalOptionsOnly =
-        widget.positionTitle.toLowerCase().contains('proposal');
     return FutureBuilder<String>(
       future: _collegeIdFuture, 
       builder: (context, userSnapshot) {
@@ -65,10 +111,12 @@ class _CandidateListPageState extends State<CandidateListPage> {
         return ReusableListPage(
           title: widget.positionTitle,
           onBack: () => Navigator.pop(context),
+          onRefresh: _refreshCandidates,
+          refreshDisplacement: 82,
+          refreshEdgeOffset: 80,
           items: [
             // Search bar (customize niyo nalang :DD)
-            if (!isProposalOptionsOnly)
-              Padding(
+            Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
                 child: TextField(
                   controller: _searchController,
@@ -121,26 +169,46 @@ class _CandidateListPageState extends State<CandidateListPage> {
               ),
 
             // Check if there is an ongoing USC Election
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseService().getActiveUniversityElectionStream(),
-              builder: (context, uscSnapshot) {
-                // Check if there is an ongoing CSC Election
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseService().getActiveCollegeElectionStream(
-                    userCollegeId,
-                  ),
-                  builder: (context, cscSnapshot) {
-                    String targetCollegeId = "none";
-                    bool isUscActive =
-                        uscSnapshot.hasData && uscSnapshot.data!.docs.isNotEmpty;
-                    bool isCscActive =
-                        cscSnapshot.hasData && cscSnapshot.data!.docs.isNotEmpty;
+            FutureBuilder<Map<String, QuerySnapshot>>(
+              future: _candidatesFuture,
+              builder: (context, combinedSnapshot) {
+                final bool isLoading =
+                    combinedSnapshot.connectionState == ConnectionState.waiting ||
+                    _skeletonVisible;
 
-                    if (isUscActive) {
-                      targetCollegeId = "";
-                    } else if (isCscActive) {
-                      targetCollegeId = userCollegeId;
-                    }
+                if (isLoading) {
+                  final candidateItems = List.generate(4, (index) {
+                    return CandidateListItem(
+                      candidate: Candidate(
+                        name: "Loading Candidate Name",
+                        role: widget.positionTitle,
+                        details: "College - Year Level",
+                        age: "N/A",
+                        year: "N/A",
+                        college: "N/A",
+                        partylist: "Party List Name",
+                        advocacy: "",
+                        platform: "",
+                      ),
+                      partylistName: "Party List Name",
+                    );
+                  });
+                  return Skeletonizer(
+                    enabled: true,
+                    child: Column(children: candidateItems),
+                  );
+                }
+                if (combinedSnapshot.hasError || !combinedSnapshot.hasData) {
+                  return Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Center(child: Text('Error: ${combinedSnapshot.error}')),
+                  );
+                }
+                final uscSnapshot = combinedSnapshot.data!['usc']!;
+                final cscSnapshot = combinedSnapshot.data!['csc']!;
+                final candidateSnapshot = combinedSnapshot.data!['candidates']!;
+                    bool isUscActive = uscSnapshot.docs.isNotEmpty;
+                    bool isCscActive = cscSnapshot.docs.isNotEmpty;
 
                     // If no election is active, show a message
                     if (!isUscActive && !isCscActive) {
@@ -154,21 +222,7 @@ class _CandidateListPageState extends State<CandidateListPage> {
                       );
                     }
 
-                    return StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseService().getCandidatesByPositionStream(
-                        widget.positionTitle,
-                        targetCollegeId,
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        if (snapshot.hasError) {
-                          return Center(child: Text('Error: ${snapshot.error}'));
-                        }
-
-                        final docs = snapshot.data?.docs ?? [];
+                    final docs = candidateSnapshot.docs;
 
                         if (docs.isEmpty) {
                           return Padding(
@@ -268,11 +322,20 @@ class _CandidateListPageState extends State<CandidateListPage> {
                           );
                         }).toList();
 
+                        for (final doc in docs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final filePath = data['img'] as String?;
+                          if (filePath != null && filePath.isNotEmpty) {
+                            try {
+                              final url = Supabase.instance.client.storage
+                                  .from('images')
+                                  .getPublicUrl(filePath);
+                              precacheImage(NetworkImage(url), context);
+                            } catch (_) {}
+                          }
+                        }
+
                         return Column(children: candidateItems);
-                      },
-                    );
-                  },
-                );
               },
             ),
           ],
@@ -297,25 +360,27 @@ class CandidateListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CandidateProfilePage(
-              candidate: Candidate(
-                name: candidate.name,
-                age: candidate.age,
-                year: candidate.year,
-                college: candidate.college,
-                img: candidate.img,
-                partylist: partylistName,
-                advocacy: candidate.advocacy,
-                role: candidate.role,
-                details: candidate.details,
-                platform: candidate.platform,
+        Future.delayed(const Duration(milliseconds: 100), () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CandidateProfilePage(
+                candidate: Candidate(
+                  name: candidate.name,
+                  age: candidate.age,
+                  year: candidate.year,
+                  college: candidate.college,
+                  img: candidate.img,
+                  partylist: partylistName,
+                  advocacy: candidate.advocacy,
+                  role: candidate.role,
+                  details: candidate.details,
+                  platform: candidate.platform,
+                ),
               ),
             ),
-          ),
-        );
+          );
+        });
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -387,6 +452,8 @@ class CandidateListItem extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       partylistName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: const Color(0xFF404040).withOpacity(0.7),
                         fontSize: 14,
@@ -399,18 +466,20 @@ class CandidateListItem extends StatelessWidget {
               ),
 
               // Right arrow button
-              Container(
-                width: 40,
-                height: 93,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0),
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_forward_ios,
-                    color: Colors.white,
-                    size: 18,
+              Skeleton.ignore(
+                child: Container(
+                  width: 40,
+                  height: 93,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
               ),
@@ -447,23 +516,31 @@ Widget _buildSupabaseImageWidget({
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
-            return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+            return AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: child,
+            );
           },
           errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Icon(
-                Icons.person,
-                size: iconSize,
-                color: Colors.grey,
+            return Skeleton.ignore(
+              child: Center(
+                child: Icon(
+                  Icons.person,
+                  size: iconSize,
+                  color: Colors.grey,
+                ),
               ),
             );
           },
         )
-      : Center(
-          child: Icon(
-            Icons.person,
-            size: iconSize,
-            color: Colors.grey,
+      : Skeleton.ignore(
+          child: Center(
+            child: Icon(
+              Icons.person,
+              size: iconSize,
+              color: Colors.grey,
+            ),
           ),
         );
 

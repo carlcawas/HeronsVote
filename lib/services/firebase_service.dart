@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'package:heronsvote/model/turnout_model.dart';
 
 /// UPDATE THIS:
@@ -19,21 +20,83 @@ class FirebaseService {
     if (raw == null) return null;
     if (raw is Timestamp) return raw.toDate();
     if (raw is DateTime) return raw;
+    if (raw is String) {
+      final parsedIso = DateTime.tryParse(raw);
+      if (parsedIso != null) return parsedIso;
+      return _parseUtcOffsetDateString(raw);
+    }
     return null;
+  }
+
+  // Parses strings like: "May 11, 2026 at 11:11:00 AM UTC+8"
+  DateTime? _parseUtcOffsetDateString(String raw) {
+    final r = RegExp(
+      r'^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})\s+at\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(AM|PM)\s+UTC([+-]\d{1,2})$',
+      caseSensitive: false,
+    );
+    final m = r.firstMatch(raw.trim());
+    if (m == null) return null;
+
+    final monthName = (m.group(1) ?? '').toLowerCase();
+    final monthMap = <String, int>{
+      'january': 1,
+      'february': 2,
+      'march': 3,
+      'april': 4,
+      'may': 5,
+      'june': 6,
+      'july': 7,
+      'august': 8,
+      'september': 9,
+      'october': 10,
+      'november': 11,
+      'december': 12,
+    };
+    final month = monthMap[monthName];
+    if (month == null) return null;
+
+    final day = int.tryParse(m.group(2) ?? '');
+    final year = int.tryParse(m.group(3) ?? '');
+    final hour12 = int.tryParse(m.group(4) ?? '');
+    final minute = int.tryParse(m.group(5) ?? '');
+    final second = int.tryParse(m.group(6) ?? '0') ?? 0;
+    final meridiem = (m.group(7) ?? '').toUpperCase();
+    final utcOffsetHours = int.tryParse(m.group(8) ?? '');
+
+    if (day == null ||
+        year == null ||
+        hour12 == null ||
+        minute == null ||
+        utcOffsetHours == null) {
+      return null;
+    }
+
+    int hour24 = hour12 % 12;
+    if (meridiem == 'PM') hour24 += 12;
+
+    // Build wall-clock time in provided UTC offset, then convert to local.
+    final utcInstant = DateTime.utc(year, month, day, hour24, minute, second)
+        .subtract(Duration(hours: utcOffsetHours));
+    return utcInstant.toLocal();
   }
 
   bool _isWithinVotingWindow(Map<String, dynamic> data, DateTime now) {
     final start = _asDateTime(data['start']);
     final end = _asDateTime(data['end']);
-    if (start == null || end == null) return false;
+    if (end == null) return false;
+    // Some proposal docs may not have a start timestamp yet.
+    // In that case, allow visibility until end while ongoing/status are already filtered upstream.
+    if (start == null) return !now.isAfter(end);
     return !now.isBefore(start) && !now.isAfter(end);
   }
 
   bool _isWithinResultsClosedWindow(Map<String, dynamic> data, DateTime now) {
     final end = _asDateTime(data['end']);
     if (end == null) return false;
-    final twoWeeksAfterEnd = end.add(const Duration(days: 14));
-    return now.isAfter(end) && !now.isAfter(twoWeeksAfterEnd);
+    final oneWeekAfterEnd = end.add(const Duration(days: 7));
+    // Closed docs should appear immediately once closed, and stay visible
+    // until 7 days after the configured end timestamp.
+    return !now.isAfter(oneWeekAfterEnd);
   }
   /// Get specific field value === example use:
   /// String user_name = getField(users, uid, name)
@@ -120,8 +183,14 @@ class FirebaseService {
     return _firestore.collection('users').doc(uid).snapshots();
   }
 
+  /// One-time user document fetch.
+  Future<DocumentSnapshot> getUserDoc(String uid) {
+    return _firestore.collection('users').doc(uid).get();
+  }
+
   /// Gets a live stream of the active college election for the user.
   Stream<QuerySnapshot> getActiveCollegeElectionStream(String collegeId) {
+    final now = Timestamp.now();
     return _firestore
         .collection('elections')
         .where('type', isEqualTo: 'college')
@@ -129,29 +198,37 @@ class FirebaseService {
         .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
         .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
         .limit(1)
         .snapshots();
   }
 
   /// Gets a live stream of the active university-wide election.
   Stream<QuerySnapshot> getActiveUniversityElectionStream() {
+    final now = Timestamp.now();
     return _firestore
         .collection('elections')
         .where('type', isEqualTo: 'university')
         .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
         .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
         .limit(1)
         .snapshots();
   }
 
   /// Gets a live stream of the active university-wide proposal.
   Stream<QuerySnapshot> getActiveUniversityProposalStream() {
+    final now = Timestamp.now();
     return _firestore
         .collection('proposals')
         .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
         .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
         .limit(1)
         .snapshots();
   }
@@ -202,6 +279,15 @@ class FirebaseService {
         .where('election_id', isEqualTo: electionId)
         .orderBy('name')
         .snapshots();
+  }
+
+  /// One-time slates fetch for a specific election.
+  Future<QuerySnapshot> getSlates(String electionId) {
+    return _firestore
+        .collection('slates')
+        .where('election_id', isEqualTo: electionId)
+        .orderBy('name')
+        .get();
   }
 
   /// Get a live stream of newly elected officials (results) for a specific election
@@ -303,12 +389,14 @@ class FirebaseService {
 
   /// Get a live stream of ALL proposals --- can add .where('ongoing', isEqualTo: true)
   Stream<QuerySnapshot> getAllProposalsStream() {
+    final now = Timestamp.now();
     return _firestore
         .collection('proposals')
         .where('isDraft', isEqualTo: false)
         .where('ongoing', isEqualTo: true)
         .where('status', isEqualTo: 'Ongoing')
-        .orderBy('start', descending: true)
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
         .snapshots();
   }
 
@@ -349,6 +437,123 @@ class FirebaseService {
         .collection('university_officials')
         .orderBy('pos_rank', descending: false)
         .snapshots();
+  }
+
+  Future<QuerySnapshot> getCurrentOfficials(String collegeId) {
+    return _firestore
+        .collection('colleges')
+        .doc(collegeId)
+        .collection('officials')
+        .orderBy('pos_rank', descending: false)
+        .get();
+  }
+
+  Future<QuerySnapshot> getUniversityOfficials() {
+    return _firestore
+        .collection('university_officials')
+        .orderBy('pos_rank', descending: false)
+        .get();
+  }
+
+  Future<QuerySnapshot> getActiveCollegeElection(String collegeId) {
+    final now = Timestamp.now();
+    return _firestore
+        .collection('elections')
+        .where('type', isEqualTo: 'college')
+        .where('college_id', isEqualTo: collegeId)
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
+        .limit(1)
+        .get();
+  }
+
+  Future<QuerySnapshot> getActiveUniversityElection() {
+    final now = Timestamp.now();
+    return _firestore
+        .collection('elections')
+        .where('type', isEqualTo: 'university')
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
+        .limit(1)
+        .get();
+  }
+
+  Future<QuerySnapshot> getActiveUniversityProposal() {
+    final now = Timestamp.now();
+    return _firestore
+        .collection('proposals')
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
+        .limit(1)
+        .get();
+  }
+
+  Future<QuerySnapshot> getRecentlyEndedCollegeElectionOnce(String collegeId) {
+    return _firestore
+        .collection('elections')
+        .where('type', isEqualTo: 'college')
+        .where('college_id', isEqualTo: collegeId)
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: false)
+        .where('status', isEqualTo: 'Closed')
+        .orderBy('end', descending: true)
+        .limit(1)
+        .get();
+  }
+
+  Future<QuerySnapshot> getRecentlyEndedUniversityElectionOnce() {
+    return _firestore
+        .collection('elections')
+        .where('type', isEqualTo: 'university')
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: false)
+        .where('status', isEqualTo: 'Closed')
+        .orderBy('end', descending: true)
+        .limit(1)
+        .get();
+  }
+
+  Future<QuerySnapshot> getRecentlyEndedUniversityProposalOnce() {
+    return _firestore
+        .collection('proposals')
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: false)
+        .where('status', isEqualTo: 'Closed')
+        .orderBy('end', descending: true)
+        .limit(1)
+        .get();
+  }
+
+  Future<QuerySnapshot> getAllProposalsOnce() {
+    final now = Timestamp.now();
+    return _firestore
+        .collection('proposals')
+        .where('isDraft', isEqualTo: false)
+        .where('ongoing', isEqualTo: true)
+        .where('status', isEqualTo: 'Ongoing')
+        .where('start', isLessThanOrEqualTo: now)
+        .where('end', isGreaterThanOrEqualTo: now)
+        .get();
+  }
+
+  Future<QuerySnapshot> getCandidatesByPosition(
+    String positionName,
+    String collegeId,
+  ) {
+    return _firestore
+        .collection('candidates')
+        .where('position', isEqualTo: positionName)
+        .where('college_id', isEqualTo: collegeId)
+        .get();
   }
 
   /// Get all active elections for Voting tab.
@@ -691,6 +896,204 @@ class FirebaseService {
     }
 
     return relevantElections;
+  }
+
+  Stream<List<Map<String, dynamic>>> watchRelevantElectionsForUser(String uid) {
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+
+    StreamSubscription? userSub;
+    StreamSubscription? uniActiveSub;
+    StreamSubscription? propActiveSub;
+    StreamSubscription? uniEndedSub;
+    StreamSubscription? propEndedSub;
+    StreamSubscription? collegeActiveSub;
+    StreamSubscription? collegeEndedSub;
+
+    QuerySnapshot? uniActiveSnap;
+    QuerySnapshot? propActiveSnap;
+    QuerySnapshot? uniEndedSnap;
+    QuerySnapshot? propEndedSnap;
+    QuerySnapshot? collegeActiveSnap;
+    QuerySnapshot? collegeEndedSnap;
+    String currentCollegeId = '';
+
+    void emitCombined() {
+      final List<Map<String, dynamic>> relevant = [];
+      final now = DateTime.now();
+
+      List<Map<String, dynamic>> mapWithType(
+        QuerySnapshot? snapshot,
+        String type,
+        bool ongoing,
+      ) {
+        if (snapshot == null || snapshot.docs.isEmpty) return [];
+        return snapshot.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (ongoing) return _isWithinVotingWindow(data, now);
+          return _isWithinResultsClosedWindow(data, now);
+        }).map((doc) {
+          return {
+            'id': doc.id,
+            'type': type,
+            'ongoing': ongoing,
+            ...doc.data() as Map<String, dynamic>,
+          };
+        }).toList();
+      }
+
+      relevant.addAll(mapWithType(uniActiveSnap, 'university', true));
+      relevant.addAll(mapWithType(propActiveSnap, 'proposal', true));
+      relevant.addAll(mapWithType(uniEndedSnap, 'university', false));
+      relevant.addAll(mapWithType(propEndedSnap, 'proposal', false));
+      relevant.addAll(mapWithType(collegeActiveSnap, 'college', true));
+      relevant.addAll(mapWithType(collegeEndedSnap, 'college', false));
+
+      controller.add(relevant);
+    }
+
+    Future<void> resetCollegeStreams(String collegeId) async {
+      await collegeActiveSub?.cancel();
+      await collegeEndedSub?.cancel();
+      collegeActiveSnap = null;
+      collegeEndedSnap = null;
+
+      if (collegeId.isEmpty) {
+        emitCombined();
+        return;
+      }
+
+      collegeActiveSub = getActiveCollegeElectionStream(collegeId).listen((snap) {
+        collegeActiveSnap = snap;
+        emitCombined();
+      });
+
+      collegeEndedSub = getRecentlyEndedCollegeElection(collegeId).listen((snap) {
+        collegeEndedSnap = snap;
+        emitCombined();
+      });
+    }
+
+    uniActiveSub = getActiveUniversityElectionStream().listen((snap) {
+      uniActiveSnap = snap;
+      emitCombined();
+    });
+    propActiveSub = getActiveUniversityProposalStream().listen((snap) {
+      propActiveSnap = snap;
+      emitCombined();
+    });
+    uniEndedSub = getRecentlyEndedUniversityElection().listen((snap) {
+      uniEndedSnap = snap;
+      emitCombined();
+    });
+    propEndedSub = getRecentlyEndedUniversityProposal().listen((snap) {
+      propEndedSnap = snap;
+      emitCombined();
+    });
+
+    userSub = getUserStream(uid).listen((userSnap) async {
+      final userData = userSnap.data() as Map<String, dynamic>? ?? {};
+      final nextCollegeId = (userData['college_id'] ?? '').toString();
+      if (nextCollegeId != currentCollegeId) {
+        currentCollegeId = nextCollegeId;
+        await resetCollegeStreams(currentCollegeId);
+      }
+    });
+
+    controller.onCancel = () async {
+      await userSub?.cancel();
+      await uniActiveSub?.cancel();
+      await propActiveSub?.cancel();
+      await uniEndedSub?.cancel();
+      await propEndedSub?.cancel();
+      await collegeActiveSub?.cancel();
+      await collegeEndedSub?.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  // Active-only realtime stream for Voting tab context.
+  // Emits only elections/proposals that are currently within voting window.
+  Stream<List<Map<String, dynamic>>> watchActiveElectionsForUser(String uid) {
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+
+    StreamSubscription? userSub;
+    StreamSubscription? uniActiveSub;
+    StreamSubscription? propActiveSub;
+    StreamSubscription? collegeActiveSub;
+
+    QuerySnapshot? uniActiveSnap;
+    QuerySnapshot? propActiveSnap;
+    QuerySnapshot? collegeActiveSnap;
+    String currentCollegeId = '';
+
+    void emitCombined() {
+      final List<Map<String, dynamic>> relevant = [];
+      final now = DateTime.now();
+
+      List<Map<String, dynamic>> mapWithType(QuerySnapshot? snapshot, String type) {
+        if (snapshot == null || snapshot.docs.isEmpty) return [];
+        return snapshot.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _isWithinVotingWindow(data, now);
+        }).map((doc) {
+          return {
+            'id': doc.id,
+            'type': type,
+            'ongoing': true,
+            ...doc.data() as Map<String, dynamic>,
+          };
+        }).toList();
+      }
+
+      relevant.addAll(mapWithType(uniActiveSnap, 'university'));
+      relevant.addAll(mapWithType(propActiveSnap, 'proposal'));
+      relevant.addAll(mapWithType(collegeActiveSnap, 'college'));
+
+      controller.add(relevant);
+    }
+
+    Future<void> resetCollegeStream(String collegeId) async {
+      await collegeActiveSub?.cancel();
+      collegeActiveSnap = null;
+
+      if (collegeId.isEmpty) {
+        emitCombined();
+        return;
+      }
+
+      collegeActiveSub = getActiveCollegeElectionStream(collegeId).listen((snap) {
+        collegeActiveSnap = snap;
+        emitCombined();
+      });
+    }
+
+    uniActiveSub = getActiveUniversityElectionStream().listen((snap) {
+      uniActiveSnap = snap;
+      emitCombined();
+    });
+    propActiveSub = getActiveUniversityProposalStream().listen((snap) {
+      propActiveSnap = snap;
+      emitCombined();
+    });
+
+    userSub = getUserStream(uid).listen((userSnap) async {
+      final userData = userSnap.data() as Map<String, dynamic>? ?? {};
+      final nextCollegeId = (userData['college_id'] ?? '').toString();
+      if (nextCollegeId != currentCollegeId) {
+        currentCollegeId = nextCollegeId;
+        await resetCollegeStream(currentCollegeId);
+      }
+    });
+
+    controller.onCancel = () async {
+      await userSub?.cancel();
+      await uniActiveSub?.cancel();
+      await propActiveSub?.cancel();
+      await collegeActiveSub?.cancel();
+    };
+
+    return controller.stream;
   }
 
   Future<TurnoutStats> getTurnoutDataStream({

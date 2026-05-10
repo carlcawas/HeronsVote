@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'slates_list.dart';
 import 'candidate_profile.dart';
 import 'sample_data.dart' as profile_data;
+import 'package:skeletonizer/skeletonizer.dart';
 
 class SlateDetailsPage extends StatefulWidget {
   final Slate slate;
@@ -18,6 +19,35 @@ class SlateDetailsPage extends StatefulWidget {
 class _SlateDetailsPageState extends State<SlateDetailsPage> {
   double _scrollOffset = 0.0;
   final double scrollThreshold = 0.5;
+  late Future<DocumentSnapshot> _slateFuture;
+  late Future<QuerySnapshot> _candidatesFuture;
+
+  //addedSkeleton
+  bool _skeletonVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSlateDetails();
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _skeletonVisible = false);
+    });
+  }
+
+  void _loadSlateDetails() {
+    final slateDocRef = FirebaseFirestore.instance
+        .collection('slates')
+        .doc(widget.slate.id);
+    _slateFuture = slateDocRef.get();
+    _candidatesFuture = slateDocRef.collection('candidates').orderBy('pos_rank').get();
+  }
+
+  Future<void> _refreshSlateDetails() async {
+    setState(() {
+      _loadSlateDetails();
+    });
+    await Future.wait([_slateFuture, _candidatesFuture]);
+  }
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is ScrollUpdateNotification) {
@@ -35,89 +65,130 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
   Widget build(BuildContext context) {
     final double topPadding = MediaQuery.of(context).padding.top;
     
-    // Reference to the specific slate document
-    final DocumentReference slateDocRef = FirebaseFirestore.instance
-        .collection('slates')
-        .doc(widget.slate.id);
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
           NotificationListener<ScrollNotification>(
             onNotification: _handleScrollNotification,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                top: topPadding + 85,
-                left: 25,
-                right: 25,
-                bottom: 22,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  
-                  StreamBuilder<DocumentSnapshot>( 
-                  stream: slateDocRef.snapshots(), 
+            child: RefreshIndicator(
+              onRefresh: _refreshSlateDetails,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  top: topPadding + 85,
+                  left: 25,
+                  right: 25,
+                  bottom: 22,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                  FutureBuilder<DocumentSnapshot>( 
+                  future: _slateFuture, 
                   builder: (context, snapshot) {
                     if (snapshot.hasError) return const Text("Error loading info"); 
-                    if (!snapshot.hasData) return const CircularProgressIndicator();
-                    if (!snapshot.data!.exists) return const Text("Slate not found");
+                    
+                    bool isLoading = (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) || _skeletonVisible;
+                    
+                    if (!isLoading && snapshot.hasData && !snapshot.data!.exists) {
+                      return const Text("Slate not found");
+                    }
 
                     String advocacy = "No advocacy details provided.";
                     String platform = "No platform details provided.";
 
-                    final data = snapshot.data!.data() as Map<String, dynamic>?;
-
-                    if (data != null) {
-                      advocacy = data['advocacy'] ?? advocacy;
-                      platform = data['platform'] ?? platform;
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      final data = snapshot.data!.data() as Map<String, dynamic>?;
+                      if (data != null) {
+                        advocacy = data['advocacy'] ?? advocacy;
+                        platform = data['platform'] ?? platform;
+                      }
+                    } else if (isLoading) {
+                      // Placeholders for skeleton state
+                      advocacy = "Loading advocacy details... This text is long enough to show a proper skeleton bar.";
+                      platform = "Loading platform details... This text is long enough to show a proper skeleton bar.";
                     }
 
-                    return Column(
-                      children: [
-                        ExpandableSection(
-                          title: 'Slate Advocacy',
-                          description: advocacy,
-                        ),
-                        const SizedBox(height: 0),
-                        ExpandableSection(
-                          title: 'Slate Platform',
-                          description: platform,
-                        ),
-                      ],
+                    return Skeletonizer(
+                      enabled: isLoading,
+                      child: Column(
+                        children: [
+                          ExpandableSection(
+                            title: 'Slate Advocacy',
+                            description: advocacy,
+                          ),
+                          const SizedBox(height: 0),
+                          ExpandableSection(
+                            title: 'Slate Platform',
+                            description: platform,
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
 
                   const SizedBox(height: 17),
 
-                  StreamBuilder<QuerySnapshot>(
-                    stream: slateDocRef.collection('candidates').orderBy('pos_rank').snapshots(),
+                  FutureBuilder<QuerySnapshot>(
+                    future: _candidatesFuture,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) return const Text("Error loading candidates");
-                      if (!snapshot.hasData) {
-                        return const Center(child: CircularProgressIndicator());
+
+                      //addedSkeleton + image preload
+                      bool isLoading = (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) || _skeletonVisible;
+                      if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                        for (final doc in snapshot.data!.docs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final filePath = data['img_path'] as String?;
+                          if (filePath != null && filePath.isNotEmpty) {
+                            try {
+                              final url = Supabase.instance.client.storage
+                                  .from('images')
+                                  .getPublicUrl(filePath);
+                              precacheImage(NetworkImage(url), context);
+                            } catch (_) {}
+                          }
+                        }
                       }
 
-                      final docs = snapshot.data!.docs;
-                      if (docs.isEmpty) {
+                      final List<Map<String, dynamic>?> items = isLoading
+                      ? List.generate(4, (index) => null)
+                      : snapshot.data!.docs
+                          .map((doc) => doc.data() as Map<String, dynamic>)
+                          .toList();
+                      
+                      if (!isLoading && items.isEmpty) {
                         return const Text("No candidates found in this slate.");
                       }
 
-                      return Column(
-                        children: docs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final candidate = Candidate.fromMap(data);
-
-                          return CandidateListItem(candidate: candidate);
-                        }).toList(),
+                      return Skeletonizer (
+                        enabled: isLoading, 
+                        child: Column(
+                          children: items.map((docData) {
+                            if (docData == null) {
+                              return CandidateListItem(
+                                candidate: Candidate(
+                                  name: "Loading Candidate Name",
+                                  role: "Position Title",
+                                  party: "Party Name",
+                                  details: "College - Year",
+                                  imgPath: null,
+                                ),
+                              );
+                            }
+                            final candidate = Candidate.fromMap(docData);
+                            return CandidateListItem(candidate: candidate);
+                          }).toList(),
+                        ),
                       );
                     },
                   ),
 
                   const SizedBox(height: 30),
                 ],
+                ),
               ),
             ),
           ),
@@ -412,57 +483,63 @@ class CandidateListItem extends StatelessWidget {
               const SizedBox(width: 15),
               // Text
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      candidate.role,
-                      style: const TextStyle(
-                        color: Color(0xFF404040),
-                        fontSize: 18,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        candidate.role,
+                        style: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontSize: 18,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      candidate.name,
-                      style: const TextStyle(
-                        color: Color(0xFF747474),
-                        fontSize: 12,
-                        fontFamily: 'Geist',
-                        height: 20 / 12,
-                        fontWeight: FontWeight.w500,
+                      Text(
+                        candidate.name,
+                        style: const TextStyle(
+                          color: Color(0xFF747474),
+                          fontSize: 12,
+                          fontFamily: 'Geist',
+                          height: 20 / 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${candidate.details}\n${candidate.party}',
-                      style: const TextStyle(
-                        color: Color(0xFF747474),
-                        fontSize: 12,
-                        fontFamily: 'Geist',
-                        height: 20 / 12,
-                        fontWeight: FontWeight.w500,
+                      Text(
+                        '${candidate.details}\n${candidate.party}',
+                        style: const TextStyle(
+                          color: Color(0xFF747474),
+                          fontSize: 12,
+                          fontFamily: 'Geist',
+                          height: 20 / 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                
               ),
               // Arrow
-              Container(
-                width: 40,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF5C6AA0),
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                child: const Center(
-                  child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+              Skeleton.ignore(
+                child: Container(
+                  width: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6AA0),
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                  ),
                 ),
               ),
             ],

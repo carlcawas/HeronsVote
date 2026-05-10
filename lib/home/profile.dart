@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'reverify/reverify_step1.dart';
 import 'package:heronsvote/screens/splash_screen.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:heronsvote/services/firebase_service.dart';
 
 class ProfilePage extends StatefulWidget {
   final String uid;
@@ -23,11 +22,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // check if offline
   bool _isOffline = false;
+  late Future<DocumentSnapshot> _userFuture;
 
   @override
   void initState() {
     super.initState();
+    _userFuture = FirebaseFirestore.instance.collection('users').doc(widget.uid).get();
     _checkConnectivity();
+  }
+
+  Future<void> _refreshProfile() async {
+    final next = FirebaseFirestore.instance.collection('users').doc(widget.uid).get();
+    setState(() {
+      _userFuture = next;
+    });
+    await next;
   }
 
   Future<void> _checkConnectivity() async {
@@ -158,8 +167,8 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseService().getUserStream(widget.uid),
+        child: FutureBuilder<DocumentSnapshot>(
+          future: _userFuture,
           builder: (context, snapshot) {
             String name = '...';
             String college = '...';
@@ -194,7 +203,10 @@ class _ProfilePageState extends State<ProfilePage> {
               isVerified = data['isVerified'] ?? false;
             }
 
-            return SingleChildScrollView(
+            return RefreshIndicator(
+              onRefresh: _refreshProfile,
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,81 +292,81 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
 
                     // STATUS & INFO SECTION
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Verification Status Card
-                        Expanded(
-                          flex: 6,
-                          child: Container(
-                            height: 170,
-                            padding: const EdgeInsets.only(
-                              top: 19,
-                              left: 20,
-                              right: 20,
-                              bottom: 19,
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Verification Status Card
+                          Expanded(
+                            flex: 6,
+                            child: Container(
+                              padding: const EdgeInsets.only(
+                                top: 19,
+                                left: 20,
+                                right: 20,
+                                bottom: 19,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _cardColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Verification status:",
+                                    style: TextStyle(
+                                      color: _textColor,
+                                      fontSize: 16,
+                                      fontFamily: 'Geist',
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 15),
+                                  isVerified
+                                      ? SvgPicture.asset(
+                                          'assets/check.svg',
+                                          height: 60,
+                                          width: 60,
+                                        )
+                                      : SvgPicture.asset(
+                                          'assets/unverifiedIcon.svg',
+                                          height: 60,
+                                          width: 60,
+                                        ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    isVerified ? "Verified" : "Not Verified",
+                                    style: TextStyle(
+                                      color: const Color(0xFF747474),
+                                      fontSize: 14,
+                                      fontFamily: 'Geist',
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: _cardColor,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          //Info
+                          Expanded(
+                            flex: 4,
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  "Verification status:",
-                                  style: TextStyle(
-                                    color: _textColor,
-                                    fontSize: 16,
-                                    fontFamily: 'Geist',
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 15),
-
-                                isVerified
-                                    ? SvgPicture.asset(
-                                        'assets/check.svg',
-                                        height: 60,
-                                        width: 60,
-                                      )
-                                    : SvgPicture.asset(
-                                        'assets/unverifiedIcon.svg',
-                                        height: 60,
-                                        width: 60,
-                                      ),
-
+                                _buildSmallInfoCard(college),
                                 const SizedBox(height: 10),
-                                Text(
-                                  isVerified ? "Verified" : "Not Verified",
-                                  style: TextStyle(
-                                    color: const Color(0xFF747474),
-                                    fontSize: 14,
-                                    fontFamily: 'Geist',
-                                  ),
-                                ),
+                                _buildSmallInfoCard(yearLevel),
+                                const SizedBox(height: 10),
+                                _buildSmallInfoCard(semester),
                               ],
                             ),
                           ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        //Info
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            children: [
-                              _buildSmallInfoCard(college),
-                              const SizedBox(height: 10),
-                              _buildSmallInfoCard(yearLevel),
-                              const SizedBox(height: 10),
-                              _buildSmallInfoCard(semester),
-                            ],
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 12),
@@ -375,6 +387,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(height: 50),
                   ],
                 ],
+              ),
               ),
             );
           },

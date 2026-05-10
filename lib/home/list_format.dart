@@ -6,6 +6,9 @@ class ReusableListPage extends StatefulWidget {
   final VoidCallback onBack;
   final List<Widget> items;
   final String emptyMessage;
+  final Future<void> Function()? onRefresh;
+  final double refreshDisplacement;
+  final double refreshEdgeOffset;
 
   const ReusableListPage({
     super.key,
@@ -13,6 +16,9 @@ class ReusableListPage extends StatefulWidget {
     required this.onBack,
     required this.items,
     this.emptyMessage = 'No items found',
+    this.onRefresh,
+    this.refreshDisplacement = 120,
+    this.refreshEdgeOffset = 0,
   });
 
   @override
@@ -45,35 +51,68 @@ class _ReusableListPageState extends State<ReusableListPage> {
         children: [
           NotificationListener<ScrollNotification>(
             onNotification: _handleScrollNotification,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                top: topPadding + 85,
-                left: 25,
-                right: 25,
-                bottom: 22,
-              ),
-              child: Column(
-                children: [
-                  if (widget.items.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(40),
-                      child: Text(
-                        widget.emptyMessage,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFF8C8C8C),
-                          fontFamily: 'Geist',
-                          fontSize: 16,
-                        ),
+            child: widget.onRefresh == null
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.only(
+                      top: topPadding + 85,
+                      left: 25,
+                      right: 25,
+                      bottom: 22,
+                    ),
+                    children: [
+                      if (widget.items.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(40),
+                          child: Text(
+                            widget.emptyMessage,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xFF8C8C8C),
+                              fontFamily: 'Geist',
+                              fontSize: 16,
+                            ),
+                          ),
+                        )
+                      else
+                        ...widget.items,
+                      const SizedBox(height: 30),
+                    ],
+                  )
+                : RefreshIndicator(
+                    onRefresh: widget.onRefresh!,
+                    displacement: widget.refreshDisplacement,
+                    edgeOffset: widget.refreshEdgeOffset,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.only(
+                        top: topPadding + 85,
+                        left: 25,
+                        right: 25,
+                        bottom: 22,
                       ),
-                    )
-                  else
-                    ...widget.items,
-                  const SizedBox(height: 30),
-                ],
-              ),
-            ),
+                      children: [
+                        if (widget.items.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(40),
+                            child: Text(
+                              widget.emptyMessage,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFF8C8C8C),
+                                fontFamily: 'Geist',
+                                fontSize: 16,
+                              ),
+                            ),
+                          )
+                        else
+                          ...widget.items,
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
           ),
 
           // Header

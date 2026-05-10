@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:heronsvote/home/elect_select.dart';
+import 'package:heronsvote/services/firebase_service.dart';
 
 typedef ElectionContentBuilder = Widget Function(
   BuildContext context,
@@ -34,24 +35,54 @@ class ElectionGateway extends StatefulWidget {
 
 class _ElectionGatewayState extends State<ElectionGateway> {
   Future<List<Map<String, dynamic>>>? _electionsFuture;
+  Stream<List<Map<String, dynamic>>>? _electionsStream;
   Map<String, dynamic>? _selectedElection;
 
   Future<void> _refreshElections() async {
+    final selectedId = (_selectedElection?['id'] ?? '').toString();
     setState(() {
-      _selectedElection = null;
       _electionsFuture = widget.fetchElections(widget.uid);
     });
-    await _electionsFuture;
+    final refreshed = await _electionsFuture ?? <Map<String, dynamic>>[];
+    if (!mounted || selectedId.isEmpty) return;
+    final matched = refreshed.firstWhere(
+      (e) => (e['id'] ?? '').toString() == selectedId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (!mounted) return;
+    setState(() {
+      _selectedElection = matched.isEmpty ? null : matched;
+    });
   }
 
   @override
   void initState() {
     super.initState();
     _electionsFuture = widget.fetchElections(widget.uid);
+    _electionsStream = widget.isResultMode
+        ? FirebaseService().watchRelevantElectionsForUser(widget.uid)
+        : FirebaseService().watchActiveElectionsForUser(widget.uid);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_electionsStream != null) {
+      return StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _electionsStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF354372)),
+            );
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          }
+          return _buildFromElections(snapshot.data ?? []);
+        },
+      );
+    }
+
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _electionsFuture,
       builder: (context, snapshot) {
@@ -63,72 +94,74 @@ class _ElectionGatewayState extends State<ElectionGateway> {
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
         }
-        final elections = snapshot.data ?? [];
-
-        if (elections.isEmpty) {
-          // In results mode, still show the selection screen so users can open
-          // archived election history even when there are no active/recent items.
-          if (widget.isResultMode) {
-            return ElectionSelectionPage(
-              uid: widget.uid,
-              activeElections: elections,
-              isResultMode: widget.isResultMode,
-              onRefresh: _refreshElections,
-              onElectionSelected: (selected) {
-                setState(() {
-                  _selectedElection = selected;
-                });
-              },
-            );
-          }
-          return Center(child: Text(widget.emptyMessage));
-        }
-
-        if (widget.isResultMode && elections.length > 1 && _selectedElection == null) {
-          // Results mode: show list first when multiple elections exist.
-          return ElectionSelectionPage(
-            uid: widget.uid,
-            activeElections: elections,
-            isResultMode: widget.isResultMode,
-            onRefresh: _refreshElections,
-            onElectionSelected: (selected) {
-              setState(() {
-                _selectedElection = selected;
-              });
-            },
-          );
-        }
-
-        if (!widget.isResultMode && elections.length > 1 && _selectedElection == null) {
-          // Voting mode: keep in-tab selection flow.
-          return ElectionSelectionPage(
-            uid: widget.uid,
-            activeElections: elections,
-            isResultMode: widget.isResultMode,
-            onRefresh: _refreshElections,
-            onElectionSelected: (selected) {
-              setState(() {
-                _selectedElection = selected;
-              });
-            },
-          );
-        }
-
-        // Single election or Selected -> Show Target Page
-        final targetElection = _selectedElection ?? elections.first;
-        return widget.contentBuilder(
-          context,
-          targetElection,
-          elections.length > 1
-              ? () {
-                  setState(() {
-                    _selectedElection = null;
-                  });
-                }
-              : null,
-          widget.isResultMode ? null : _refreshElections,
-        );
+        return _buildFromElections(snapshot.data ?? []);
       },
+    );
+  }
+
+  Widget _buildFromElections(List<Map<String, dynamic>> elections) {
+    if (_selectedElection != null) {
+      final selectedId = (_selectedElection!['id'] ?? '').toString();
+      final stillExists = elections.any((e) => (e['id'] ?? '').toString() == selectedId);
+      if (!stillExists) {
+        _selectedElection = null;
+      }
+    }
+
+    if (elections.isEmpty) {
+      return ElectionSelectionPage(
+        uid: widget.uid,
+        activeElections: elections,
+        isResultMode: widget.isResultMode,
+        onRefresh: _refreshElections,
+        onElectionSelected: (selected) {
+          setState(() {
+            _selectedElection = selected;
+          });
+        },
+      );
+    }
+
+    if (widget.isResultMode && elections.length > 1 && _selectedElection == null) {
+      return ElectionSelectionPage(
+        uid: widget.uid,
+        activeElections: elections,
+        isResultMode: widget.isResultMode,
+        onRefresh: _refreshElections,
+        onElectionSelected: (selected) {
+          setState(() {
+            _selectedElection = selected;
+          });
+        },
+      );
+    }
+
+    if (!widget.isResultMode && elections.length > 1 && _selectedElection == null) {
+      return ElectionSelectionPage(
+        uid: widget.uid,
+        activeElections: elections,
+        isResultMode: widget.isResultMode,
+        onRefresh: _refreshElections,
+        onElectionSelected: (selected) {
+          setState(() {
+            _selectedElection = selected;
+          });
+        },
+      );
+    }
+
+    final targetElection = _selectedElection ?? elections.first;
+    return widget.contentBuilder(
+      context,
+      targetElection,
+      elections.length > 1
+          ? () {
+              setState(() {
+                _selectedElection = null;
+              });
+            }
+          : null,
+      widget.isResultMode ? null : _refreshElections,
     );
   }
 }

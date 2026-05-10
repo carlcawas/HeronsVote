@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'results.dart';
 import 'profile.dart';
 import 'election_gateway.dart';
@@ -39,6 +38,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // This is the Firebase service to get user data
   final FirebaseService _firebaseService = FirebaseService();
+  late Future<Map<String, dynamic>?> _userFuture;
+  
+  ElectionGateway _buildVotingGateway() {
+    return ElectionGateway(
+      uid: widget.uid,
+      fetchElections: _firebaseService.getActiveElectionsForUser,
+      isResultMode: false,
+      contentBuilder: (context, electionData, onBack, onRefresh) {
+        return VotingHomePage(
+          uid: widget.uid,
+          electionData: electionData,
+          onBack: onBack,
+          onRefresh: onRefresh,
+        );
+      },
+    );
+  }
 
   ElectionGateway _buildResultsGateway() {
     return ElectionGateway(
@@ -61,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _userFuture = _firebaseService.getDocument('users', widget.uid);
     _pages = [
       // 0. Home Tab
       HomeBody(uid: widget.uid, onTabChange: _onItemTapped),
@@ -70,20 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // 2. Voting Tab (Index 2)
       // In your home_screen.dart or where you define tabs
-      ElectionGateway(
-        uid: widget.uid,
-        fetchElections:
-            _firebaseService.getActiveElectionsForUser, // Fetches ONGOING only
-        isResultMode: false, // Default (Voting logic applied)
-        contentBuilder: (context, electionData, onBack, onRefresh) {
-          return VotingHomePage(
-            uid: widget.uid,
-            electionData: electionData,
-            onBack: onBack,
-            onRefresh: onRefresh,
-          );
-        },
-      ),
+      _buildVotingGateway(),
 
       // 3. Results Tab (Index 3)
       _buildResultsGateway(),
@@ -95,6 +99,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (index == 3) {
         // Always reset Results tab state so list is shown first.
         _pages[3] = _buildResultsGateway();
+      }
+      if (index == 2) {
+        // Always refresh Voting tab source when opened.
+        _pages[2] = _buildVotingGateway();
       }
       _selectedIndex = index;
     });
@@ -174,12 +182,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // A small, dedicated StreamBuilder just for the "Hello, [name]" title
   Widget _buildHomeTitle(TextStyle style) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _firebaseService.getUserStream(widget.uid),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _userFuture,
       builder: (context, snapshot) {
         String userName = "User";
-        if (snapshot.hasData && snapshot.data!.data() != null) {
-          final userData = snapshot.data!.data() as Map<String, dynamic>;
+        if (snapshot.hasData && snapshot.data != null) {
+          final userData = snapshot.data!;
           final String fullName = userData['name'] ?? 'User';
           if (fullName.trim().isNotEmpty) {
             userName = fullName.split(' ').first;

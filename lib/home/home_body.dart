@@ -43,23 +43,11 @@ class _HomeBodyState extends State<HomeBody> {
   int _currentCandidatesPage = 0;
 
   bool _isLoading = true; // Controls the main loading spinner
-  final int _dataStreamsToLoad = 8; 
-  int _dataStreamsLoaded = 0; // Counter
   
-  Stream<QuerySnapshot>? _cscOfficialsStream;
-  Stream<QuerySnapshot>? _uscOfficialsStream;
+  Future<QuerySnapshot>? _cscOfficialsFuture;
+  Future<QuerySnapshot>? _uscOfficialsFuture;
+  StreamSubscription? _verifiedSub;
   
-  // --- Stream Subscriptions ---
-  StreamSubscription? _userSub;
-  StreamSubscription? _collegeElecSub;
-  StreamSubscription? _uniElecSub;
-  StreamSubscription? _proposalSub;
-  StreamSubscription? _endedCollegeSub;
-  StreamSubscription? _endedUniSub;
-  StreamSubscription? _endedProposalSub;
-  StreamSubscription? _latestCollegeElecSub; 
-  StreamSubscription? _latestUniElecSub; 
-
   // --- Snapshot data holders ---
   QuerySnapshot? _collegeElecSnap;
   QuerySnapshot? _uniElecSnap;
@@ -81,136 +69,90 @@ class _HomeBodyState extends State<HomeBody> {
   String _userCollegeId = "";
   String _userCollegeAbbreviation = "";
   bool _isVerified = false;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
     _userId = widget.uid;
     _startDataListeners();
+    _verifiedSub = _firebaseService.getUserStream(_userId).listen((userSnapshot) {
+      if (!mounted) return;
+      final userData = userSnapshot.data() as Map<String, dynamic>? ?? {};
+      setState(() {
+        _isVerified = userData['isVerified'] ?? false;
+      });
+    });
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {});
-      }
+    _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (!mounted) return;
+      _startDataListeners();
+      setState(() {});
     });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _verifiedSub?.cancel();
     _activeItemsPageController.dispose();
     _slatesPageController.dispose();
     _candidatesPageController.dispose();
     
-    _userSub?.cancel();
-    _collegeElecSub?.cancel();
-    _uniElecSub?.cancel();
-    _proposalSub?.cancel();
-    _endedCollegeSub?.cancel();
-    _endedUniSub?.cancel();
-    _endedProposalSub?.cancel();
-    _latestCollegeElecSub?.cancel(); 
-    _latestUniElecSub?.cancel();
-
     super.dispose();
   }
 
-  // Checks if all initial data is loaded to hide the spinner
-  void _onDataStreamLoaded() {
-    _dataStreamsLoaded++;
-    if (_dataStreamsLoaded >= _dataStreamsToLoad && _isLoading) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  // Initializes all data listeners
+  Future<void> _startDataListeners() async {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
+    try {
+    final userSnapshot = await _firebaseService.getUserDoc(_userId);
+    final userData = userSnapshot.data() as Map<String, dynamic>? ?? {};
+    _userCollegeAbbreviation = userData['college_id'] ?? '';
+    _isVerified = userData['isVerified'] ?? false;
+    _userCollegeId = userData['college_id'] ?? '';
 
-  // Initializes all stream listeners
-  void _startDataListeners() {
-    _uniElecSub =
-        _firebaseService.getActiveUniversityElectionStream().listen((snapshot) {
-      if (mounted) setState(() => _uniElecSnap = snapshot);
-      _onDataStreamLoaded();
+    _cscOfficialsFuture = _firebaseService.getCurrentOfficials(_userCollegeId);
+    _uscOfficialsFuture = _firebaseService.getUniversityOfficials();
+
+    final results = await Future.wait([
+      _firebaseService.getActiveUniversityElection(),
+      _firebaseService.getActiveUniversityProposal(),
+      _firebaseService.getRecentlyEndedUniversityElectionOnce(),
+      _firebaseService.getRecentlyEndedUniversityProposalOnce(),
+      _firebaseService.getActiveCollegeElection(_userCollegeId),
+      _firebaseService.getRecentlyEndedCollegeElectionOnce(_userCollegeId),
+      _firebaseService.getLatestUniversityElection().first,
+      _firebaseService.getLatestCollegeElection(_userCollegeId).first,
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _uniElecSnap = results[0];
+      _proposalSnap = results[1];
+      _endedUniSnap = results[2];
+      _endedProposalSnap = results[3];
+      _collegeElecSnap = results[4];
+      _endedCollegeSnap = results[5];
+      _latestUniElecSnap = results[6];
+      _latestCollegeElecSnap = results[7];
+      _isLoading = false;
     });
-
-    _proposalSub =
-        _firebaseService.getActiveUniversityProposalStream().listen((snapshot) {
-      if (mounted) setState(() => _proposalSnap = snapshot);
-      _onDataStreamLoaded();
-    });
-
-    _endedUniSub = _firebaseService
-        .getRecentlyEndedUniversityElection()
-        .listen((snapshot) {
-      if (mounted) setState(() => _endedUniSnap = snapshot);
-      _onDataStreamLoaded();
-    });
-
-    _endedProposalSub = _firebaseService
-        .getRecentlyEndedUniversityProposal()
-        .listen((snapshot) {
-      if (mounted) setState(() => _endedProposalSnap = snapshot);
-      _onDataStreamLoaded();
-    });
-
-    // Load latest uni election for results (fallback)
-    _latestUniElecSub =
-        _firebaseService.getLatestUniversityElection().listen((snapshot) {
-      if (mounted) setState(() => _latestUniElecSnap = snapshot);
-      _onDataStreamLoaded();
-    });
-
-    _userSub = _firebaseService.getUserStream(_userId).listen((userSnapshot) {
+    } catch (_) {
       if (!mounted) return;
-      final userData = userSnapshot.data() as Map<String, dynamic>? ?? {};
-
-      // Process user data
-      _userCollegeAbbreviation = userData['college_id'] ?? '';
-      _isVerified = userData['isVerified'] ?? false;
-      final String newCollegeId = userData['college_id'] ?? '';
-
-      // If college ID changes, reload college-specific streams
-      if (newCollegeId != _userCollegeId || _collegeElecSub == null) {
-        _userCollegeId = newCollegeId;
-
-        _cscOfficialsStream = _firebaseService.getCurrentOfficialsStream(_userCollegeId);
-        _uscOfficialsStream = _firebaseService.getUniversityOfficialsStream();
-
-        // Cancel old subscriptions
-        _collegeElecSub?.cancel();
-        _endedCollegeSub?.cancel();
-        _latestCollegeElecSub?.cancel();
-
-        // Start new college streams
-        _collegeElecSub = _firebaseService
-            .getActiveCollegeElectionStream(_userCollegeId)
-            .listen((snapshot) {
-          if (mounted) setState(() => _collegeElecSnap = snapshot);
-          if (_isLoading) _onDataStreamLoaded();
-        });
-
-        _endedCollegeSub = _firebaseService
-            .getRecentlyEndedCollegeElection(_userCollegeId)
-            .listen((snapshot) {
-          if (mounted) setState(() => _endedCollegeSnap = snapshot);
-          if (_isLoading) _onDataStreamLoaded();
-        });
-        
-        // Load latest college election for results (fallback)
-        _latestCollegeElecSub = _firebaseService
-            .getLatestCollegeElection(_userCollegeId)
-            .listen((snapshot) {
-          if (mounted) setState(() => _latestCollegeElecSnap = snapshot);
-          if (_isLoading) _onDataStreamLoaded();
-        });
-
-      } else {
-        setState(() {});
-      }
-      if (_isLoading) _onDataStreamLoaded();
-    });
+      setState(() {
+        _isLoading = false;
+        _collegeElecSnap = null;
+        _uniElecSnap = null;
+        _proposalSnap = null;
+        _endedCollegeSnap = null;
+        _endedUniSnap = null;
+        _endedProposalSnap = null;
+      });
+    } finally {
+      _isRefreshing = false;
+    }
   }
 
   void _processSliderItems() {
@@ -254,7 +196,8 @@ class _HomeBodyState extends State<HomeBody> {
     // Always check for recently ended items
     if (_endedCollegeSnap!.docs.isNotEmpty) {
       final doc = _endedCollegeSnap!.docs.first;
-      if (_isRecentlyEnded(doc['end'] as Timestamp)) {
+      final end = doc['end'];
+      if (end is Timestamp && _isRecentlyEnded(end)) {
         _recentlyEndedItems.add({
           'type': 'college',
           'ongoing': false,
@@ -264,7 +207,8 @@ class _HomeBodyState extends State<HomeBody> {
     }
     if (_endedUniSnap!.docs.isNotEmpty) {
       final doc = _endedUniSnap!.docs.first;
-      if (_isRecentlyEnded(doc['end'] as Timestamp)) {
+      final end = doc['end'];
+      if (end is Timestamp && _isRecentlyEnded(end)) {
         _recentlyEndedItems.add({
           'type': 'university',
           'ongoing': false,
@@ -274,7 +218,8 @@ class _HomeBodyState extends State<HomeBody> {
     }
     if (_endedProposalSnap!.docs.isNotEmpty) {
       final doc = _endedProposalSnap!.docs.first;
-      if (_isRecentlyEnded(doc['end'] as Timestamp)) {
+      final end = doc['end'];
+      if (end is Timestamp && _isRecentlyEnded(end)) {
         _recentlyEndedItems.add({
           'type': 'proposal',
           'ongoing': false,
@@ -284,9 +229,14 @@ class _HomeBodyState extends State<HomeBody> {
     }
 
     // Sort recently ended items
-    _recentlyEndedItems.sort(
-      (a, b) => (b['end'] as Timestamp).compareTo(a['end'] as Timestamp),
-    );
+    _recentlyEndedItems.sort((a, b) {
+      final aEnd = a['end'];
+      final bEnd = b['end'];
+      if (aEnd is! Timestamp && bEnd is! Timestamp) return 0;
+      if (aEnd is! Timestamp) return 1;
+      if (bEnd is! Timestamp) return -1;
+      return bEnd.compareTo(aEnd);
+    });
 
     // Create the combined list
     _sliderItems = [..._activeItems, ..._recentlyEndedItems];
@@ -373,9 +323,10 @@ class _HomeBodyState extends State<HomeBody> {
     _processSliderItems();
 
     // For UI update and building
-    return SingleChildScrollView(
-      physics:
-          const ClampingScrollPhysics(), //scroll only when needed
+    return RefreshIndicator(
+      onRefresh: _startDataListeners,
+      child: SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(
         horizontal: 0, //di na need since individual widget is naka 24 na
         vertical: 0,
@@ -421,6 +372,7 @@ class _HomeBodyState extends State<HomeBody> {
           const SizedBox(height: 12), //para san itech, ahh para sa extra space under before u vote section
 
         ],
+      ),
       ),
     );
   }
@@ -760,8 +712,11 @@ class _HomeBodyState extends State<HomeBody> {
           if (isOngoing) ...[
             Builder(
               builder: (context) {
-                final Timestamp endTimestamp = item['end'];
-                final DateTime endTime = endTimestamp.toDate();
+                final endRaw = item['end'];
+                if (endRaw is! Timestamp) {
+                  return _buildTimerSection(Duration.zero);
+                }
+                final DateTime endTime = endRaw.toDate();
                 final Duration timeLeft = endTime.difference(DateTime.now());
                 return _buildTimerSection(
                   timeLeft.isNegative ? Duration.zero : timeLeft,
@@ -826,12 +781,12 @@ class _HomeBodyState extends State<HomeBody> {
       if (latestCollegeElectionId != null) {
         return _buildCurrentOfficialsSection(
           "$_userCollegeAbbreviation Officials",
-          _firebaseService.getElectionResultsStream(_userCollegeId),
+          _firebaseService.getElectionResultsStream(_userCollegeId).first,
         );
       } else {
         return _buildCurrentOfficialsSection(
           "University Officials",
-          _firebaseService.getUniversityOfficialsStream(),
+          _firebaseService.getUniversityOfficials(),
         );
       }
     }
@@ -839,7 +794,10 @@ class _HomeBodyState extends State<HomeBody> {
     // Active/Recent state
     if (_sliderItems.isEmpty) return const SizedBox.shrink();
 
-    final currentItem = _sliderItems[_currentActiveItemPage];
+    final safeIndex = _currentActiveItemPage
+        .clamp(0, _sliderItems.length - 1)
+        .toInt();
+    final currentItem = _sliderItems[safeIndex];
     final String type = currentItem['type'];
     final String id = currentItem['id'];
     final bool isOngoing = currentItem['ongoing'];
@@ -854,8 +812,8 @@ class _HomeBodyState extends State<HomeBody> {
       if (type == 'proposal') {
         return _buildCombinedOfficialsSection(
           "Officials", // Label
-          _cscOfficialsStream ?? Stream.empty(), 
-          _uscOfficialsStream ?? Stream.empty(),
+          _cscOfficialsFuture ?? _firebaseService.getCurrentOfficials(_userCollegeId), 
+          _uscOfficialsFuture ?? _firebaseService.getUniversityOfficials(),
         );
       }
 
@@ -867,7 +825,7 @@ class _HomeBodyState extends State<HomeBody> {
     if (type == 'proposal') {
       return _buildCurrentOfficialsSection(
         "University Officials",
-        _firebaseService.getUniversityOfficialsStream(),
+        _firebaseService.getUniversityOfficials(),
       );
     }
 
@@ -875,7 +833,7 @@ class _HomeBodyState extends State<HomeBody> {
     else if (type == 'college') {
       return _buildCurrentOfficialsSection(
         "Newly Elected $_userCollegeId Officials",
-        _firebaseService.getElectionResultsStream(_userCollegeId), 
+        _firebaseService.getElectionResultsStream(_userCollegeId).first, 
         isResults: true,
       );
     }
@@ -883,7 +841,7 @@ class _HomeBodyState extends State<HomeBody> {
     // Recently Ended University Election
     return _buildCurrentOfficialsSection(
       "Newly Elected University Officials",
-      _firebaseService.getUniversityOfficialsStream(), 
+      _firebaseService.getUniversityOfficials(), 
       isResults: true,
     );
   }
@@ -891,8 +849,8 @@ class _HomeBodyState extends State<HomeBody> {
   // combine two streams into one slider (CSC first, then USC)
   Widget _buildCombinedOfficialsSection(
     String title,
-    Stream<QuerySnapshot> cscStream,
-    Stream<QuerySnapshot> uscStream,
+    Future<QuerySnapshot> cscFuture,
+    Future<QuerySnapshot> uscFuture,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -902,14 +860,19 @@ class _HomeBodyState extends State<HomeBody> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF404040),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF404040),
+                  ),
                 ),
               ),
+              const SizedBox(width: 12),
               Padding(
                 padding: const EdgeInsets.only(right: 28),
                 child: GestureDetector( // see all
@@ -949,11 +912,11 @@ class _HomeBodyState extends State<HomeBody> {
 
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24), //officials section margin
-          child: StreamBuilder<QuerySnapshot>(
-            stream: cscStream,
+          child: FutureBuilder<QuerySnapshot>(
+            future: cscFuture,
             builder: (context, cscSnapshot) {
-              return StreamBuilder<QuerySnapshot>(
-                stream: uscStream,
+              return FutureBuilder<QuerySnapshot>(
+                future: uscFuture,
                 builder: (context, uscSnapshot) {
                   if (cscSnapshot.connectionState == ConnectionState.waiting ||
                       uscSnapshot.connectionState == ConnectionState.waiting) {
@@ -996,7 +959,7 @@ class _HomeBodyState extends State<HomeBody> {
 
   Widget _buildCurrentOfficialsSection( //newly elected [college] official, [type] officials
     String title,
-    Stream<QuerySnapshot> stream, {
+    Future<QuerySnapshot> future, {
     bool isResults = false,
   }) {
     return Column(
@@ -1065,8 +1028,8 @@ class _HomeBodyState extends State<HomeBody> {
         Padding(
           padding: EdgeInsetsGeometry.symmetric(horizontal: 24), //padding ni newly elected
 
-          child: StreamBuilder<QuerySnapshot>(
-            stream: stream,
+          child: FutureBuilder<QuerySnapshot>(
+            future: future,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 print("Error loading officials: ${snapshot.error}");
@@ -1156,8 +1119,8 @@ class _HomeBodyState extends State<HomeBody> {
             ),
           ),
           const SizedBox(height: 13), //ayon gap ng see all and slates title sa image placeholder
-          StreamBuilder<QuerySnapshot>(
-            stream: _firebaseService.getSlatesStream(electionId),
+          FutureBuilder<QuerySnapshot>(
+            future: _firebaseService.getSlates(electionId),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 print("Error loading slates: ${snapshot.error}");
@@ -1171,7 +1134,22 @@ class _HomeBodyState extends State<HomeBody> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.data!.docs.isEmpty) {
-                return const SizedBox.shrink();
+                return Container(
+                  height: 186,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7F7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    "No slates found.",
+                    style: TextStyle(
+                      color: Color(0xFF747474),
+                      fontFamily: 'Geist',
+                      fontSize: 14,
+                    ),
+                  ),
+                );
               }
 
               final slates = snapshot.data!.docs;
@@ -1421,8 +1399,8 @@ class _HomeBodyState extends State<HomeBody> {
           ),
           const SizedBox(height: 13),
           
-          StreamBuilder<QuerySnapshot>( //start2
-            stream: _firebaseService.getCandidatesByElectionId(electionId),
+          FutureBuilder<QuerySnapshot>( //start2
+            future: _firebaseService.getCandidatesByElectionId(electionId).first,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Container(

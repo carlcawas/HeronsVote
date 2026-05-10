@@ -392,6 +392,8 @@ class OfficialListItem extends StatelessWidget {
                 children: [
                   Text(
                     official.position,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF404040),
                       fontSize: 18,
@@ -402,6 +404,8 @@ class OfficialListItem extends StatelessWidget {
                   ),
                   Text(
                     official.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF747474),
                       fontSize: 12,
@@ -411,7 +415,9 @@ class OfficialListItem extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${official.details}\n${official.party}',
+                    '${official.details} ${official.party}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF747474),
                       fontSize: 12,

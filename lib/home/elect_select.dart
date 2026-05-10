@@ -138,58 +138,58 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                 const SizedBox(height: 20),
               
               // HEADER CARD
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7F7F7),
-                  borderRadius: BorderRadius.circular(15),
-                  // Removed shadow as per your previous code style if needed
-                  border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      // Change Title based on Mode
-                      widget.isResultMode ? 'View Results' : 'Choose Election',
-                      style: const TextStyle(
-                        color: Color(0xFF404040),
-                        fontSize: 20,
-                        fontFamily: 'Geist',
-                        fontWeight: FontWeight.w600,
+              if (widget.isResultMode || widget.activeElections.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7F7),
+                    borderRadius: BorderRadius.circular(15),
+                    // Removed shadow as per your previous code style if needed
+                    border: Border.all(color: const Color(0xFFD9D9D9), width: 0.5),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        // Change Title based on Mode
+                        widget.isResultMode ? 'View Results' : 'Choose Election',
+                        style: const TextStyle(
+                          color: Color(0xFF404040),
+                          fontSize: 20,
+                          fontFamily: 'Geist',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.isResultMode
-                          ? 'Select an election to view the live or\npublished results.'
-                          : 'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
-                      style: const TextStyle(
-                        color: Color(0xFF747474),
-                        fontSize: 14,
-                        fontFamily: 'Geist',
-                        height: 1.4,
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.isResultMode
+                            ? 'Select an election to view the live or\npublished results.'
+                            : 'You have ${widget.activeElections.length} active elections.\nPlease select one to continue.',
+                        style: const TextStyle(
+                          color: Color(0xFF747474),
+                          fontSize: 14,
+                          fontFamily: 'Geist',
+                          height: 1.4,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
 
-              SizedBox(
-                height: widget.activeElections.isNotEmpty
-                    ? 30
-                    : (widget.isResultMode ? 18 : 30),
-              ),
+              // const SizedBox(height: 30),
 
               if (widget.activeElections.isNotEmpty) ...[
-                Text(
-                  widget.isResultMode ? 'All Elections' : 'Active Election',
-                  style: const TextStyle(
-                    color: Color(0xFF404040),
-                    fontSize: 14,
-                    fontFamily: 'Geist',
-                    fontWeight: FontWeight.w500,
+                Padding(
+                  padding: const EdgeInsets.only(left: 4.0, top: 15.0),
+                  child: Text(
+                    widget.isResultMode ? 'All Elections' : 'Active Election',
+                    style: const TextStyle(
+                      color: Color(0xFF404040),
+                      fontSize: 14,
+                      fontFamily: 'Geist',
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -247,13 +247,30 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     ),
                   ),
                 ),
+              ] else ...[
+                if (!widget.isResultMode)
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.58,
+                    child: const Center(
+                      child: Text(
+                        'No elections available.',
+                        style: TextStyle(
+                          color: Color(0xFF404040),
+                          fontSize: 15,
+                          fontFamily: 'Geist',
+                        ),
+                      ),
+                    ),
+                  ),
               ],
 
+              const SizedBox(height: 20),
+              
               if (widget.isResultMode) ...[
-                SizedBox(
-                  height: widget.activeElections.isNotEmpty ? 28 : 12,
-                ),
-                const Text(
+
+                Padding(
+                  padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
+                  child: const Text(
                   'Election History',
                   style: TextStyle(
                     color: Color(0xFF404040),
@@ -262,7 +279,8 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 12),
+                ),
+                const SizedBox(height: 2),
                 Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFFF7F7F7),
@@ -286,15 +304,12 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                         );
                       },
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 20,
-                          horizontal: 20,
-                        ),
+                        padding: EdgeInsets.symmetric(vertical: 24, horizontal: 24),
                         child: Row(
                           children: [
                             Expanded(
                               child: Text(
-                                'View Archived Elections',
+                                'View Election History',
                                 style: TextStyle(
                                   color: Color(0xFF404040),
                                   fontSize: 16,
@@ -302,11 +317,6 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16,
-                              color: Color(0xFF404040),
                             ),
                           ],
                         ),

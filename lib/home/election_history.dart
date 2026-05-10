@@ -4,10 +4,35 @@ import 'package:flutter/material.dart';
 import 'header.dart';
 import 'results.dart';
 
-class ElectionHistoryPage extends StatelessWidget {
+class ElectionHistoryPage extends StatefulWidget {
   final String uid;
 
   const ElectionHistoryPage({super.key, required this.uid});
+
+  @override
+  State<ElectionHistoryPage> createState() => _ElectionHistoryPageState();
+}
+
+class _ElectionHistoryPageState extends State<ElectionHistoryPage> {
+  late Future<QuerySnapshot<Map<String, dynamic>>> _archivesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _archivesFuture = _loadArchives();
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _loadArchives() {
+    return FirebaseFirestore.instance.collection('archives').get();
+  }
+
+  Future<void> _refreshArchives() async {
+    final next = _loadArchives();
+    setState(() {
+      _archivesFuture = next;
+    });
+    await next;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,8 +41,8 @@ class ElectionHistoryPage extends StatelessWidget {
       body: Stack(
         children: [
           Positioned.fill(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance.collection('archives').snapshots(),
+            child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              future: _archivesFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -52,43 +77,47 @@ class ElectionHistoryPage extends StatelessWidget {
                   return const Center(child: Text('No archived elections yet.'));
                 }
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.only(
-                    top: 130,
-                    left: 24,
-                    right: 24,
-                    bottom: 100,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Showing a 3-year historical record of university-wide and college-level student elections.',
-                        style: TextStyle(
-                          color: Color(0xFF747474),
-                          fontSize: 14,
-                          fontFamily: 'Geist',
-                          fontWeight: FontWeight.w400,
-                          height: 1.4,
+                return RefreshIndicator(
+                  onRefresh: _refreshArchives,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(
+                      top: 130,
+                      left: 24,
+                      right: 24,
+                      bottom: 100,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Showing a 3-year historical record of university-wide and college-level student elections.',
+                          style: TextStyle(
+                            color: Color(0xFF747474),
+                            fontSize: 14,
+                            fontFamily: 'Geist',
+                            fontWeight: FontWeight.w400,
+                            height: 1.4,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSection(
-                        context,
-                        label: 'University-Wide Elections',
-                        docs: university,
-                      ),
-                      _buildSection(
-                        context,
-                        label: 'College-Specific Elections',
-                        docs: college,
-                      ),
-                      _buildSection(
-                        context,
-                        label: 'Proposal Elections',
-                        docs: proposal,
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        _buildSection(
+                          context,
+                          label: 'University-Wide Elections',
+                          docs: university,
+                        ),
+                        _buildSection(
+                          context,
+                          label: 'College-Specific Elections',
+                          docs: college,
+                        ),
+                        _buildSection(
+                          context,
+                          label: 'Proposal Elections',
+                          docs: proposal,
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -114,7 +143,7 @@ class ElectionHistoryPage extends StatelessWidget {
               child: SafeArea(
                 bottom: false,
                 child: CustomHeader(
-                  title: 'Results',
+                  title: 'Election History',
                   onBack: () => Navigator.pop(context),
                 ),
               ),
@@ -211,7 +240,7 @@ class ElectionHistoryPage extends StatelessWidget {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => HistoryResultPage(
-                uid: uid,
+                uid: widget.uid,
                 electionData: electionData,
               ),
             ),
