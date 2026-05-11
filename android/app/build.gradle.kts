@@ -1,7 +1,7 @@
 import java.util.Properties
 import java.io.FileInputStream
 
-val keystorePropertiesFile = rootProject.file("android/key.properties")
+val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
         load(FileInputStream(keystorePropertiesFile))
@@ -10,9 +10,17 @@ val keystoreProperties = Properties().apply {
 
 fun prop(key: String): String? = keystoreProperties.getProperty(key)
 
+fun resolvePath(path: String): java.io.File {
+    val normalized = path.replace("\\", "/").removePrefix("./")
+    return when {
+        normalized.startsWith("android/") -> rootProject.file(normalized.removePrefix("android/"))
+        else -> rootProject.file(normalized)
+    }
+}
+
 fun storeFileExists(): Boolean {
     val sf = prop("storeFile")
-    return sf != null && sf.isNotBlank() && rootProject.file(sf).exists()
+    return sf != null && sf.isNotBlank() && resolvePath(sf).exists()
 }
 
 plugins {
@@ -48,7 +56,7 @@ android {
         create("unified") {
             val storeFileProp = prop("storeFile")
             if (storeFileProp != null && storeFileProp.isNotBlank()) {
-                val resolved = rootProject.file(storeFileProp)
+                val resolved = resolvePath(storeFileProp)
                 if (resolved.exists()) {
                     storeFile = resolved
                 }
