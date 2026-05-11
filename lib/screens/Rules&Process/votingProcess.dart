@@ -16,7 +16,7 @@ class VotingProcess extends StatelessWidget {
           SingleChildScrollView(
             // Add padding to the top so the first part of the image 
             // isn't hidden behind the status bar/header text initially.
-            padding: const EdgeInsets.only(top: 90), 
+            padding: const EdgeInsets.only(top: 110), 
             child: Column(
               children: [
                 Image.asset(

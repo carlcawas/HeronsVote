@@ -34,7 +34,7 @@ class _CandidateListPageState extends State<CandidateListPage> {
     super.initState();
     _collegeIdFuture = _getUserId();
     _candidatesFuture = _loadCandidates();
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 650), () {
       if (mounted) setState(() => _skeletonVisible = false);
     });
   }

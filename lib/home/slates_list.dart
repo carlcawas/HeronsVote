@@ -23,7 +23,7 @@ class _SlateListPageState extends State<SlateListPage> {
   void initState() {
     super.initState();
     _slatesFuture = service.getSlates(widget.electionId);
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 650), () {
       if (mounted) setState(() => _skeletonVisible = false);
     });
   }

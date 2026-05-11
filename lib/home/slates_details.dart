@@ -29,7 +29,7 @@ class _SlateDetailsPageState extends State<SlateDetailsPage> {
   void initState() {
     super.initState();
     _loadSlateDetails();
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 650), () {
       if (mounted) setState(() => _skeletonVisible = false);
     });
   }

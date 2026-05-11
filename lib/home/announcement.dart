@@ -222,6 +222,7 @@ class AnnouncementsPage extends StatefulWidget {
 
 class _AnnouncementsPageState extends State<AnnouncementsPage> {
   final AnnouncementProvider provider = AnnouncementProvider();
+  static const Duration _minSkeletonDuration = Duration(milliseconds: 650);
   List<Announcement> _announcements = [];
   bool _loading = true;
   bool _isOffline = false;
@@ -265,12 +266,14 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
   }
 
   Future<void> _checkInternetAndLoad() async {
+    final startedAt = DateTime.now();
     if (mounted) setState(() => _loading = true);
 
     final connectivityResult = await (Connectivity().checkConnectivity());
 
     if (connectivityResult.contains(ConnectivityResult.none)) {
       if (mounted) {
+        await _completeLoadingWithMinimumDelay(startedAt);
         setState(() {
           _isOffline = true;
           _loading = false;
@@ -282,14 +285,23 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
           _isOffline = false;
         });
       }
-      await _loadAnnouncements();
+      await _loadAnnouncements(startedAt: startedAt);
     }
   }
 
-  Future<void> _loadAnnouncements() async {
+  Future<void> _completeLoadingWithMinimumDelay(DateTime startedAt) async {
+    final elapsed = DateTime.now().difference(startedAt);
+    final remaining = _minSkeletonDuration - elapsed;
+    if (remaining.isNegative) return;
+    await Future.delayed(remaining);
+  }
+
+  Future<void> _loadAnnouncements({DateTime? startedAt}) async {
+    final loadStartedAt = startedAt ?? DateTime.now();
     try {
       final data = await provider.getAnnouncements(widget.userId);
       if (mounted) {
+        await _completeLoadingWithMinimumDelay(loadStartedAt);
         setState(() {
           _announcements = data;
           _loading = false;
@@ -299,6 +311,7 @@ class _AnnouncementsPageState extends State<AnnouncementsPage> {
     } catch (e) {
       if (mounted) {
         final connectivityResult = await (Connectivity().checkConnectivity());
+        await _completeLoadingWithMinimumDelay(loadStartedAt);
         if (connectivityResult.contains(ConnectivityResult.none)) {
            setState(() {
              _isOffline = true;
