@@ -1473,6 +1473,457 @@ class FirebaseService {
     }
   }
 
+  Stream<TurnoutStats> getTurnoutRealtimeStream({
+    required String electionId,
+    required String electionType,
+    String? userCollege,
+    String? sourceCollection,
+    String? sourceDocId,
+  }) {
+    final controller = StreamController<TurnoutStats>();
+
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? votesSub;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? usersSub;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? collegesSub;
+
+    QuerySnapshot<Map<String, dynamic>>? latestVotes;
+    QuerySnapshot<Map<String, dynamic>>? latestUsers;
+    QuerySnapshot<Map<String, dynamic>>? latestColleges;
+
+    final String normalizedType = electionType.toLowerCase();
+    final bool isProposal = normalizedType == 'proposal';
+    final bool byCollege = normalizedType == 'university' || isProposal;
+
+    final bool useArchiveSource =
+        sourceCollection == 'archives' && sourceDocId != null;
+    final String collectionName = useArchiveSource
+        ? 'archives'
+        : (isProposal ? 'proposals' : 'elections');
+    final String targetDocId = useArchiveSource
+        ? (sourceDocId ?? electionId)
+        : electionId;
+
+    void emitIfReady() {
+      if (latestVotes == null || latestUsers == null) return;
+      if (byCollege && latestColleges == null) return;
+
+      try {
+        final List<String> categories = byCollege
+            ? ((latestColleges!.docs.isNotEmpty)
+                  ? latestColleges!.docs.map((d) => d.id).toList()
+                  : _defaultCollegeBuckets())
+            : _defaultYearBuckets();
+
+        final Map<String, int> turnoutCounts = {
+          for (final category in categories) category: 0,
+        };
+        final Map<String, int> groupTotalVoters = {
+          for (final category in categories) category: 0,
+        };
+
+        for (final doc in latestVotes!.docs) {
+          final data = doc.data();
+          final String bucket = byCollege
+              ? (data['user_college_id'] ?? '').toString()
+              : (data['user_year_level'] ?? '').toString();
+
+          if (!turnoutCounts.containsKey(bucket)) continue;
+
+          if (!byCollege &&
+              userCollege != null &&
+              userCollege.trim().isNotEmpty &&
+              (data['user_college_id'] ?? '').toString() != userCollege) {
+            continue;
+          }
+
+          turnoutCounts[bucket] = (turnoutCounts[bucket] ?? 0) + 1;
+        }
+
+        for (final doc in latestUsers!.docs) {
+          final data = doc.data();
+          final String bucket = byCollege
+              ? (data['college_id'] ?? '').toString()
+              : (data['year_level'] ?? '').toString();
+
+          if (!groupTotalVoters.containsKey(bucket)) continue;
+
+          if (!byCollege &&
+              userCollege != null &&
+              userCollege.trim().isNotEmpty &&
+              (data['college_id'] ?? '').toString() != userCollege) {
+            continue;
+          }
+
+          groupTotalVoters[bucket] = (groupTotalVoters[bucket] ?? 0) + 1;
+        }
+
+        final int totalVotesCast =
+            turnoutCounts.values.fold(0, (total, value) => total + value);
+        final int totalVerifiedVoters = groupTotalVoters.values.fold(
+          0,
+          (total, value) => total + value,
+        );
+
+        controller.add(
+          TurnoutStats(
+            breakdown: turnoutCounts,
+            groupTotalVoters: groupTotalVoters,
+            totalVotesCast: totalVotesCast,
+            totalVerifiedVoters: totalVerifiedVoters == 0
+                ? 1
+                : totalVerifiedVoters,
+          ),
+        );
+      } catch (e) {
+        if (!controller.isClosed) controller.addError(e);
+      }
+    }
+
+    votesSub = _firestore
+        .collection(collectionName)
+        .doc(targetDocId)
+        .collection('votes')
+        .snapshots()
+        .listen((snap) {
+      latestVotes = snap;
+      emitIfReady();
+    }, onError: (error) {
+      if (!controller.isClosed) controller.addError(error);
+    });
+
+    usersSub = _firestore
+        .collection('users')
+        .where('isVerified', isEqualTo: true)
+        .snapshots()
+        .listen((snap) {
+      latestUsers = snap;
+      emitIfReady();
+    }, onError: (error) {
+      if (!controller.isClosed) controller.addError(error);
+    });
+
+    if (byCollege) {
+      collegesSub = _firestore.collection('colleges').snapshots().listen((snap) {
+        latestColleges = snap;
+        emitIfReady();
+      }, onError: (error) {
+        if (!controller.isClosed) controller.addError(error);
+      });
+    }
+
+    controller.onCancel = () async {
+      await votesSub?.cancel();
+      await usersSub?.cancel();
+      await collegesSub?.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  Stream<List<Map<String, dynamic>>> getElectionDataRealtimeStream({
+    required String electionId,
+    required String electionType,
+    String? sourceCollection,
+    String? sourceDocId,
+  }) {
+    final controller = StreamController<List<Map<String, dynamic>>>();
+    StreamSubscription<QuerySnapshot>? statsSub;
+    StreamSubscription<QuerySnapshot>? candidatesSub;
+    StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? electionSub;
+
+    QuerySnapshot? latestStatsSnapshot;
+    QuerySnapshot? latestCandidatesSnapshot;
+    DocumentSnapshot<Map<String, dynamic>>? latestElectionDoc;
+
+    final String normalizedType = electionType.toLowerCase();
+    final bool isProposal = normalizedType == 'proposal';
+    final bool useArchiveSource =
+        sourceCollection == 'archives' && sourceDocId != null;
+    final String baseCollectionPath = useArchiveSource
+        ? 'archives'
+        : (isProposal ? 'proposals' : 'elections');
+    final String targetDocId = useArchiveSource
+        ? (sourceDocId ?? electionId)
+        : electionId;
+
+    void emitIfReady() {
+      if (latestStatsSnapshot == null ||
+          latestCandidatesSnapshot == null ||
+          latestElectionDoc == null) {
+        return;
+      }
+
+      try {
+        final Map<String, Map<String, dynamic>> groupedResults = {};
+        final Map<String, int> positionHierarchy = {};
+        final Map<String, Map<String, dynamic>> candidateLookupByNamePosition =
+            {};
+        final electionData = latestElectionDoc!.data() ?? {};
+        final proposalPositionTitle =
+            (electionData['name'] ?? electionData['title'] ?? 'Proposal Votes')
+                .toString();
+
+        void ensurePosition(String position, int fallbackRank) {
+          if (!groupedResults.containsKey(position)) {
+            groupedResults[position] = {
+              'candidates': <Map<String, dynamic>>[],
+              'rank': fallbackRank,
+            };
+          }
+          final existingRank = groupedResults[position]!['rank'] as int;
+          if (fallbackRank < existingRank) {
+            groupedResults[position]!['rank'] = fallbackRank;
+          }
+        }
+
+        void upsertCandidate({
+          required String position,
+          required String rawName,
+          int votes = 0,
+          String slate = '',
+          int fallbackRank = 999,
+        }) {
+          final candidateName = rawName.trim().isEmpty ? 'Unknown' : rawName.trim();
+          ensurePosition(position, fallbackRank);
+          final key = '${position.toLowerCase()}|${candidateName.toLowerCase()}';
+          final existing = candidateLookupByNamePosition[key];
+          if (existing != null) {
+            existing['votes'] = votes;
+            if ((existing['slate'] as String?)?.trim().isEmpty ?? true) {
+              existing['slate'] = slate;
+            }
+            return;
+          }
+
+          final row = {
+            'name': candidateName,
+            'votes': votes,
+            'isWinner': false,
+            'slate': slate,
+          };
+          (groupedResults[position]!['candidates'] as List<Map<String, dynamic>>)
+              .add(row);
+          candidateLookupByNamePosition[key] = row;
+        }
+
+        for (var doc in latestCandidatesSnapshot!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final String position = (data['position'] ?? 'Unknown Position')
+              .toString();
+          final String candidateName = (data['name'] ?? 'Unknown').toString();
+          final int dbRank = (data['pos_rank'] as num?)?.toInt() ?? 999;
+          final int canonicalRank = _positionRankFromName(position);
+          final int rank = canonicalRank == 999 ? dbRank : canonicalRank;
+          final String slate =
+              (data['slate'] ?? data['partylist'] ?? 'Independent').toString();
+
+          if (!positionHierarchy.containsKey(position) ||
+              rank < (positionHierarchy[position] ?? 999)) {
+            positionHierarchy[position] = rank;
+          }
+
+          upsertCandidate(
+            position: position,
+            rawName: candidateName,
+            votes: 0,
+            slate: slate,
+            fallbackRank: positionHierarchy[position] ?? rank,
+          );
+        }
+
+        for (var doc in latestStatsSnapshot!.docs) {
+          if (doc.id == 'general') continue;
+
+          final data = doc.data() as Map<String, dynamic>;
+          final String groupKey = isProposal
+              ? (data['position'] ?? proposalPositionTitle).toString()
+              : (data['position'] ?? 'Unknown Position').toString();
+          final int votes = (data['total_votes'] as num?)?.toInt() ?? 0;
+          final String candidateName = (data['name'] ?? 'Unknown').toString();
+          final String slate =
+              (data['slate'] ?? data['partylist'] ?? 'Independent').toString();
+
+          final int groupRank = positionHierarchy[groupKey] ??
+              (_positionRankFromName(groupKey) == 999
+                  ? 999
+                  : _positionRankFromName(groupKey));
+          ensurePosition(groupKey, groupRank);
+
+          upsertCandidate(
+            position: groupKey,
+            rawName: candidateName,
+            votes: votes,
+            slate: slate,
+            fallbackRank: groupRank,
+          );
+        }
+
+        if (isProposal) {
+          final String proposalPosition = groupedResults.isNotEmpty
+              ? groupedResults.keys.first
+              : proposalPositionTitle;
+          ensurePosition(
+            proposalPosition,
+            _positionRankFromName(proposalPosition),
+          );
+          upsertCandidate(
+            position: proposalPosition,
+            rawName: 'Yes',
+            votes: _readExistingVotes(
+              position: proposalPosition,
+              name: 'Yes',
+              lookup: candidateLookupByNamePosition,
+            ),
+            fallbackRank: _positionRankFromName(proposalPosition),
+          );
+          upsertCandidate(
+            position: proposalPosition,
+            rawName: 'No',
+            votes: _readExistingVotes(
+              position: proposalPosition,
+              name: 'No',
+              lookup: candidateLookupByNamePosition,
+            ),
+            fallbackRank: _positionRankFromName(proposalPosition),
+          );
+        } else {
+          for (final position in _defaultPositionOrder()) {
+            ensurePosition(position, _positionRankFromName(position));
+          }
+        }
+
+        groupedResults.forEach((position, result) {
+          final List<Map<String, dynamic>> candidates =
+              result['candidates'] as List<Map<String, dynamic>>;
+
+          int abstainVotes = 0;
+          String abstainSlate = 'Independent';
+          candidates.removeWhere((candidate) {
+            final isAbstain =
+                (candidate['name']?.toString().toLowerCase().trim() ?? '') ==
+                'abstain';
+            if (isAbstain) {
+              final value = (candidate['votes'] as num?)?.toInt() ?? 0;
+              if (value > abstainVotes) abstainVotes = value;
+              abstainSlate = (candidate['slate']?.toString() ?? abstainSlate);
+            }
+            return isAbstain;
+          });
+          candidateLookupByNamePosition
+              .remove('${position.toLowerCase()}|abstain');
+          upsertCandidate(
+            position: position,
+            rawName: 'Abstain',
+            votes: abstainVotes,
+            slate: abstainSlate,
+            fallbackRank: result['rank'] as int,
+          );
+
+          final refreshedCandidates =
+              groupedResults[position]!['candidates'] as List<Map<String, dynamic>>;
+
+          refreshedCandidates.sort((a, b) {
+            final nameA = (a['name'] ?? '').toString();
+            final nameB = (b['name'] ?? '').toString();
+            final isAbstainA = nameA.toLowerCase() == 'abstain';
+            final isAbstainB = nameB.toLowerCase() == 'abstain';
+            if (isAbstainA && !isAbstainB) return 1;
+            if (!isAbstainA && isAbstainB) return -1;
+
+            final votesA = (a['votes'] as num?)?.toInt() ?? 0;
+            final votesB = (b['votes'] as num?)?.toInt() ?? 0;
+            if (votesA != votesB) return votesB.compareTo(votesA);
+
+            final slateA = _normalizedSlate(a['slate']?.toString());
+            final slateB = _normalizedSlate(b['slate']?.toString());
+            if (slateA != slateB) return slateA.compareTo(slateB);
+
+            return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+          });
+
+          final maxVotes = refreshedCandidates.isEmpty
+              ? 0
+              : refreshedCandidates
+                    .map((c) => (c['votes'] as num?)?.toInt() ?? 0)
+                    .reduce((a, b) => a > b ? a : b);
+
+          for (final candidate in refreshedCandidates) {
+            if (maxVotes <= 0) {
+              candidate['isWinner'] = false;
+            } else {
+              candidate['isWinner'] =
+                  ((candidate['votes'] as num?)?.toInt() ?? 0) == maxVotes;
+            }
+          }
+        });
+
+        final List<Map<String, dynamic>> finalResults = groupedResults.entries.map((
+          entry,
+        ) {
+          return {
+            'position': entry.key,
+            'candidates': entry.value['candidates'],
+            'rank': entry.value['rank'],
+          };
+        }).toList();
+
+        finalResults.sort((a, b) {
+          final rankA = a['rank'] as int;
+          final rankB = b['rank'] as int;
+          return rankA.compareTo(rankB);
+        });
+
+        controller.add(finalResults);
+      } catch (e) {
+        if (!controller.isClosed) {
+          controller.addError(e);
+        }
+      }
+    }
+
+    statsSub = _firestore
+        .collection(baseCollectionPath)
+        .doc(targetDocId)
+        .collection('stats')
+        .snapshots()
+        .listen((snap) {
+      latestStatsSnapshot = snap;
+      emitIfReady();
+    }, onError: (error) {
+      if (!controller.isClosed) controller.addError(error);
+    });
+
+    candidatesSub = _firestore
+        .collection('candidates')
+        .where('election_id', isEqualTo: electionId)
+        .snapshots()
+        .listen((snap) {
+      latestCandidatesSnapshot = snap;
+      emitIfReady();
+    }, onError: (error) {
+      if (!controller.isClosed) controller.addError(error);
+    });
+
+    electionSub = _firestore
+        .collection(baseCollectionPath)
+        .doc(targetDocId)
+        .snapshots()
+        .listen((snap) {
+      latestElectionDoc = snap;
+      emitIfReady();
+    }, onError: (error) {
+      if (!controller.isClosed) controller.addError(error);
+    });
+
+    controller.onCancel = () async {
+      await statsSub?.cancel();
+      await candidatesSub?.cancel();
+      await electionSub?.cancel();
+    };
+
+    return controller.stream;
+  }
+
   int _readExistingVotes({
     required String position,
     required String name,

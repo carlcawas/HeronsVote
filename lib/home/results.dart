@@ -27,8 +27,8 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isFabVisible = true;
   
-  late Future<List<Map<String, dynamic>>> _resultsFuture;
-  late Future<TurnoutStats> _turnoutFuture;
+  late Stream<List<Map<String, dynamic>>> _resultsStream;
+  late Stream<TurnoutStats> _turnoutStream;
 
   // Colors
   final Color _bgColor = const Color(0xFFF7F7F7);
@@ -46,7 +46,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
     final sourceCollection = widget.electionData['sourceCollection'] as String?;
     final sourceDocId = widget.electionData['archiveId'] as String?;
     
-    _turnoutFuture = service.getTurnoutDataStream(
+    _turnoutStream = service.getTurnoutRealtimeStream(
       electionId: widget.electionData['id'],
       electionType: widget.electionData['type'] ?? 'local',
       userCollege: widget.electionData['college_id'],
@@ -54,7 +54,7 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
       sourceDocId: sourceDocId,
     );
 
-    _resultsFuture = service.getElectionDataStream(
+    _resultsStream = service.getElectionDataRealtimeStream(
       electionId: widget.electionData['id'],
       electionType: widget.electionData['type'] ?? 'local',
       sourceCollection: sourceCollection,
@@ -143,8 +143,8 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
                 _buildElectionHeader(),
                 const SizedBox(height: 12),
 
-                FutureBuilder<TurnoutStats>(
-                  future: _turnoutFuture,
+                StreamBuilder<TurnoutStats>(
+                  stream: _turnoutStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return SizedBox(
@@ -523,8 +523,8 @@ class _ElectionResultPageState extends State<ElectionResultPage> {
           ),
         ),
       ] else
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: _resultsFuture,
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: _resultsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
