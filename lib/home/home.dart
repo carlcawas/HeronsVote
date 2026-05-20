@@ -204,39 +204,60 @@ class _HomeScreenState extends State<HomeScreen> {
       // First Button - Announcement
       Padding(
         padding: const EdgeInsets.only(right: 11),
-        child: ClipOval(
-          // This clips the ripple effect to a circle
-          child: Material(
-            color: const Color(0xFFEEEEEE),
-            child: InkWell(
-              onTap: () {
-                // GOTO: ANNOUNCEMENT
-                Navigator.push(
-                  context,
-                  /*PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 0),
-                    pageBuilder: (_, __, ___) => AnnouncementsPage(userId: widget.uid),
-                  ),*/
-                  MaterialPageRoute(
-                    builder: (context) => AnnouncementsPage(userId: widget.uid),
-                  ),
-                );
-              },
-              child: SizedBox(
-                width: 45,
-                height: 45,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8, left: 6, top: 12, bottom: 12),
-                  child: SvgPicture.asset(
-                    'assets/announcement.svg',
-                    color: const Color(0xFF404040),
-                    width: 21,
-                    height: 23,
+        child: StreamBuilder<bool>(
+          stream: _firebaseService.hasUnreadAnnouncementsStream(widget.uid),
+          initialData: false,
+          builder: (context, snapshot) {
+            final hasUnreadAnnouncements = snapshot.data ?? false;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipOval(
+                  // This clips the ripple effect to a circle
+                  child: Material(
+                    color: const Color(0xFFEEEEEE),
+                    child: InkWell(
+                      onTap: () {
+                        // GOTO: ANNOUNCEMENT
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AnnouncementsPage(userId: widget.uid),
+                          ),
+                        );
+                      },
+                      child: SizedBox(
+                        width: 45,
+                        height: 45,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8, left: 6, top: 12, bottom: 12),
+                          child: SvgPicture.asset(
+                            'assets/announcement.svg',
+                            color: const Color(0xFF404040),
+                            width: 21,
+                            height: 23,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ),
+                if (hasUnreadAnnouncements)
+                  const Positioned(
+                    top: 6,
+                    right: 6,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Color(0xFFE53935),
+                        shape: BoxShape.circle,
+                      ),
+                      child: SizedBox(width: 10, height: 10),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
 

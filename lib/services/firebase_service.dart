@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:heronsvote/model/turnout_model.dart';
+import 'package:rxdart/rxdart.dart';
 
 /// UPDATE THIS:
 ///  - Used in login_screen.dart
@@ -375,6 +376,44 @@ class FirebaseService {
         .collection('announcements')
         .where('status', isEqualTo: 'Published')
         .get();
+  }
+
+  Stream<bool> hasUnreadAnnouncementsStream(String userId) {
+    final announcementsStream = _firestore
+        .collection('announcements')
+        .where('status', isEqualTo: 'Published')
+        .snapshots();
+
+    final readAnnouncementsStream = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('read_status')
+        .doc('read_announcements')
+        .snapshots();
+
+    return Rx.combineLatest2<QuerySnapshot, DocumentSnapshot, bool>(
+      announcementsStream,
+      readAnnouncementsStream,
+      (announcementsSnapshot, readSnapshot) {
+        final now = DateTime.now();
+        final readIds = readSnapshot.exists
+            ? List<String>.from(
+                (readSnapshot.data() as Map<String, dynamic>?)?['announcement_ids'] ?? const [],
+              )
+            : const <String>[];
+
+        for (final announcementDoc in announcementsSnapshot.docs) {
+          final data = announcementDoc.data() as Map<String, dynamic>;
+          final scheduledDate = _asDateTime(data['scheduledDate']);
+          if (scheduledDate == null || scheduledDate.isAfter(now)) continue;
+          if (!readIds.contains(announcementDoc.id)) {
+            return true;
+          }
+        }
+
+        return false;
+      },
+    ).distinct();
   }
 
   // Gets a one-time fetch of read announcements for a specific user
