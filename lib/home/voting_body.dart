@@ -9,6 +9,7 @@ import 'voting_confirmation.dart';
 import '../services/firebase_service.dart';
 import 'profile.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Candidate list card
@@ -472,6 +473,7 @@ class _VotingHomePageState extends State<VotingHomePage> {
   late String _electionPeriod;
   late String _proposalDisplayName;
   bool _isProposal = false;
+  StreamSubscription<DocumentSnapshot>? _verifiedSub;
 
   // preload information
   late Stream<QuerySnapshot> _candidateStream;
@@ -479,18 +481,52 @@ class _VotingHomePageState extends State<VotingHomePage> {
   @override
   void initState() {
     super.initState();
-    _electionTitle = widget.electionData['title'] ?? 'Election Voting';
+    _applyElectionDataFromWidget();
+    _startVerifiedListener();
+
+    // Check if nag-vote na user
+    _checkIfUserVoted();
+
+    // load saved candidates
+    _loadSavedVotes();
+  }
+
+  @override
+  void didUpdateWidget(covariant VotingHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldElectionId = oldWidget.electionData['id'];
+    final nextElectionId = widget.electionData['id'];
+    if (oldElectionId != nextElectionId || oldWidget.uid != widget.uid) {
+      _selectedCandidates.clear();
+      _hasVoted = false;
+      _applyElectionDataFromWidget();
+      _startVerifiedListener();
+      _checkIfUserVoted();
+      _loadSavedVotes();
+    }
+  }
+
+  @override
+  void dispose() {
+    _verifiedSub?.cancel();
+    super.dispose();
+  }
+
+  void _applyElectionDataFromWidget() {
+    _electionTitle =
+        widget.electionData['title'] ??
+        widget.electionData['name'] ??
+        'Election Voting';
     _isProposal = widget.electionData['type'] == 'proposal';
     _proposalDisplayName = widget.electionData['proposalName'] ?? 'Proposal Name';
 
-    // Date Handling
     if (widget.electionData['start'] != null &&
         widget.electionData['end'] != null) {
       try {
-        Timestamp startTs = widget.electionData['start'];
-        Timestamp endTs = widget.electionData['end'];
-        String start = DateFormat('MMM d, yyyy').format(startTs.toDate());
-        String end = DateFormat('MMM d, yyyy').format(endTs.toDate());
+        final Timestamp startTs = widget.electionData['start'];
+        final Timestamp endTs = widget.electionData['end'];
+        final String start = DateFormat('MMM d, yyyy').format(startTs.toDate());
+        final String end = DateFormat('MMM d, yyyy').format(endTs.toDate());
         _electionPeriod = '$start - $end';
       } catch (e) {
         _electionPeriod = '(Ongoing)';
@@ -506,13 +542,27 @@ class _VotingHomePageState extends State<VotingHomePage> {
     } else {
       _candidateStream = const Stream.empty();
     }
+  }
 
-    // Check if nag-vote na user
-    _checkIfUserVoted();
-    _checkUserStatus();
-
-    // load saved candidates
-    _loadSavedVotes();
+  void _startVerifiedListener() {
+    _verifiedSub?.cancel();
+    _verifiedSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.uid)
+        .snapshots()
+        .listen((userDoc) {
+      if (!mounted) return;
+      final data = userDoc.data();
+      setState(() {
+        _isVerified = data?['isVerified'] ?? false;
+        _userCollege = data?['college_id'];
+        _userYearLevel = data?['year_level'];
+        _isLoadingVerification = false;
+      });
+    }, onError: (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingVerification = false);
+    });
   }
 
   Future<void> _loadSavedVotes() async {
@@ -596,44 +646,6 @@ class _VotingHomePageState extends State<VotingHomePage> {
       }
     } catch (e) {
       debugPrint("Error checking vote status: $e");
-    }
-  }
-
-  Future<void> _checkUserStatus() async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.uid)
-          .get();
-
-      bool verified = true;
-      if (userDoc.exists) {
-        final data = userDoc.data();
-        verified = data?['isVerified'] ?? false;
-        _userCollege = data?['college_id'];
-        _userYearLevel = data?['year_level'];
-      }
-
-      final String collectionPath = _isProposal ? 'proposals' : 'elections';
-      final String docId = widget.electionData['id'];
-
-      final voteDoc = await FirebaseFirestore.instance
-          .collection(collectionPath)
-          .doc(docId)
-          .collection('votes')
-          .doc(widget.uid)
-          .get();
-
-      if (mounted) {
-        setState(() {
-          _isVerified = verified;
-          _hasVoted = voteDoc.exists;
-          _isLoadingVerification = false;
-        });
-      }
-    } catch (e) {
-      print("Error checking status: $e");
-      if (mounted) setState(() => _isLoadingVerification = false);
     }
   }
 

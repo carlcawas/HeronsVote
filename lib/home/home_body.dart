@@ -832,7 +832,7 @@ class _HomeBodyState extends State<HomeBody> {
     // Recently Ended College Election
     else if (type == 'college') {
       return _buildCurrentOfficialsSection(
-        "Newly Elected $_userCollegeId Officials",
+        "Elected $_userCollegeId Officials",
         _firebaseService.getElectionResultsStream(_userCollegeId).first, 
         isResults: true,
       );
@@ -840,7 +840,7 @@ class _HomeBodyState extends State<HomeBody> {
 
     // Recently Ended University Election
     return _buildCurrentOfficialsSection(
-      "Newly Elected University Officials",
+      "Elected University Officials",
       _firebaseService.getUniversityOfficials(), 
       isResults: true,
     );

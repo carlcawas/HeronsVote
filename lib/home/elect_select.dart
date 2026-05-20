@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'profile.dart';
 import 'election_history.dart';
 
@@ -30,11 +31,42 @@ class _ElectionSelectionPageState extends State<ElectionSelectionPage> {
   bool _isVerified = true;
   bool _isLoading = true;
   bool _allVoted = false;
+  StreamSubscription<DocumentSnapshot>? _verifiedSub;
 
   @override
   void initState() {
     super.initState();
+    _startVerifiedListener();
     _checkStatus();
+  }
+
+  @override
+  void didUpdateWidget(covariant ElectionSelectionPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.uid != widget.uid || oldWidget.activeElections != widget.activeElections) {
+      _checkStatus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _verifiedSub?.cancel();
+    super.dispose();
+  }
+
+  void _startVerifiedListener() {
+    _verifiedSub?.cancel();
+    _verifiedSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.uid)
+        .snapshots()
+        .listen((userDoc) {
+      if (!mounted) return;
+      final verified = userDoc.data()?['isVerified'] ?? false;
+      setState(() {
+        _isVerified = verified;
+      });
+    });
   }
 
   Future<void> _checkStatus() async {

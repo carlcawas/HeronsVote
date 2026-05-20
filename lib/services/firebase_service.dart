@@ -932,11 +932,18 @@ class FirebaseService {
           if (ongoing) return _isWithinVotingWindow(data, now);
           return _isWithinResultsClosedWindow(data, now);
         }).map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final title = type == 'proposal'
+              ? (data['proposalName'] ?? data['name'] ?? 'Proposal Voting')
+              : (data['name'] ?? (type == 'college'
+                  ? 'College Election'
+                  : 'University Election'));
           return {
             'id': doc.id,
             'type': type,
             'ongoing': ongoing,
-            ...doc.data() as Map<String, dynamic>,
+            'title': title,
+            ...data,
           };
         }).toList();
       }
@@ -1037,11 +1044,18 @@ class FirebaseService {
           final data = doc.data() as Map<String, dynamic>;
           return _isWithinVotingWindow(data, now);
         }).map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final title = type == 'proposal'
+              ? (data['proposalName'] ?? data['name'] ?? 'Proposal Voting')
+              : (data['name'] ?? (type == 'college'
+                  ? 'College Election'
+                  : 'University Election'));
           return {
             'id': doc.id,
             'type': type,
             'ongoing': true,
-            ...doc.data() as Map<String, dynamic>,
+            'title': title,
+            ...data,
           };
         }).toList();
       }

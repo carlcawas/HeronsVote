@@ -67,19 +67,33 @@ class _CandidateListPageState extends State<CandidateListPage> {
     final cscSnapshot = results[1];
 
     String targetCollegeId = "none";
+    String targetElectionId = "";
     final isUscActive = uscSnapshot.docs.isNotEmpty;
     final isCscActive = cscSnapshot.docs.isNotEmpty;
 
     if (isUscActive) {
       targetCollegeId = "";
+      targetElectionId = uscSnapshot.docs.first.id;
     } else if (isCscActive) {
       targetCollegeId = userCollegeId;
+      targetElectionId = cscSnapshot.docs.first.id;
     }
 
-    QuerySnapshot candidatesSnapshot = await service.getCandidatesByPosition(
-      widget.positionTitle,
-      targetCollegeId,
-    );
+    QuerySnapshot candidatesSnapshot;
+    if (targetElectionId.isEmpty) {
+      candidatesSnapshot = await FirebaseFirestore.instance
+          .collection('candidates')
+          .where('position', isEqualTo: widget.positionTitle)
+          .where('college_id', isEqualTo: targetCollegeId)
+          .limit(1)
+          .get();
+    } else {
+      candidatesSnapshot = await FirebaseFirestore.instance
+          .collection('candidates')
+          .where('election_id', isEqualTo: targetElectionId)
+          .where('position', isEqualTo: widget.positionTitle)
+          .get();
+    }
 
     return {
       'usc': uscSnapshot,

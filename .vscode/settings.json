@@ -1,4 +1,4 @@
-﻿{
+{
     "java.project.resourceFilters":  [
                                          "node_modules",
                                          ".git",
@@ -14,5 +14,6 @@
     "gradle.java.home":  "C:/Program Files/Android/Android Studio/jbr",
     "java.import.gradle.wrapper.enabled":  true,
     "java.jdt.ls.androidSupport.enabled":  "off",
-    "java.jdt.ls.java.home":  "C:/Program Files/Android/Android Studio/jbr"
+    "java.jdt.ls.java.home": "C:/Program Files/Android/Android Studio/jbr",
+    "cmake.ignoreCMakeListsMissing": true
 }

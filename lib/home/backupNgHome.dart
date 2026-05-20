@@ -772,7 +772,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // If csc election recently ended, display the label below
     else if (type == 'college') {
       return _buildCurrentOfficialsSection(
-        "Newly Elected $_userCollegeId Officials",
+        "Elected $_userCollegeId Officials",
         _firebaseService.getElectionResultsStream(id),
         isResults: true,
       );
@@ -780,7 +780,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // If usc election recently ended, display the label below
     return _buildCurrentOfficialsSection(
-      "Newly Elected University Officials",
+      "Elected University Officials",
       _firebaseService.getElectionResultsStream(id),
       isResults: true,
     );
